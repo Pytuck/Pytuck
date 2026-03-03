@@ -67,7 +67,8 @@ class CSVBackend(StorageBackend):
                             'nullable': col.nullable,
                             'primary_key': col.primary_key,
                             'index': col.index,
-                            'comment': col.comment
+                            'comment': col.comment,
+                            'default': col.default if isinstance(col.default, (int, float, str, bool, type(None))) else None
                         }
                         for col in table.columns.values()
                     ]
@@ -216,7 +217,8 @@ class CSVBackend(StorageBackend):
                 nullable=col_data['nullable'],
                 primary_key=col_data['primary_key'],
                 index=col_data.get('index', False),
-                comment=col_data.get('comment')
+                comment=col_data.get('comment'),
+                default=col_data.get('default')
             )
             columns.append(column)
 
