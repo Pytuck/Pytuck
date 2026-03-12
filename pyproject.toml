@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytuck"
-version = "0.7.1"
+version = "0.8.0"
 description = "Lightweight Python document database - No SQL, multi-engine, pluggable persistence"
 readme = "README.md"
 license = {text = "MIT"}
@@ -54,6 +54,7 @@ sqlite = []
 excel = ["openpyxl>=3.0.0"]
 xml = ["lxml>=4.9.0"]
 all = ["openpyxl>=3.0.0", "lxml>=4.9.0", "orjson>=3.8.0", "ujson>=5.5.0"]
+view = ["openpyxl>=3.0.0", "lxml>=4.9.0", "orjson>=3.8.0"]
 dev = [
     "pytest>=7.0.0",
     "mypy>=0.950",

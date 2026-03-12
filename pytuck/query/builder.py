@@ -22,7 +22,10 @@ _OPERATOR_EVAL: Dict[str, Callable[[Any, Any], bool]] = {
     '>=': lambda x, y: x >= y,
     '<=': lambda x, y: x <= y,
     '!=': lambda x, y: x != y,
-    'IN': lambda x, y: x in y
+    'IN': lambda x, y: x in y,
+    'LIKE': lambda x, y: isinstance(x, str) and isinstance(y, str) and y.lower() in x.lower(),
+    'STARTSWITH': lambda x, y: isinstance(x, str) and isinstance(y, str) and x.lower().startswith(y.lower()),
+    'ENDSWITH': lambda x, y: isinstance(x, str) and isinstance(y, str) and x.lower().endswith(y.lower()),
 }
 
 
@@ -35,7 +38,7 @@ class Condition:
 
         Args:
             field: 字段名
-            operator: 操作符 ('=', '>', '<', '>=', '<=', '!=', 'IN')
+            operator: 操作符 ('=', '>', '<', '>=', '<=', '!=', 'IN', 'LIKE', 'STARTSWITH', 'ENDSWITH')
             value: 比较值
 
         Raises:
@@ -80,7 +83,7 @@ class BinaryExpression:
 
         Args:
             column: Column 对象
-            operator: 操作符 ('=', '>', '<', '>=', '<=', '!=', 'IN')
+            operator: 操作符 ('=', '>', '<', '>=', '<=', '!=', 'IN', 'LIKE', 'STARTSWITH', 'ENDSWITH')
             value: 比较值
         """
         self.column = column

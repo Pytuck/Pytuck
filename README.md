@@ -13,6 +13,13 @@
 
 > **设计初衷**：为 Ren'Py 等阉割版 Python 环境提供零依赖的关系型数据库方案，让任何受限环境都能享受 SQLAlchemy 风格的 Pythonic 数据操作体验。
 
+> [!IMPORTANT]
+> **适用场景说明**：Pytuck 是纯 Python 实现的嵌入式数据库，专为**中小规模数据**和**受限环境**设计。
+> - **数据量建议**：万级记录以内体验最佳，十万级以上建议使用 SQLite 引擎或评估其他方案
+> - **性能定位**：纯 Python 实现意味着性能无法与 C 扩展数据库（如 SQLite、PostgreSQL）相比，不适合高并发或计算密集型场景
+> - **并发限制**：定位单进程嵌入式数据库，不支持多进程并发访问
+> - **如果你的环境没有特殊限制**，建议优先考虑 [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite/PostgreSQL 等成熟方案，它们拥有更好的性能、更完善的生态和更广泛的社区支持
+
 ## 仓库镜像
 
 - **GitHub**: https://github.com/Pytuck/Pytuck

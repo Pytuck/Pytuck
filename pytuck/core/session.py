@@ -1091,6 +1091,79 @@ class Session:
         table_name = self._resolve_table_name(model_or_table)
         self.storage.drop_column(table_name, column_name)
 
+    def alter_column(
+        self,
+        model_or_table: Union[Type[PureBaseModel], str],
+        column_name: str,
+        *,
+        col_type: Any = ...,
+        nullable: Any = ...,
+        default: Any = ...
+    ) -> None:
+        """
+        修改列属性（类型、可空性、默认值）
+
+        Args:
+            model_or_table: 模型类或表名字符串
+            column_name: 列名
+            col_type: 新类型（... 表示不修改）
+            nullable: 新的可空性（... 表示不修改）
+            default: 新默认值（... 表示不修改）
+
+        Example:
+            # 修改列类型
+            session.alter_column(User, 'age', col_type=str)
+
+            # 设置为非空并提供默认值
+            session.alter_column(User, 'status', nullable=False, default='active')
+
+            # 通过表名修改
+            session.alter_column('users', 'score', col_type=float)
+        """
+        table_name = self._resolve_table_name(model_or_table)
+        self.storage.alter_column(
+            table_name, column_name,
+            col_type=col_type, nullable=nullable, default=default
+        )
+
+    def set_primary_key(
+        self,
+        model_or_table: Union[Type[PureBaseModel], str],
+        column_name: str
+    ) -> None:
+        """
+        修改表的主键
+
+        Args:
+            model_or_table: 模型类或表名字符串
+            column_name: 新主键列名
+
+        Example:
+            session.set_primary_key(User, 'email')
+            session.set_primary_key('users', 'email')
+        """
+        table_name = self._resolve_table_name(model_or_table)
+        self.storage.set_primary_key(table_name, column_name)
+
+    def reorder_columns(
+        self,
+        model_or_table: Union[Type[PureBaseModel], str],
+        new_order: List[str]
+    ) -> None:
+        """
+        重新排列列的顺序
+
+        Args:
+            model_or_table: 模型类或表名字符串
+            new_order: 新的列名顺序列表
+
+        Example:
+            session.reorder_columns(User, ['id', 'email', 'name', 'age'])
+            session.reorder_columns('users', ['id', 'email', 'name', 'age'])
+        """
+        table_name = self._resolve_table_name(model_or_table)
+        self.storage.reorder_columns(table_name, new_order)
+
     def update_table_comment(
         self,
         model_or_table: Union[Type[PureBaseModel], str],

@@ -143,6 +143,9 @@ class XMLBackend(StorageBackend):
             )
             if col.comment:
                 col_elem.set('comment', col.comment)
+            if col.default is not None and isinstance(col.default, (int, float, str, bool)):
+                col_elem.set('default', str(col.default))
+                col_elem.set('default_type', type(col.default).__name__)
 
         # 记录数据
         records_elem = etree.SubElement(table_elem, 'records')
@@ -196,13 +199,28 @@ class XMLBackend(StorageBackend):
         for col_elem in columns_elem.findall('column'):
             col_type = TypeRegistry.get_type_by_name(col_elem.get('type'))
 
+            # 恢复默认值
+            default_val: Any = None
+            default_str = col_elem.get('default')
+            default_type = col_elem.get('default_type')
+            if default_str is not None and default_type:
+                if default_type == 'int':
+                    default_val = int(default_str)
+                elif default_type == 'float':
+                    default_val = float(default_str)
+                elif default_type == 'bool':
+                    default_val = default_str.lower() == 'true'
+                elif default_type == 'str':
+                    default_val = default_str
+
             column = Column(
                 col_type,
                 name=col_elem.get('name'),
                 nullable=(col_elem.get('nullable') == 'true'),
                 primary_key=(col_elem.get('primary_key') == 'true'),
                 index=(col_elem.get('index') == 'true'),
-                comment=col_elem.get('comment')
+                comment=col_elem.get('comment'),
+                default=default_val
             )
             columns.append(column)
 

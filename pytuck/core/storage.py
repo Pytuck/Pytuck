@@ -599,6 +599,215 @@ class Table:
         if column_name in self.indexes:
             del self.indexes[column_name]
 
+    def alter_column(
+        self,
+        column_name: str,
+        *,
+        col_type: Any = ...,
+        nullable: Any = ...,
+        default: Any = ...
+    ) -> None:
+        """
+        修改列属性（类型、可空性、默认值）
+
+        按通用数据库行为处理约束：
+        - 修改类型时，会尝试转换所有现有数据
+        - nullable True→False 时，如果有 default 则将 None 值填为 default，否则报错
+        - nullable False→True 无额外操作
+
+        Args:
+            column_name: 列名
+            col_type: 新类型（... 表示不修改）
+            nullable: 新的可空性（... 表示不修改）
+            default: 新默认值（... 表示不修改）
+
+        Raises:
+            ColumnNotFoundError: 列不存在
+            SchemaError: 修改后现有数据不满足新约束
+            TypeConversionError: 类型转换失败
+        """
+        if column_name not in self.columns:
+            raise ColumnNotFoundError(self.name, column_name)
+
+        old_col = self.columns[column_name]
+
+        # 确定变更内容
+        new_type = col_type if col_type is not ... else old_col.col_type
+        new_nullable = nullable if nullable is not ... else old_col.nullable
+        new_default = default if default is not ... else old_col.default
+
+        need_type_convert = col_type is not ... and col_type != old_col.col_type
+        need_nullable_check = nullable is not ... and not new_nullable and old_col.nullable
+
+        # 第一步：验证所有记录是否满足新约束（先验证再修改）
+        converted_values: Dict[Any, Any] = {}  # {pk: converted_value}
+
+        for pk, record in self.data.items():
+            value = record.get(column_name)
+
+            if value is None:
+                # 处理 None 值
+                if need_nullable_check:
+                    # nullable True → False
+                    if new_default is not None:
+                        converted_values[pk] = new_default
+                    else:
+                        raise SchemaError(
+                            f"Cannot set column '{column_name}' to non-nullable: "
+                            f"existing record (pk={pk}) has null value and no default provided",
+                            table_name=self.name
+                        )
+                continue
+
+            if need_type_convert:
+                # 尝试类型转换
+                from .orm import _TYPE_CONVERTERS
+                converter = _TYPE_CONVERTERS.get(new_type)
+                if converter is None:
+                    raise SchemaError(
+                        f"Unsupported target type: {new_type.__name__}",
+                        table_name=self.name
+                    )
+                try:
+                    converted_values[pk] = converter(value)
+                except (ValueError, TypeError) as e:
+                    from ..common.exceptions import TypeConversionError
+                    raise TypeConversionError(
+                        f"Cannot convert value of column '{column_name}' "
+                        f"in record (pk={pk}): {e}",
+                        value=value,
+                        target_type=new_type.__name__,
+                        column_name=column_name
+                    )
+
+        # 第二步：验证通过，应用变更
+
+        # 创建新的 Column 对象替换旧对象
+        new_column = Column(
+            new_type,
+            name=old_col.name,
+            nullable=new_nullable,
+            primary_key=old_col.primary_key,
+            index=old_col.index,
+            default=new_default,
+            foreign_key=old_col.foreign_key,
+            comment=old_col.comment,
+            strict=old_col.strict
+        )
+        self.columns[column_name] = new_column
+
+        # 应用数据转换
+        for pk, converted_value in converted_values.items():
+            self.data[pk][column_name] = converted_value
+
+        # 如果列有索引，重建索引
+        if new_column.index and column_name in self.indexes:
+            del self.indexes[column_name]
+            self.build_index(column_name)
+
+    def set_primary_key(self, column_name: str) -> None:
+        """
+        修改表的主键
+
+        将指定列设置为新的主键。会验证该列的值唯一且非空，
+        并重建 data 字典以新主键值为 key。
+
+        Args:
+            column_name: 新主键列名
+
+        Raises:
+            ColumnNotFoundError: 列不存在
+            SchemaError: 列包含重复值或空值
+        """
+        if column_name not in self.columns:
+            raise ColumnNotFoundError(self.name, column_name)
+
+        # 相同主键，无需操作
+        if column_name == self.primary_key:
+            return
+
+        target_col = self.columns[column_name]
+
+        # 验证新主键列的值唯一且非 null
+        seen: set = set()
+        for pk, record in self.data.items():
+            value = record.get(column_name)
+            if value is None:
+                raise SchemaError(
+                    f"Cannot set '{column_name}' as primary key: "
+                    f"record (pk={pk}) has null value",
+                    table_name=self.name
+                )
+            if value in seen:
+                raise SchemaError(
+                    f"Cannot set '{column_name}' as primary key: "
+                    f"duplicate value '{value}'",
+                    table_name=self.name
+                )
+            seen.add(value)
+
+        # 重建 data 字典
+        new_data: Dict[Any, Dict[str, Any]] = {}
+        for record in self.data.values():
+            new_pk = record[column_name]
+            new_data[new_pk] = record
+        self.data = new_data
+
+        # 更新 Column.primary_key 属性
+        if self.primary_key and self.primary_key in self.columns:
+            self.columns[self.primary_key].primary_key = False
+        target_col.primary_key = True
+        self.primary_key = column_name
+
+        # 更新 next_id
+        if target_col.col_type == int and self.data:
+            max_pk = max(pk for pk in self.data if isinstance(pk, int))
+            self.next_id = max_pk + 1
+        elif target_col.col_type == int:
+            self.next_id = 1
+
+    def reorder_columns(self, new_order: List[str]) -> None:
+        """
+        重新排列列的顺序
+
+        影响序列化时的列顺序（如 CSV 列顺序）。
+
+        Args:
+            new_order: 新的列名顺序列表，必须包含且仅包含所有列
+
+        Raises:
+            SchemaError: new_order 与现有列集合不一致
+        """
+        existing_cols = set(self.columns.keys())
+        new_cols = set(new_order)
+
+        if len(new_order) != len(new_cols):
+            raise SchemaError(
+                "new_order contains duplicate column names",
+                table_name=self.name
+            )
+
+        if new_cols != existing_cols:
+            missing = existing_cols - new_cols
+            extra = new_cols - existing_cols
+            parts = []
+            if missing:
+                parts.append(f"missing: {missing}")
+            if extra:
+                parts.append(f"unknown: {extra}")
+            raise SchemaError(
+                f"new_order does not match existing columns: {', '.join(parts)}",
+                table_name=self.name
+            )
+
+        # 重建有序的 columns 字典
+        self.columns = {name: self.columns[name] for name in new_order}
+
+        # 重建每条记录的字段顺序
+        for pk in self.data:
+            record = self.data[pk]
+            self.data[pk] = {name: record.get(name) for name in new_order}
+
     def update_comment(self, comment: Optional[str]) -> None:
         """
         更新表备注
@@ -1106,6 +1315,77 @@ class Storage:
             self._dirty = True
 
         if self._dirty and self.auto_flush:
+            self.flush()
+
+    def alter_column(
+        self,
+        table_name: str,
+        column_name: str,
+        *,
+        col_type: Any = ...,
+        nullable: Any = ...,
+        default: Any = ...
+    ) -> None:
+        """
+        修改列属性（类型、可空性、默认值）
+
+        Args:
+            table_name: 表名
+            column_name: 列名
+            col_type: 新类型（... 表示不修改）
+            nullable: 新的可空性（... 表示不修改）
+            default: 新默认值（... 表示不修改）
+
+        Raises:
+            TableNotFoundError: 表不存在
+            ColumnNotFoundError: 列不存在
+            SchemaError: 修改后现有数据不满足新约束
+            TypeConversionError: 类型转换失败
+        """
+        table = self.get_table(table_name)
+        table.alter_column(column_name, col_type=col_type, nullable=nullable, default=default)
+        self._dirty = True
+
+        if self.auto_flush:
+            self.flush()
+
+    def set_primary_key(self, table_name: str, column_name: str) -> None:
+        """
+        修改表的主键
+
+        Args:
+            table_name: 表名
+            column_name: 新主键列名
+
+        Raises:
+            TableNotFoundError: 表不存在
+            ColumnNotFoundError: 列不存在
+            SchemaError: 列包含重复值或空值
+        """
+        table = self.get_table(table_name)
+        table.set_primary_key(column_name)
+        self._dirty = True
+
+        if self.auto_flush:
+            self.flush()
+
+    def reorder_columns(self, table_name: str, new_order: List[str]) -> None:
+        """
+        重新排列列的顺序
+
+        Args:
+            table_name: 表名
+            new_order: 新的列名顺序列表
+
+        Raises:
+            TableNotFoundError: 表不存在
+            SchemaError: new_order 与现有列集合不一致
+        """
+        table = self.get_table(table_name)
+        table.reorder_columns(new_order)
+        self._dirty = True
+
+        if self.auto_flush:
             self.flush()
 
     # ========== 原生 SQL 模式的 Schema 操作 ==========
@@ -1788,9 +2068,9 @@ class Storage:
                 params.extend(cond_params)
             else:
                 # 简单条件
-                op = self._convert_operator(condition.operator)
-                where_parts.append(f'`{condition.field}` {op} ?')
-                params.append(condition.value)
+                sql_part, param = self._compile_simple_condition(condition)
+                where_parts.append(sql_part)
+                params.append(param)
 
         where_clause = ' AND '.join(where_parts) if where_parts else None
 
@@ -1838,9 +2118,9 @@ class Storage:
                 parts.append(f'NOT ({child_sql})')
                 params.extend(child_params)
             else:
-                op = self._convert_operator(child.operator)
-                parts.append(f'NOT (`{child.field}` {op} ?)')
-                params.append(child.value)
+                sql_part, param = self._compile_simple_condition(child)
+                parts.append(f'NOT ({sql_part})')
+                params.append(param)
         else:
             # AND 或 OR
             for child in condition.conditions:
@@ -1849,15 +2129,38 @@ class Storage:
                     parts.append(f'({child_sql})')
                     params.extend(child_params)
                 else:
-                    op = self._convert_operator(child.operator)
-                    parts.append(f'`{child.field}` {op} ?')
-                    params.append(child.value)
+                    sql_part, param = self._compile_simple_condition(child)
+                    parts.append(sql_part)
+                    params.append(param)
 
         if condition.operator == 'NOT':
             return parts[0], params
         else:
             connector_str = ' AND ' if condition.operator == 'AND' else ' OR '
             return connector_str.join(parts), params
+
+    @staticmethod
+    def _compile_simple_condition(child: Condition) -> Tuple[str, Any]:
+        """
+        编译单个 Condition 为 SQL 片段和参数
+
+        对 LIKE/STARTSWITH/ENDSWITH 操作符做特殊的通配符处理。
+
+        Args:
+            child: Condition 对象
+
+        Returns:
+            (SQL 片段, 参数值)
+        """
+        if child.operator == 'LIKE':
+            return f'`{child.field}` LIKE ?', f'%{child.value}%'
+        elif child.operator == 'STARTSWITH':
+            return f'`{child.field}` LIKE ?', f'{child.value}%'
+        elif child.operator == 'ENDSWITH':
+            return f'`{child.field}` LIKE ?', f'%{child.value}'
+        else:
+            op = Storage._convert_operator(child.operator)
+            return f'`{child.field}` {op} ?', child.value
 
     @staticmethod
     def _convert_operator(op: str) -> str:
@@ -1870,6 +2173,9 @@ class Storage:
             'le': '<=',
             'gt': '>',
             'ge': '>=',
+            'LIKE': 'LIKE',
+            'STARTSWITH': 'LIKE',
+            'ENDSWITH': 'LIKE',
         }
         return op_map.get(op, op)
 
@@ -1879,7 +2185,7 @@ class Storage:
                         offset: int = 0,
                         order_by: Optional[str] = None,
                         order_desc: bool = False,
-                        filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                        filters: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None) -> Dict[str, Any]:
         """
         查询表数据（专为 Web UI 设计）
 
@@ -1889,7 +2195,12 @@ class Storage:
             offset: 跳过的记录数
             order_by: 排序字段名
             order_desc: 是否降序排列
-            filters: 过滤条件字典 {field: value}
+            filters: 过滤条件，支持两种格式：
+                - Dict[str, Any]: 等值过滤 {field: value}（向后兼容）
+                - List[Dict[str, Any]]: 带操作符过滤
+                  [{'field': str, 'operator': str, 'value': Any}, ...]
+                  支持的操作符: '=', '!=', '>', '<', '>=', '<=', 'IN',
+                              'LIKE', 'STARTSWITH', 'ENDSWITH'
 
         Returns:
             {
@@ -1904,15 +2215,26 @@ class Storage:
 
         table = self.get_table(table_name)
 
-        # 尝试使用后端分页（如果支持）
-        if self.backend and self.backend.supports_server_side_pagination():
-
-            # 转换过滤条件为简化格式
-            backend_conditions: List[Dict[str, Any]] = []
-            if filters:
+        # 统一解析 filters 为 backend_conditions 列表
+        backend_conditions: List[Dict[str, Any]] = []
+        if filters:
+            if isinstance(filters, dict):
+                # 旧格式：{field: value} → 等值过滤
                 for field, value in filters.items():
                     if field in table.columns:
                         backend_conditions.append({'field': field, 'operator': '=', 'value': value})
+            elif isinstance(filters, list):
+                # 新格式：[{'field': str, 'operator': str, 'value': Any}, ...]
+                for f in filters:
+                    if f.get('field') in table.columns:
+                        backend_conditions.append({
+                            'field': f['field'],
+                            'operator': f.get('operator', '='),
+                            'value': f['value']
+                        })
+
+        # 尝试使用后端分页（如果支持）
+        if self.backend and self.backend.supports_server_side_pagination():
 
             try:
                 # 使用后端分页
@@ -1941,10 +2263,8 @@ class Storage:
         # 使用内存分页（默认方式）
         # 构建查询条件
         conditions: List[Condition] = []
-        if filters:
-            for field, value in filters.items():
-                if field in table.columns:
-                    conditions.append(Condition(field, '=', value))
+        for bc in backend_conditions:
+            conditions.append(Condition(bc['field'], bc['operator'], bc['value']))
 
         # 先查询总数（不分页）
         total_records = self.query(table_name, conditions)
