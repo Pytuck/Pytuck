@@ -94,6 +94,7 @@
 - [ ] **Pytuck-CLI** - 命令行工具（数据库管理、导入导出、Schema 迁移）
 - [ ] **FastAPI 集成示例/插件**
 - [ ] **Pandas DataFrame 互操作**
+- [ ] **异步 API 支持**（基于 asyncio 的异步查询和事务）
 
 ---
 
