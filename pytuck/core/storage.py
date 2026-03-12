@@ -2118,9 +2118,9 @@ class Storage:
                 parts.append(f'NOT ({child_sql})')
                 params.extend(child_params)
             else:
-                op = self._convert_operator(child.operator)
-                parts.append(f'NOT (`{child.field}` {op} ?)')
-                params.append(child.value)
+                sql_part, param = self._compile_simple_condition(child)
+                parts.append(f'NOT ({sql_part})')
+                params.append(param)
         else:
             # AND 或 OR
             for child in condition.conditions:
@@ -2129,15 +2129,38 @@ class Storage:
                     parts.append(f'({child_sql})')
                     params.extend(child_params)
                 else:
-                    op = self._convert_operator(child.operator)
-                    parts.append(f'`{child.field}` {op} ?')
-                    params.append(child.value)
+                    sql_part, param = self._compile_simple_condition(child)
+                    parts.append(sql_part)
+                    params.append(param)
 
         if condition.operator == 'NOT':
             return parts[0], params
         else:
             connector_str = ' AND ' if condition.operator == 'AND' else ' OR '
             return connector_str.join(parts), params
+
+    @staticmethod
+    def _compile_simple_condition(child: Condition) -> Tuple[str, Any]:
+        """
+        编译单个 Condition 为 SQL 片段和参数
+
+        对 LIKE/STARTSWITH/ENDSWITH 操作符做特殊的通配符处理。
+
+        Args:
+            child: Condition 对象
+
+        Returns:
+            (SQL 片段, 参数值)
+        """
+        if child.operator == 'LIKE':
+            return f'`{child.field}` LIKE ?', f'%{child.value}%'
+        elif child.operator == 'STARTSWITH':
+            return f'`{child.field}` LIKE ?', f'{child.value}%'
+        elif child.operator == 'ENDSWITH':
+            return f'`{child.field}` LIKE ?', f'%{child.value}'
+        else:
+            op = Storage._convert_operator(child.operator)
+            return f'`{child.field}` {op} ?', child.value
 
     @staticmethod
     def _convert_operator(op: str) -> str:
@@ -2150,6 +2173,9 @@ class Storage:
             'le': '<=',
             'gt': '>',
             'ge': '>=',
+            'LIKE': 'LIKE',
+            'STARTSWITH': 'LIKE',
+            'ENDSWITH': 'LIKE',
         }
         return op_map.get(op, op)
 
@@ -2159,7 +2185,7 @@ class Storage:
                         offset: int = 0,
                         order_by: Optional[str] = None,
                         order_desc: bool = False,
-                        filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                        filters: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None) -> Dict[str, Any]:
         """
         查询表数据（专为 Web UI 设计）
 
@@ -2169,7 +2195,12 @@ class Storage:
             offset: 跳过的记录数
             order_by: 排序字段名
             order_desc: 是否降序排列
-            filters: 过滤条件字典 {field: value}
+            filters: 过滤条件，支持两种格式：
+                - Dict[str, Any]: 等值过滤 {field: value}（向后兼容）
+                - List[Dict[str, Any]]: 带操作符过滤
+                  [{'field': str, 'operator': str, 'value': Any}, ...]
+                  支持的操作符: '=', '!=', '>', '<', '>=', '<=', 'IN',
+                              'LIKE', 'STARTSWITH', 'ENDSWITH'
 
         Returns:
             {
@@ -2184,15 +2215,26 @@ class Storage:
 
         table = self.get_table(table_name)
 
-        # 尝试使用后端分页（如果支持）
-        if self.backend and self.backend.supports_server_side_pagination():
-
-            # 转换过滤条件为简化格式
-            backend_conditions: List[Dict[str, Any]] = []
-            if filters:
+        # 统一解析 filters 为 backend_conditions 列表
+        backend_conditions: List[Dict[str, Any]] = []
+        if filters:
+            if isinstance(filters, dict):
+                # 旧格式：{field: value} → 等值过滤
                 for field, value in filters.items():
                     if field in table.columns:
                         backend_conditions.append({'field': field, 'operator': '=', 'value': value})
+            elif isinstance(filters, list):
+                # 新格式：[{'field': str, 'operator': str, 'value': Any}, ...]
+                for f in filters:
+                    if f.get('field') in table.columns:
+                        backend_conditions.append({
+                            'field': f['field'],
+                            'operator': f.get('operator', '='),
+                            'value': f['value']
+                        })
+
+        # 尝试使用后端分页（如果支持）
+        if self.backend and self.backend.supports_server_side_pagination():
 
             try:
                 # 使用后端分页
@@ -2221,10 +2263,8 @@ class Storage:
         # 使用内存分页（默认方式）
         # 构建查询条件
         conditions: List[Condition] = []
-        if filters:
-            for field, value in filters.items():
-                if field in table.columns:
-                    conditions.append(Condition(field, '=', value))
+        for bc in backend_conditions:
+            conditions.append(Condition(bc['field'], bc['operator'], bc['value']))
 
         # 先查询总数（不分页）
         total_records = self.query(table_name, conditions)
