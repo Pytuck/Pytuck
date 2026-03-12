@@ -11,130 +11,76 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.7.0] - 2026-02-07
+## [0.8.0] - 2026-03-13
 
 ### Added
 
-- **ORM Event Hooks**
-  - Model-level events: `before_insert`/`after_insert`, `before_update`/`after_update`, `before_delete`/`after_delete`
-  - Storage-level events: `before_flush`/`after_flush`
-  - Supports both decorator and functional registration
+- **String Matching Query Operators**
+  - `Column.contains(value)` — Substring match (case-insensitive)
+  - `Column.startswith(value)` — Prefix match (case-insensitive)
+  - `Column.endswith(value)` — Suffix match (case-insensitive)
+  - Supported in both in-memory engines and SQLite native SQL mode
+  - `query_table_data` `filters` parameter supports `LIKE`/`STARTSWITH`/`ENDSWITH` operators
   - Example:
     ```python
-    from pytuck import event
+    # Find users whose name contains "ali" (case-insensitive)
+    stmt = select(User).where(User.name.contains('ali'))
 
-    @event.listens_for(User, 'before_insert')
-    def set_timestamp(instance):
-        instance.created_at = datetime.now()
-
-    # Functional registration
-    event.listen(User, 'after_update', audit_changes)
-
-    # Storage-level events
-    event.listen(db, 'before_flush', lambda storage: print("flushing..."))
-
-    # Remove listener
-    event.remove(User, 'before_insert', set_timestamp)
+    # Prefix/suffix matching
+    stmt = select(User).where(User.name.startswith('Al'))
+    stmt = select(User).where(User.email.endswith('.com'))
     ```
 
-- **Relationship Prefetch API**
-  - Added `prefetch()` function for batch loading related data, solving the N+1 query problem
-  - Supports both standalone function call and query option styles
-  - Supports one-to-many and many-to-one relationships
+- **Database Column Operations**
+  - `alter_column()` — Modify column attributes (type, nullability, default value) with automatic data migration
+  - `set_primary_key()` — Change table primary key
+  - `reorder_columns()` — Reorder column positions
+  - Available at both Session and Storage layers; accepts model classes or table name strings
   - Example:
     ```python
-    from pytuck import prefetch, select
+    # Change column type
+    session.alter_column(User, 'age', col_type=str)
 
-    # Style 1: Standalone function
-    users = session.execute(select(User)).all()
-    prefetch(users, 'orders')              # Single query loads all users' orders
-    prefetch(users, 'orders', 'profile')   # Multiple relationship names
+    # Change primary key
+    session.set_primary_key(User, 'email')
 
-    # Style 2: Query option
-    stmt = select(User).options(prefetch('orders'))
-    users = session.execute(stmt).all()    # orders are batch-loaded
+    # Reorder columns
+    session.reorder_columns(User, ['id', 'email', 'name', 'age'])
     ```
 
-- **Select.options() Method**
-  - Added query option chaining support, currently used for prefetch
-
-- **Query Index Optimization**
-  - `Column` now supports specifying index type: `index='hash'` (hash index) or `index='sorted'` (sorted index)
-  - Range queries (`>`, `>=`, `<`, `<=`) automatically use SortedIndex for acceleration, avoiding full table scans
-  - `order_by` sorting automatically leverages SortedIndex ordering, with inline pagination (early stopping)
-  - `SortedIndex.range_query()` supports open-ended queries (`None` boundaries)
-  - Backward compatible: `index=True` still creates HashIndex
+- **query_table_data Advanced Filtering**
+  - `filters` parameter now supports both equality dicts and operator-based list format
+  - Supports all operators: `=`, `!=`, `>`, `<`, `>=`, `<=`, `IN`, `LIKE`, `STARTSWITH`, `ENDSWITH`
+  - Backward compatible: original `dict` format (equality filtering) still works
   - Example:
     ```python
-    class User(Base):
-        __tablename__ = 'users'
-        id = Column(int, primary_key=True)
-        name = Column(str, index=True)        # Hash index (equality query acceleration)
-        age = Column(int, index='sorted')      # Sorted index (range query + sorting acceleration)
-
-    # Range queries automatically use sorted index
-    stmt = select(User).where(User.age >= 18, User.age < 30)
-
-    # Sorting automatically uses sorted index (no full-data sorting needed)
-    stmt = select(User).order_by('age').limit(10)
+    # New format: operator-based filtering
+    db.query_table_data('users', filters=[
+        {'field': 'name', 'operator': 'LIKE', 'value': 'ali'},
+        {'field': 'age', 'operator': '>=', 'value': 18},
+    ])
     ```
 
-- **Bulk Operations (bulk_insert / bulk_update)**
-  - `Session.bulk_insert(instances)` — Batch insert model instance list, immediately writes to memory
-  - `Session.bulk_update(instances)` — Batch update model instance list, immediately writes to memory
-  - `CRUDBaseModel.bulk_insert(instances)` / `CRUDBaseModel.bulk_update(instances)` — Active Record style
-  - Batch PK allocation (pre-reserve ID ranges), batch index updates, batch WAL writes
-  - New bulk events: `before_bulk_insert` / `after_bulk_insert` / `before_bulk_update` / `after_bulk_update`
-  - **Difference from `session.add_all()`**: `add_all()` executes one-by-one during `commit()` with per-record events; `bulk_insert()` executes immediately in batch, skipping per-record events and select-back, offering better performance
-  - Example:
-    ```python
-    # Session layer
-    users = [User(name='Alice', age=20), User(name='Bob', age=22)]
-    session.bulk_insert(users)   # Immediately writes to memory, auto-assigns PKs
-    session.commit()             # Persists to disk
+- **CSV field_size_limit Configuration**
+  - Added `field_size_limit` parameter to `CsvBackendOptions` for custom CSV field size limits
+  - Resolves CSV parsing errors when data contains very large text fields (long articles, Base64 data, etc.)
 
-    # Active Record layer
-    User.bulk_insert([User(name='Carol'), User(name='Dave')])
+- **Column Default Value Support**
+  - Backend engines support setting column defaults via `alter_column`; new records are automatically populated
 
-    # Bulk update
-    for u in users:
-        u.age += 1
-    session.bulk_update(users)
-    ```
+- **Complete API Reference Documentation**
+  - Added `docs/api/` directory with 10 documentation files:
+    - Models, Storage, Session, Query System, Engine Comparison
+    - Configuration Options, Exception Hierarchy, Tools & Extensions, Best Practices, Index
+  - Covers all public API signatures, parameter descriptions, usage examples, and caveats
 
-### Performance Benchmark (Query Index Optimization)
-
-> Test environment: 100,000 records, age field range 1-100, comparing No Index / HashIndex / SortedIndex
-
-**Storage.query (Low-level Engine)**
-
-| Scenario | No Index | SortedIndex | Speedup |
-|----------|----------|-------------|---------|
-| Range query `age BETWEEN 30 AND 50` (~21% data) | 10.00s | 3.16s | **3.2x** |
-| High selectivity `age > 95` (~5% data) | 7.95s | 541ms | **14.7x** |
-| Full `order_by('age')` | 7.21s | 8.01s | 0.9x |
-
-**select() API (High-level)**
-
-| Scenario | No Index | SortedIndex | Speedup |
-|----------|----------|-------------|---------|
-| Range query `age BETWEEN X AND Y` | 33.60s | 28.28s | **1.2x** |
-| High selectivity `age > 95` | 10.19s | 2.96s | **3.4x** |
-| Combo `range + order_by + limit` | 6.51s | 4.48s | **1.5x** |
-
-**Key Findings**:
-- Range queries are SortedIndex's primary strength — bisect locates boundaries to reduce scan volume
-- Higher selectivity (fewer matching records) yields greater speedup — up to **14.7x** at the engine level
-- Upper-layer API speedup is lower than engine-level due to fixed model instantiation overhead
-- Pure sorting shows no improvement since Python's C-level timsort is already highly optimized
-- Combined queries (range + sort + pagination) benefit from reduced candidate set before sorting
-
-> Run benchmark: `python tests/benchmark/benchmark_index.py -n 100000`
+- **Usage Scope Disclaimer**
+  - README now includes prominent positioning and limitation notices (pure Python performance boundaries, data volume recommendations, alternative solutions, etc.)
+  - Best Practices documentation includes detailed scope and limitation tables
 
 ### Tests
 
-- Added ORM event hooks tests (35 test cases)
-- Added relationship prefetch tests (23 test cases)
-- Added query index optimization tests (42 test cases)
-- Added index optimization benchmark script (`tests/benchmark/benchmark_index.py`)
-- Added bulk operations tests (34 test cases)
+- Added string matching query tests (40 test cases covering expression creation, in-memory evaluation, Query/Select integration, query_table_data formats)
+- Added `alter_column` / `set_primary_key` / `reorder_columns` API tests
+- Added CSV `field_size_limit` option tests
+- Added SQLite backend string matching pagination tests
