@@ -7,6 +7,8 @@
 - Query.filter() 查询
 - select().where() 查询
 - query_table_data list 格式 filters
+- SQLite 后端原生 SQL 查询路径
+- SQLite 后端 query_with_pagination 分页路径
 """
 from pathlib import Path
 from typing import Type
@@ -322,3 +324,149 @@ class TestQueryTableDataFilters:
         db, User, session = db_with_users
         result = db.query_table_data('users', filters=None)
         assert result['total_count'] == 5
+
+
+# ==================== SQLite 后端原生 SQL 测试 ====================
+
+@pytest.fixture
+def sqlite_db_with_users(temp_dir: Path):
+    """创建 SQLite 后端的测试数据库"""
+    db_path = temp_dir / "test_sqlite.sqlite"
+    db = Storage(file_path=str(db_path), engine='sqlite')
+    Base: Type[PureBaseModel] = declarative_base(db)
+
+    class User(Base):
+        __tablename__ = 'users'
+        id = Column(int, primary_key=True)
+        name = Column(str)
+        email = Column(str)
+
+    session = Session(db)
+
+    users = [
+        {'name': 'Alice', 'email': 'alice@example.com'},
+        {'name': 'Bob', 'email': 'bob@test.org'},
+        {'name': 'Charlie', 'email': 'charlie@example.com'},
+        {'name': 'alice_lower', 'email': 'ALICE@UPPER.COM'},
+        {'name': 'David', 'email': 'david@test.org'},
+    ]
+    for u in users:
+        session.execute(insert(User).values(**u))
+    session.commit()
+    db.flush()
+
+    return db, User, session
+
+
+class TestSQLiteNativeSQLStringMatch:
+    """测试 SQLite 后端原生 SQL 路径的字符串匹配"""
+
+    def test_native_sql_contains(self, sqlite_db_with_users) -> None:
+        """SQLite 原生 SQL: select().where(User.name.contains(...))"""
+        db, User, session = sqlite_db_with_users
+        stmt = select(User).where(User.name.contains('ali'))
+        result = session.execute(stmt)
+        users = result.all()
+        names = [u.name for u in users]
+        assert 'Alice' in names
+        assert 'alice_lower' in names
+        assert 'Bob' not in names
+
+    def test_native_sql_startswith(self, sqlite_db_with_users) -> None:
+        """SQLite 原生 SQL: select().where(User.name.startswith(...))"""
+        db, User, session = sqlite_db_with_users
+        stmt = select(User).where(User.name.startswith('Ch'))
+        result = session.execute(stmt)
+        users = result.all()
+        names = [u.name for u in users]
+        assert 'Charlie' in names
+        assert len(names) == 1
+
+    def test_native_sql_endswith(self, sqlite_db_with_users) -> None:
+        """SQLite 原生 SQL: select().where(User.email.endswith('.org'))"""
+        db, User, session = sqlite_db_with_users
+        stmt = select(User).where(User.email.endswith('.org'))
+        result = session.execute(stmt)
+        users = result.all()
+        names = [u.name for u in users]
+        assert 'Bob' in names
+        assert 'David' in names
+        assert 'Alice' not in names
+
+    def test_native_sql_combined(self, sqlite_db_with_users) -> None:
+        """SQLite 原生 SQL: 字符串匹配与其他条件组合"""
+        db, User, session = sqlite_db_with_users
+        stmt = select(User).where(
+            User.email.contains('example'),
+            User.name.startswith('A')
+        )
+        result = session.execute(stmt)
+        users = result.all()
+        assert len(users) == 1
+        assert users[0].name == 'Alice'
+
+
+class TestSQLiteBackendPaginationStringMatch:
+    """测试 SQLite 后端 query_with_pagination 的字符串匹配"""
+
+    def test_pagination_like(self, sqlite_db_with_users) -> None:
+        """SQLite 后端分页: LIKE 操作符"""
+        db, User, session = sqlite_db_with_users
+        result = db.query_table_data('users', filters=[
+            {'field': 'name', 'operator': 'LIKE', 'value': 'ali'}
+        ])
+        names = [r['name'] for r in result['records']]
+        assert 'Alice' in names
+        assert 'alice_lower' in names
+        assert result['total_count'] == 2
+
+    def test_pagination_startswith(self, sqlite_db_with_users) -> None:
+        """SQLite 后端分页: STARTSWITH 操作符"""
+        db, User, session = sqlite_db_with_users
+        result = db.query_table_data('users', filters=[
+            {'field': 'email', 'operator': 'STARTSWITH', 'value': 'alice'}
+        ])
+        names = [r['name'] for r in result['records']]
+        assert 'Alice' in names
+        assert 'alice_lower' in names
+
+    def test_pagination_endswith(self, sqlite_db_with_users) -> None:
+        """SQLite 后端分页: ENDSWITH 操作符"""
+        db, User, session = sqlite_db_with_users
+        result = db.query_table_data('users', filters=[
+            {'field': 'email', 'operator': 'ENDSWITH', 'value': '.org'}
+        ])
+        names = [r['name'] for r in result['records']]
+        assert 'Bob' in names
+        assert 'David' in names
+        assert 'Alice' not in names
+
+    def test_pagination_dict_backward_compatible(self, sqlite_db_with_users) -> None:
+        """SQLite 后端分页: dict 格式向后兼容"""
+        db, User, session = sqlite_db_with_users
+        result = db.query_table_data('users', filters={'name': 'Alice'})
+        assert result['total_count'] == 1
+        assert result['records'][0]['name'] == 'Alice'
+
+    def test_pagination_multiple_filters(self, sqlite_db_with_users) -> None:
+        """SQLite 后端分页: 多条件组合"""
+        db, User, session = sqlite_db_with_users
+        result = db.query_table_data('users', filters=[
+            {'field': 'email', 'operator': 'ENDSWITH', 'value': '.com'},
+            {'field': 'name', 'operator': 'STARTSWITH', 'value': 'a'}
+        ])
+        names = [r['name'] for r in result['records']]
+        assert 'Alice' in names
+        assert 'alice_lower' in names
+        assert 'Charlie' not in names
+
+    def test_pagination_comparison_operators(self, sqlite_db_with_users) -> None:
+        """SQLite 后端分页: 比较操作符"""
+        db, User, session = sqlite_db_with_users
+        result = db.query_table_data('users', filters=[
+            {'field': 'id', 'operator': '>', 'value': 3}
+        ])
+        assert result['total_count'] == 2
+        names = [r['name'] for r in result['records']]
+        assert 'alice_lower' in names
+        assert 'David' in names
