@@ -689,10 +689,23 @@ class SQLiteBackend(StorageBackend):
                         operator = condition.get('operator', '=')
                         value = condition['value']
 
-                        if operator == '=':
-                            where_parts.append(f"`{field}` = ?")
+                        if operator == 'LIKE':
+                            where_parts.append(f"`{field}` LIKE ?")
+                            params.append(f"%{value}%")
+                        elif operator == 'STARTSWITH':
+                            where_parts.append(f"`{field}` LIKE ?")
+                            params.append(f"{value}%")
+                        elif operator == 'ENDSWITH':
+                            where_parts.append(f"`{field}` LIKE ?")
+                            params.append(f"%{value}")
+                        elif operator == 'IN':
+                            if isinstance(value, (list, tuple)) and len(value) > 0:
+                                placeholders = ', '.join('?' for _ in value)
+                                where_parts.append(f"`{field}` IN ({placeholders})")
+                                params.extend(value)
+                        elif operator in ('=', '!=', '>', '<', '>=', '<='):
+                            where_parts.append(f"`{field}` {operator} ?")
                             params.append(value)
-                        # 可以扩展更多操作符
 
                     if where_parts:
                         where_clause = "WHERE " + " AND ".join(where_parts)

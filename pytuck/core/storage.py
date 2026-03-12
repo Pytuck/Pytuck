@@ -2068,9 +2068,9 @@ class Storage:
                 params.extend(cond_params)
             else:
                 # 简单条件
-                op = self._convert_operator(condition.operator)
-                where_parts.append(f'`{condition.field}` {op} ?')
-                params.append(condition.value)
+                sql_part, param = self._compile_simple_condition(condition)
+                where_parts.append(sql_part)
+                params.append(param)
 
         where_clause = ' AND '.join(where_parts) if where_parts else None
 
