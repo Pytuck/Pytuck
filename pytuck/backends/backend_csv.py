@@ -7,6 +7,8 @@ Pytuck CSV存储引擎
 import csv
 import json
 import io
+import os
+import tempfile
 import threading
 import zipfile
 from pathlib import Path
@@ -49,8 +51,14 @@ class CSVBackend(StorageBackend):
 
     def save(self, tables: Dict[str, 'Table']) -> None:
         """保存所有表数据到ZIP压缩包"""
-        # 使用临时文件保证原子性
-        temp_path = self.file_path.parent / (self.file_path.name + '.tmp')
+        # 使用 tempfile.mkstemp 创建安全临时文件
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        os.close(fd)  # 关闭 fd，zipfile 将自行打开文件
+        temp_path = Path(temp_path_str)
 
         try:
             # 收集所有表的 schema
@@ -99,18 +107,15 @@ class CSVBackend(StorageBackend):
                     for table_name, table in tables.items():
                         self._save_table_to_zip(zf, table_name, table)
 
-            # 原子性重命名
-            if self.file_path.exists():
-                self.file_path.unlink()
+            # 原子性替换
             temp_path.replace(self.file_path)
 
         except Exception as e:
             # 清理临时文件
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except FileNotFoundError:
-                    pass
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
             raise SerializationError(f"Failed to save CSV archive: {e}")
 
     def load(self) -> Dict[str, 'Table']:

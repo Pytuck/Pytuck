@@ -6,6 +6,8 @@ Pytuck XML存储引擎
 
 import json
 import base64
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime, date, timedelta
@@ -48,7 +50,14 @@ class XMLBackend(StorageBackend):
         except ImportError:
             raise SerializationError("lxml is required for XML backend. Install with: pip install pytuck[xml]")
 
-        temp_path = self.file_path.parent / (self.file_path.name + '.tmp')
+        # 使用 tempfile.mkstemp 创建安全临时文件
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        os.close(fd)  # 关闭 fd，lxml 将自行打开文件
+        temp_path = Path(temp_path_str)
         try:
             # 创建根元素
             root = etree.Element(
@@ -70,16 +79,14 @@ class XMLBackend(StorageBackend):
                 encoding=self.options.encoding
             )
 
-            if self.file_path.exists():
-                self.file_path.unlink()
+            # 原子性替换
             temp_path.replace(self.file_path)
 
         except Exception as e:
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except FileNotFoundError:
-                    pass
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
             raise SerializationError(f"Failed to save XML file: {e}")
 
     def load(self) -> Dict[str, 'Table']:

@@ -6,6 +6,8 @@ Pytuck JSON存储引擎
 
 import json
 import inspect
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime
@@ -146,24 +148,28 @@ class JSONBackend(StorageBackend):
         for table_name, table in tables.items():
             data['tables'][table_name] = self._serialize_table(table)  # type: ignore
 
-        # 写入文件（原子性）
-        temp_path = self.file_path.parent / (self.file_path.name + '.tmp')
+        # 写入文件（原子性）：使用 tempfile.mkstemp 创建安全临时文件
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        temp_path = Path(temp_path_str)
 
         try:
-            with open(temp_path, 'w', encoding='utf-8') as f:
+            with os.fdopen(fd, 'w', encoding='utf-8') as f:
                 # 使用动态选择的JSON实现
                 json_str = self._dumps_func(data)
                 f.write(json_str)
 
-            # 原子性重命名
+            # 原子性替换
             temp_path.replace(self.file_path)
 
         except Exception as e:
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except FileNotFoundError:
-                    pass
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
             raise SerializationError(f"Failed to save JSON file: {e}")
 
     def load(self) -> Dict[str, 'Table']:

@@ -8,6 +8,7 @@ import io
 import json
 import os
 import struct
+import tempfile
 import zlib
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -370,12 +371,7 @@ class BinaryBackend(StorageBackend):
         - Data Region（可加密）
         - Index Region（可加密）
         """
-        temp_path = self.file_path.parent / (self.file_path.name + '.tmp')
-
-        # 收集所有表的 pk_offsets 和索引数据
-        all_table_index_data: Dict[str, Dict[str, Any]] = {}
-
-        # 加密设置
+        # 加密设置（在创建临时文件前完成校验，避免 fd 泄漏）
         encryption_level = self.options.encryption
         cipher: Optional[CipherType] = None
         salt = b'\x00' * 16
@@ -393,8 +389,19 @@ class BinaryBackend(StorageBackend):
             key_check = CryptoProvider.compute_key_check(key)
             cipher = get_cipher(encryption_level, key)
 
+        # 使用 tempfile.mkstemp 创建安全临时文件
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        temp_path = Path(temp_path_str)
+
+        # 收集所有表的 pk_offsets 和索引数据
+        all_table_index_data: Dict[str, Dict[str, Any]] = {}
+
         try:
-            with open(temp_path, 'wb') as f:
+            with os.fdopen(fd, 'wb') as f:
                 # 1. 预留双 Header 空间（256 字节）
                 f.write(b'\x00' * self.DUAL_HEADER_SIZE)
 
@@ -480,11 +487,10 @@ class BinaryBackend(StorageBackend):
 
         except Exception as e:
             # 清理临时文件
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except FileNotFoundError:
-                    pass
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
             raise SerializationError(f"Failed to save binary file: {e}")
 
     def load(self) -> Dict[str, 'Table']:
