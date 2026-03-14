@@ -34,7 +34,7 @@
 - **泛型类型提示** - 完整的泛型支持，IDE智能提示精确到具体模型类型（`List[User]` 而非 `List[PureBaseModel]`）
 - **Pythonic 查询语法** - 使用原生 Python 运算符构建查询（`User.age >= 18`）
 - **索引优化** - 哈希索引和有序索引加速查询，范围查询和排序自动利用索引
-- **类型安全** - 自动类型验证和转换（宽松/严格模式），支持 10 种字段类型
+- **类型安全** - 自动类型验证和转换（宽松/严格模式），支持自定义校验器（validator），10 种字段类型
 - **关联关系** - 支持一对多和多对一关联，延迟加载+自动缓存
 - **独立数据模型** - Session 关闭后仍可访问，像 Pydantic 一样使用
 - **持久化** - 数据自动或手动持久化到磁盘
@@ -732,6 +732,26 @@ class StrictUser(Base):
 user = StrictUser(age='25')  # ❌ ValidationError
 ```
 
+#### 自定义校验器（validator）
+
+使用 `validator` 参数对字段值进行更细粒度的约束：
+
+```python
+class ValidatedUser(Base):
+    __tablename__ = 'validated_users'
+    id = Column(int, primary_key=True)
+    name = Column(str, validator=lambda x: len(x) <= 100)        # 限制长度
+    age = Column(int, validator=[lambda x: x >= 0, lambda x: x <= 150])  # 多个约束
+    email = Column(str, validator=lambda x: '@' in x)            # 格式校验
+
+ValidatedUser.create(name='Alice', age=25, email='a@b.com')  # ✅ 通过
+ValidatedUser.create(age=200)  # ❌ ValidationError: 校验失败
+```
+
+- validator 在类型转换**之后**执行，接收的值已是正确类型
+- `None` 值跳过 validator（由 `nullable` 控制是否允许 `None`）
+- 返回 `False` 或抛出异常时触发 `ValidationError`
+
 **类型转换规则（宽松模式）**：
 
 | Python 类型 | 转换规则 | 示例 |
@@ -763,16 +783,20 @@ def get_user(id: int):
     user = session.execute(stmt).scalars().first()
     session.close()
 
-    # 返回模型，无需担心 session 已关闭
-    return user.to_dict()
+    # 返回模型，支持字段筛选（隐藏敏感字段）
+    return user.to_dict(exclude={'password', 'secret'})
 
 # 数据传递：模型对象可以在函数间自由传递
 def process_users(users: List[User]) -> List[dict]:
-    return [u.to_dict() for u in users]
+    return [u.to_dict(include={'id', 'name', 'email'}) for u in users]
 
-# JSON 序列化
-import json
-user_json = json.dumps(user.to_dict())
+# JSON 序列化（自动处理 datetime/bytes 等特殊类型）
+json_str = user.to_json()                    # 紧凑 JSON 字符串
+json_str = user.to_json(indent=2)            # 格式化输出
+json_str = user.to_json(exclude={'password'}) # 排除敏感字段
+
+# 展开关联数据
+user.to_dict(depth=1)  # 展开一层 Relationship（如 orders 列表）
 ```
 
 ## 性能基准测试
@@ -1007,6 +1031,8 @@ session.rollback()  # 清除 pending，但 id=1 的记录仍存在
 - [x] **关系预取（prefetch）** - 批量加载关联数据，解决 N+1 问题
 - [x] **查询索引优化** - 自动利用索引加速范围查询和排序
 - [x] **批量操作优化** - `bulk_insert` / `bulk_update` API，高效批量插入和更新
+- [x] **to_dict() 增强与 to_json()** - 支持 `include`/`exclude` 字段筛选、`depth` 关联展开、`to_json()` JSON 序列化
+- [x] **Column 级数据校验器** - `validator` 参数支持自定义校验函数和值范围约束
 
 ### 计划增加的引擎
 

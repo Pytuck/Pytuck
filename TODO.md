@@ -46,14 +46,15 @@
 
 ## 中期计划
 
-- [ ] **to_dict() 增强**
+- [x] **to_dict() 增强**
   - 支持 `include` / `exclude` 字段筛选
   - 支持控制关联数据的序列化深度（`depth=1` 只展开一层 relationship）
-  - 对接 JSON 序列化的常见需求
+  - 对接 JSON 序列化的常见需求（`to_json()` 方法）
 
-- [ ] **Column 级数据校验器（validator）**
+- [x] **Column 级数据校验器（validator）**
   - 比 `strict` 模式更灵活：自定义校验函数、值范围约束
-  - 预期 API：`Column(str, validator=lambda x: len(x) <= 100)`
+  - API：`Column(str, validator=lambda x: len(x) <= 100)`
+  - 支持单个函数或函数列表，在类型转换后执行校验
 
 - [ ] **模型继承支持**
   - 允许模型类继承以复用列定义（当前每个模型必须独立定义所有列）

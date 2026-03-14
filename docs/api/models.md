@@ -22,6 +22,7 @@ Column(
     foreign_key: Optional[tuple] = None,  # 外键 ('table', 'column')
     comment: Optional[str] = None,  # 列备注
     strict: bool = False,        # 严格模式（禁止类型转换）
+    validator: Optional[Union[Callable, List[Callable]]] = None,  # 自定义校验函数
 )
 ```
 
@@ -38,6 +39,47 @@ Column(
 | `foreign_key` | `Optional[tuple]` | `None` | 外键引用 `('表名', '列名')` |
 | `comment` | `Optional[str]` | `None` | 列备注信息 |
 | `strict` | `bool` | `False` | 严格模式：`True` 时类型不匹配直接报错，不自动转换 |
+| `validator` | `Optional[Union[Callable, List[Callable]]]` | `None` | 自定义校验函数或校验函数列表（详见下方说明） |
+
+### 自定义校验器（validator）
+
+`validator` 参数支持传入自定义校验函数，在类型转换**之后**对值进行额外验证。
+
+**校验规则：**
+- 校验函数接收类型转换后的值，返回 `True` 表示通过
+- 返回 `False` 或抛出异常则触发 `ValidationError`
+- `None` 值跳过校验（`None` 的合法性由 `nullable` 参数控制）
+
+**单个校验器：**
+
+```python
+# 限制字符串长度
+name = Column(str, validator=lambda x: len(x) <= 100)
+
+# 检查邮箱格式
+email = Column(str, validator=lambda x: '@' in x)
+```
+
+**多个校验器（列表）：**
+
+```python
+# 值范围约束
+age = Column(int, validator=[
+    lambda x: x >= 0,    # 不小于 0
+    lambda x: x <= 150,  # 不大于 150
+])
+```
+
+**自定义校验函数（可抛出异常提供详细错误信息）：**
+
+```python
+def check_email(value):
+    if '@' not in value:
+        raise ValueError("Invalid email format")
+    return True
+
+email = Column(str, validator=check_email)
+```
 
 ### 索引类型
 
@@ -169,8 +211,48 @@ Base = declarative_base(db, sync_schema=True)
 
 | 方法 | 签名 | 说明 |
 |------|------|------|
-| `to_dict()` | `to_dict(use_column_names: bool = False) -> Dict[str, Any]` | 转为字典。`use_column_names=True` 时键使用存储列名 |
+| `to_dict()` | `to_dict(use_column_names=False, include=None, exclude=None, depth=0) -> Dict[str, Any]` | 转为字典（详见下方说明） |
+| `to_json()` | `to_json(use_column_names=False, include=None, exclude=None, depth=0, ensure_ascii=False, indent=None) -> str` | 转为 JSON 字符串 |
 | `__repr__()` | `-> str` | 字符串表示，显示主键值 |
+
+#### to_dict() 参数
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `use_column_names` | `bool` | `False` | `True` 时键使用存储列名（`Column.name`），否则使用属性名 |
+| `include` | `Optional[Set[str]]` | `None` | 只包含指定的字段名集合。与 `exclude` 同时传入时 `include` 优先 |
+| `exclude` | `Optional[Set[str]]` | `None` | 排除指定的字段名集合 |
+| `depth` | `int` | `0` | 关联数据展开深度。`0`=不展开 Relationship，`1`=展开一层 |
+
+```python
+user = User(name='Alice', age=25)
+
+# 基本用法
+user.to_dict()                           # {'id': 1, 'name': 'Alice', 'age': 25}
+user.to_dict(include={'name', 'age'})    # {'name': 'Alice', 'age': 25}
+user.to_dict(exclude={'age'})            # {'id': 1, 'name': 'Alice'}
+
+# 展开关联数据
+user.to_dict(depth=1)                    # {'id': 1, 'name': 'Alice', 'age': 25, 'orders': [...]}
+```
+
+#### to_json() 参数
+
+继承 `to_dict()` 的所有参数，额外支持：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `ensure_ascii` | `bool` | `False` | 是否强制 ASCII 编码（`False` 支持中文直接输出） |
+| `indent` | `Optional[int]` | `None` | 缩进空格数（`None` 为紧凑输出） |
+
+自动处理 `datetime`→ISO 字符串、`date`→ISO 字符串、`timedelta`→秒数、`bytes`→Base64 编码。
+
+```python
+user.to_json()                           # '{"name": "Alice", "age": 25}'
+user.to_json(indent=2)                   # 格式化输出
+user.to_json(include={'name'})           # '{"name": "Alice"}'
+user.to_json(depth=1)                    # 包含展开的关联数据
+```
 
 ### 无主键模型
 

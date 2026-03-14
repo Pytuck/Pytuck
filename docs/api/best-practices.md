@@ -184,6 +184,26 @@ User.create(age='20')          # OK，自动转换为 20
 User.create(strict_age='20')   # ValidationError！
 ```
 
+### 自定义校验器
+
+使用 `validator` 参数对字段值进行更细粒度的约束：
+
+```python
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(int, primary_key=True)
+    name = Column(str, validator=lambda x: len(x) <= 100)  # 限制长度
+    age = Column(int, validator=[                            # 多个约束
+        lambda x: x >= 0,
+        lambda x: x <= 150,
+    ])
+    email = Column(str, validator=lambda x: '@' in x)       # 格式校验
+```
+
+- validator 在类型转换**之后**执行，接收的值已经是正确类型
+- `None` 值跳过 validator（由 `nullable` 控制是否允许 `None`）
+- 返回 `False` 或抛出异常时触发 `ValidationError`
+
 ### 默认值
 
 ```python
@@ -286,6 +306,44 @@ if result.has_changes:
 - `drop_missing_columns=True` 会删除数据库中存在但模型中不存在的列，**谨慎使用**
 - `update_column_types=True` 暂未实现
 - Schema 同步不会修改已有数据，只调整表结构
+
+---
+
+## 数据序列化
+
+### to_dict 与 to_json
+
+```python
+user = User.get(1)
+
+# 基础序列化
+data = user.to_dict()           # Python 字典
+json_str = user.to_json()       # JSON 字符串
+
+# 字段筛选（适合 API 响应，隐藏敏感字段）
+user.to_dict(exclude={'password', 'secret'})
+user.to_json(include={'id', 'name', 'email'})
+
+# 展开关联数据（避免 N+1 查询时可配合 prefetch 使用）
+user.to_dict(depth=1)           # 展开一层关联
+user.to_json(depth=1, indent=2) # 格式化 JSON 输出
+```
+
+### Web API 场景
+
+```python
+# 返回 JSON 响应（如 Flask / FastAPI）
+@app.get('/users/{user_id}')
+def get_user(user_id: int):
+    user = User.get(user_id)
+    return user.to_dict(exclude={'password'})
+
+# 列表响应
+@app.get('/users')
+def list_users():
+    users = User.all()
+    return [u.to_dict(include={'id', 'name', 'email'}) for u in users]
+```
 
 ---
 
