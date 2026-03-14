@@ -11,6 +11,7 @@ Pytuck ORM 模块测试
 import os
 import sys
 import unittest
+from datetime import datetime
 from typing import Type
 
 # 添加项目根目录到路径
@@ -1266,6 +1267,176 @@ class TestColumnValidator(unittest.TestCase):
         # 更新为不合法值
         with self.assertRaises(ValidationError):
             user.name = 'A'  # 长度 < 2
+
+
+class TestColumnDefaultFactory(unittest.TestCase):
+    """测试 Column default_factory 参数"""
+
+    def test_default_factory_basic(self):
+        """default_factory 在每次创建实例时被调用"""
+        counter = {'value': 0}
+
+        def next_id():
+            counter['value'] += 1
+            return counter['value']
+
+        db = Storage()
+        Base = declarative_base(db)
+
+        class Item(Base):
+            __tablename__ = 'items'
+            id = Column(int, primary_key=True)
+            seq = Column(int, default_factory=next_id)
+
+        item1 = Item()
+        item2 = Item()
+        self.assertEqual(item1.seq, 1)
+        self.assertEqual(item2.seq, 2)
+
+    def test_default_factory_datetime(self):
+        """default_factory 支持 datetime.now 等场景"""
+        db = Storage()
+        Base = declarative_base(db)
+
+        class Log(Base):
+            __tablename__ = 'logs'
+            id = Column(int, primary_key=True)
+            created_at = Column(datetime, default_factory=datetime.now)
+            message = Column(str, default='')
+
+        log = Log(message='hello')
+        self.assertIsInstance(log.created_at, datetime)
+        # 创建时间应该在当前时间附近
+        diff = abs((datetime.now() - log.created_at).total_seconds())
+        self.assertLess(diff, 1.0)
+
+    def test_default_factory_each_call_unique(self):
+        """每次实例化都调用 default_factory，生成不同值"""
+        import time
+
+        db = Storage()
+        Base = declarative_base(db)
+
+        class Event(Base):
+            __tablename__ = 'events'
+            id = Column(int, primary_key=True)
+            timestamp = Column(float, default_factory=time.time)
+
+        e1 = Event()
+        time.sleep(0.01)
+        e2 = Event()
+        self.assertNotEqual(e1.timestamp, e2.timestamp)
+
+    def test_default_and_default_factory_mutual_exclusive(self):
+        """default 和 default_factory 不可同时设置"""
+        with self.assertRaises(ValidationError):
+            Column(int, default=0, default_factory=lambda: 0)
+
+    def test_default_factory_must_be_callable(self):
+        """default_factory 必须是可调用对象"""
+        with self.assertRaises(ValidationError):
+            Column(int, default_factory=42)
+
+    def test_default_factory_none_allowed(self):
+        """default_factory 为 None 时不使用工厂"""
+        col = Column(int, default_factory=None)
+        self.assertIsNone(col.default_factory)
+        self.assertFalse(col.has_default())
+
+    def test_has_default_with_default(self):
+        """has_default() 检测 default"""
+        col = Column(int, default=0)
+        self.assertTrue(col.has_default())
+
+    def test_has_default_with_default_factory(self):
+        """has_default() 检测 default_factory"""
+        col = Column(int, default_factory=lambda: 0)
+        self.assertTrue(col.has_default())
+
+    def test_has_default_neither(self):
+        """has_default() 当两者都未设置时返回 False"""
+        col = Column(int)
+        self.assertFalse(col.has_default())
+
+    def test_resolve_default_factory(self):
+        """resolve_default() 调用 default_factory"""
+        col = Column(int, default_factory=lambda: 99)
+        col.name = 'test'
+        self.assertEqual(col.resolve_default(), 99)
+
+    def test_resolve_default_static(self):
+        """resolve_default() 返回 default 静态值"""
+        col = Column(int, default=42)
+        col.name = 'test'
+        self.assertEqual(col.resolve_default(), 42)
+
+    def test_resolve_default_none(self):
+        """resolve_default() 无默认时返回 None"""
+        col = Column(int)
+        col.name = 'test'
+        self.assertIsNone(col.resolve_default())
+
+    def test_default_factory_with_crud_model(self):
+        """CRUD 模式下 default_factory 生效"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class Task(Base):
+            __tablename__ = 'tasks'
+            id = Column(int, primary_key=True)
+            created_at = Column(datetime, default_factory=datetime.now)
+            title = Column(str)
+
+        task = Task(title='test')
+        self.assertIsInstance(task.created_at, datetime)
+
+    def test_default_factory_with_insert_statement(self):
+        """通过 insert 语句时 default_factory 生效"""
+        db = Storage()
+        Base = declarative_base(db)
+
+        counter = {'value': 100}
+
+        def next_seq():
+            counter['value'] += 1
+            return counter['value']
+
+        class Record(Base):
+            __tablename__ = 'records'
+            id = Column(int, primary_key=True)
+            seq = Column(int, default_factory=next_seq)
+            name = Column(str)
+
+        session = Session(db)
+        session.execute(insert(Record).values(name='a'))
+        session.execute(insert(Record).values(name='b'))
+        session.commit()
+
+        result = session.execute(select(Record)).all()
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].seq, 101)
+        self.assertEqual(result[1].seq, 102)
+
+    def test_default_factory_explicit_value_override(self):
+        """显式传值时 default_factory 不生效"""
+        db = Storage()
+        Base = declarative_base(db)
+
+        class Item(Base):
+            __tablename__ = 'items'
+            id = Column(int, primary_key=True)
+            seq = Column(int, default_factory=lambda: 999)
+
+        item = Item(seq=1)
+        self.assertEqual(item.seq, 1)
+
+    def test_default_factory_to_dict_not_serialized(self):
+        """to_dict 不序列化 default_factory"""
+        col = Column(int, default_factory=lambda: 0)
+        col.name = 'test'
+        d = col.to_dict()
+        self.assertIsNone(d['default'])
+        self.assertNotIn('default_factory', d)
 
 
 class TestModelInheritance(unittest.TestCase):

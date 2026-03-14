@@ -549,9 +549,9 @@ class Table:
 
         # 检查非空约束：如果表中有数据，新增非空列必须有默认值
         has_data = len(self.data) > 0
-        fill_value = default_value if default_value is not None else column.default
+        has_fill = default_value is not None or column.has_default()
 
-        if has_data and not column.nullable and fill_value is None:
+        if has_data and not column.nullable and not has_fill:
             raise SchemaError(
                 f"Cannot add non-nullable column '{col_name}' to table '{self.name}' "
                 "without default value when table has existing data"
@@ -562,6 +562,7 @@ class Table:
 
         # 为现有记录填充默认值
         if has_data:
+            fill_value = default_value if default_value is not None else column.resolve_default()
             for record in self.data.values():
                 if col_name not in record:
                     record[col_name] = fill_value

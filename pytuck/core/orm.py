@@ -283,8 +283,8 @@ class Column:
         email = Column(str, name='user_email')    # name='user_email'
     """
     __slots__ = ['name', 'col_type', 'nullable', 'primary_key',
-                 'index', 'default', 'foreign_key', 'comment', '_type_code',
-                 '_attr_name', '_owner_class', 'strict', '_validators']
+                 'index', 'default', 'default_factory', 'foreign_key', 'comment',
+                 '_type_code', '_attr_name', '_owner_class', 'strict', '_validators']
 
     def __init__(self,
                  col_type: ColumnTypes,
@@ -294,6 +294,7 @@ class Column:
                  primary_key: bool = False,
                  index: Union[bool, str] = False,
                  default: Any = None,
+                 default_factory: Optional[Callable[[], Any]] = None,
                  foreign_key: Optional[tuple] = None,
                  comment: Optional[str] = None,
                  strict: bool = False,
@@ -310,7 +311,10 @@ class Column:
             nullable: 是否可空
             primary_key: 是否为主键
             index: 索引设置。False=不建索引，True/'hash'=哈希索引，'sorted'=有序索引
-            default: 默认值
+            default: 静态默认值
+            default_factory: 默认值工厂函数（无参可调用对象），每次创建实例时调用。
+                            与 default 互斥，不可同时设置。
+                            示例: Column(datetime, default_factory=datetime.now)
             foreign_key: 外键关系 (table_name, column_name)
             comment: 列备注/注释
             strict: 是否严格模式（不进行类型转换）
@@ -319,6 +323,16 @@ class Column:
                       返回 False 或抛出异常则校验失败。
                       示例: Column(str, validator=lambda x: len(x) <= 100)
         """
+        # 验证 default 和 default_factory 互斥
+        if default is not None and default_factory is not None:
+            raise ValidationError(
+                f"Column '{name}': cannot specify both 'default' and 'default_factory'"
+            )
+        if default_factory is not None and not callable(default_factory):
+            raise ValidationError(
+                f"Column '{name}': 'default_factory' must be callable"
+            )
+
         self.name = name  # 可能为 None，将在 __set_name__ 中设置
         self.col_type = col_type
         self.nullable = nullable
@@ -330,6 +344,7 @@ class Column:
             )
         self.index: Union[bool, str] = index
         self.default = default
+        self.default_factory = default_factory
         self.foreign_key = foreign_key
         self.comment = comment
         self.strict = strict
@@ -439,6 +454,24 @@ class Column:
 
     def __repr__(self) -> str:
         return f"Column(name='{self.name}', type={self.col_type.__name__}, pk={self.primary_key})"
+
+    def resolve_default(self) -> Any:
+        """
+        获取解析后的默认值
+
+        优先使用 default_factory（每次调用生成新值），
+        其次使用 default（静态值）。
+
+        Returns:
+            解析后的默认值，或 None（当 default 和 default_factory 均未设置时）
+        """
+        if self.default_factory is not None:
+            return self.default_factory()
+        return self.default
+
+    def has_default(self) -> bool:
+        """判断列是否设置了默认值（default 或 default_factory）"""
+        return self.default is not None or self.default_factory is not None
 
     # ==================== 描述符协议 ====================
 
@@ -1234,8 +1267,8 @@ def _create_pure_base(
                 if col_name in kwargs:
                     value = column.validate(kwargs[col_name])
                     setattr(self, col_name, value)
-                elif column.default is not None:
-                    setattr(self, col_name, column.default)
+                elif column.has_default():
+                    setattr(self, col_name, column.resolve_default())
                 elif column.nullable or column.primary_key:
                     setattr(self, col_name, None)
                 else:
@@ -1353,8 +1386,8 @@ def _create_crud_base(
                 if col_name in kwargs:
                     value = column.validate(kwargs[col_name])
                     setattr(self, col_name, value)
-                elif column.default is not None:
-                    setattr(self, col_name, column.default)
+                elif column.has_default():
+                    setattr(self, col_name, column.resolve_default())
                 elif column.nullable or column.primary_key:
                     setattr(self, col_name, None)
                 else:
