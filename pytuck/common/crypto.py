@@ -143,6 +143,25 @@ class XORCipher:
         """
         return self.encrypt(data)
 
+    def decrypt_at(self, offset: int, data: bytes) -> bytes:
+        """
+        从指定偏移位置解密数据（随机访问解密）
+
+        XOR keystream 以 256 字节为周期循环，因此偏移量取模即可
+
+        Args:
+            offset: 数据在加密流中的起始偏移（相对于 encrypt() 起点）
+            data: 需要解密的密文片段
+
+        Returns:
+            解密后的明文
+        """
+        result = bytearray(len(data))
+        keylen = len(self.keystream)
+        for i, b in enumerate(data):
+            result[i] = b ^ self.keystream[(offset + i) % keylen]
+        return bytes(result)
+
 
 class LCGCipher:
     """
@@ -211,6 +230,54 @@ class LCGCipher:
             明文数据
         """
         return self.encrypt(data)
+
+    def _advance_state(self, state: int, n: int) -> int:
+        """
+        将 LCG 状态快进 n 步
+
+        使用标准的 O(log N) 快进算法，避免逐步迭代
+
+        Args:
+            state: 当前 LCG 状态
+            n: 需要前进的步数
+
+        Returns:
+            快进后的 LCG 状态
+        """
+        acc_mult = 1
+        acc_add = 0
+        cur_mult = self.A
+        cur_add = self.C
+        m = self.M
+        while n > 0:
+            if n & 1:
+                acc_mult = (acc_mult * cur_mult) % m
+                acc_add = (acc_add * cur_mult + cur_add) % m
+            cur_add = (cur_add * (cur_mult + 1)) % m
+            cur_mult = (cur_mult * cur_mult) % m
+            n >>= 1
+        return (acc_mult * state + acc_add) % m
+
+    def decrypt_at(self, offset: int, data: bytes) -> bytes:
+        """
+        从指定偏移位置解密数据（随机访问解密）
+
+        通过 O(log N) 快进算法将 LCG 状态跳到目标偏移位置
+
+        Args:
+            offset: 数据在加密流中的起始偏移（相对于 encrypt() 起点）
+            data: 需要解密的密文片段
+
+        Returns:
+            解密后的明文
+        """
+        # 快进 LCG 状态到 offset 位置
+        state = self._advance_state(self.seed, offset)
+        result = bytearray(len(data))
+        for i in range(len(data)):
+            state = (self.A * state + self.C) % self.M
+            result[i] = data[i] ^ ((state >> 16) & 0xFF)
+        return bytes(result)
 
 
 class ChaCha20Cipher:
@@ -333,6 +400,36 @@ class ChaCha20Cipher:
             明文数据
         """
         return self.encrypt(data)
+
+    def decrypt_at(self, offset: int, data: bytes) -> bytes:
+        """
+        从指定偏移位置解密数据（随机访问解密）
+
+        ChaCha20 天然支持随机访问：每个 64 字节块由 counter 参数确定
+
+        Args:
+            offset: 数据在加密流中的起始偏移（相对于 encrypt() 起点）
+            data: 需要解密的密文片段
+
+        Returns:
+            解密后的明文
+        """
+        block_index = offset // 64
+        byte_offset = offset % 64
+        result = bytearray()
+        data_pos = 0
+
+        while data_pos < len(data):
+            block = self._chacha20_block(block_index)
+            # 从 block 的 byte_offset 位置开始使用
+            available = block[byte_offset:]
+            chunk = data[data_pos:data_pos + len(available)]
+            result.extend(a ^ b for a, b in zip(chunk, available))
+            data_pos += len(chunk)
+            block_index += 1
+            byte_offset = 0  # 后续块从头开始
+
+        return bytes(result)
 
 
 # 类型别名

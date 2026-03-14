@@ -6,7 +6,7 @@ Pytuck 存储后端抽象基类
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Union, TYPE_CHECKING, Tuple
+from typing import Dict, Any, List, Optional, Set, Union, TYPE_CHECKING, Tuple
 
 from ..common.options import BackendOptions
 from ..common.exceptions import ConfigurationError
@@ -67,12 +67,15 @@ class StorageBackend(ABC):
         return f"{self.__class__.__name__}(file_path='{self.file_path}')"
 
     @abstractmethod
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """
         保存所有表数据到持久化存储
 
         Args:
             tables: 表字典 {table_name: Table对象}
+            changed_tables: 可选，发生变更的表名集合。
+                            后端可利用此信息进行增量保存优化。
+                            如果为 None，应执行全量保存（向后兼容）。
 
         Table 对象结构：
             - table.name: str - 表名
@@ -87,6 +90,7 @@ class StorageBackend(ABC):
             2. 序列化所有记录数据
             3. 可选：持久化索引数据（也可以在加载时重建）
             4. 确保原子性写入（先写临时文件，再重命名）
+            5. 可选：利用 changed_tables 进行增量保存优化
         """
         pass
 

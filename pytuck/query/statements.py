@@ -272,8 +272,8 @@ class Insert(Statement[T]):
             db_col_name = column.name if column.name else attr_name
             if attr_name in self._values:
                 validated_data[db_col_name] = column.validate(self._values[attr_name])
-            elif column.default is not None:
-                validated_data[db_col_name] = column.default
+            elif column.has_default():
+                validated_data[db_col_name] = column.resolve_default()
 
         # 插入
         pk = storage.insert(table_name, validated_data)

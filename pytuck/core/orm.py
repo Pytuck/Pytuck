@@ -6,9 +6,11 @@ Pytuck ORM层
 - CRUDBaseModel: Active Record 模式，模型自带 CRUD 方法
 """
 import sys
+import json
+import base64
 from typing import (
     Any, Callable, Dict, List, Optional, Tuple, Type, Union, TYPE_CHECKING,
-    overload, Literal, Generic, cast
+    Set, overload, Literal, Generic, cast
 )
 from datetime import datetime, date, timedelta, timezone
 
@@ -25,6 +27,34 @@ if TYPE_CHECKING:
 
 # 无主键时使用的内部 rowid 保留键名
 PSEUDO_PK_NAME: str = '_pytuck_rowid'
+
+
+# ==================== JSON 序列化辅助 ====================
+
+def _json_serial(obj: Any) -> Any:
+    """JSON 序列化辅助：处理非原生 JSON 类型
+
+    用于 json.dumps 的 default 参数，将 datetime/date/timedelta/bytes
+    等类型转换为 JSON 可序列化的形式。
+
+    Args:
+        obj: 待序列化的对象
+
+    Returns:
+        JSON 可序列化的值
+
+    Raises:
+        TypeError: 不支持的类型
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, timedelta):
+        return obj.total_seconds()
+    if isinstance(obj, bytes):
+        return base64.b64encode(obj).decode('ascii')
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 # ==================== 类型转换函数（模块级别） ====================
@@ -253,8 +283,8 @@ class Column:
         email = Column(str, name='user_email')    # name='user_email'
     """
     __slots__ = ['name', 'col_type', 'nullable', 'primary_key',
-                 'index', 'default', 'foreign_key', 'comment', '_type_code',
-                 '_attr_name', '_owner_class', 'strict']
+                 'index', 'default', 'default_factory', 'foreign_key', 'comment',
+                 '_type_code', '_attr_name', '_owner_class', 'strict', '_validators']
 
     def __init__(self,
                  col_type: ColumnTypes,
@@ -264,9 +294,14 @@ class Column:
                  primary_key: bool = False,
                  index: Union[bool, str] = False,
                  default: Any = None,
+                 default_factory: Optional[Callable[[], Any]] = None,
                  foreign_key: Optional[tuple] = None,
                  comment: Optional[str] = None,
-                 strict: bool = False):
+                 strict: bool = False,
+                 validator: Optional[Union[
+                     Callable[[Any], bool],
+                     List[Callable[[Any], bool]]
+                 ]] = None):
         """
         初始化列定义
 
@@ -276,11 +311,28 @@ class Column:
             nullable: 是否可空
             primary_key: 是否为主键
             index: 索引设置。False=不建索引，True/'hash'=哈希索引，'sorted'=有序索引
-            default: 默认值
+            default: 静态默认值
+            default_factory: 默认值工厂函数（无参可调用对象），每次创建实例时调用。
+                            与 default 互斥，不可同时设置。
+                            示例: Column(datetime, default_factory=datetime.now)
             foreign_key: 外键关系 (table_name, column_name)
             comment: 列备注/注释
             strict: 是否严格模式（不进行类型转换）
+            validator: 自定义校验函数或校验函数列表。
+                      每个函数接收类型转换后的值，返回 True 通过，
+                      返回 False 或抛出异常则校验失败。
+                      示例: Column(str, validator=lambda x: len(x) <= 100)
         """
+        # 验证 default 和 default_factory 互斥
+        if default is not None and default_factory is not None:
+            raise ValidationError(
+                f"Column '{name}': cannot specify both 'default' and 'default_factory'"
+            )
+        if default_factory is not None and not callable(default_factory):
+            raise ValidationError(
+                f"Column '{name}': 'default_factory' must be callable"
+            )
+
         self.name = name  # 可能为 None，将在 __set_name__ 中设置
         self.col_type = col_type
         self.nullable = nullable
@@ -292,9 +344,22 @@ class Column:
             )
         self.index: Union[bool, str] = index
         self.default = default
+        self.default_factory = default_factory
         self.foreign_key = foreign_key
         self.comment = comment
         self.strict = strict
+
+        # 校验器
+        if validator is None:
+            self._validators: List[Callable[[Any], bool]] = []
+        elif callable(validator):
+            self._validators = [validator]
+        elif isinstance(validator, list):
+            self._validators = validator
+        else:
+            raise ValidationError(
+                f"Column '{name}': validator must be callable or list of callables"
+            )
 
         # 获取类型编码
         try:
@@ -327,7 +392,7 @@ class Column:
             验证/转换后的值
 
         Raises:
-            ValidationError: 类型不匹配且无法转换
+            ValidationError: 类型不匹配且无法转换，或自定义校验器校验失败
         """
         # 处理None值
         if value is None:
@@ -346,33 +411,67 @@ class Column:
                     f"Column '{self.name}' expects type int, got bool"
                 )
 
-        # 如果已经是正确类型，直接返回
-        if isinstance(value, self.col_type):
-            return value
+        # 如果已经是正确类型，跳过转换
+        if not isinstance(value, self.col_type):
+            # 严格模式：不进行类型转换
+            if self.strict:
+                raise ValidationError(
+                    f"Column '{self.name}' expects type {self.col_type.__name__}, "
+                    f"got {type(value).__name__} (strict mode)"
+                )
 
-        # 严格模式：不进行类型转换
-        if self.strict:
-            raise ValidationError(
-                f"Column '{self.name}' expects type {self.col_type.__name__}, "
-                f"got {type(value).__name__} (strict mode)"
-            )
+            # 宽松模式：使用字典查找转换函数
+            try:
+                converter = _TYPE_CONVERTERS.get(self.col_type)
+                if converter is not None:
+                    value = converter(value)
+                else:
+                    # 回退：尝试直接调用类型构造函数
+                    value = self.col_type(value)  # type: ignore[call-arg]
+            except (ValueError, TypeError) as e:
+                raise ValidationError(
+                    f"Column '{self.name}' Cannot convert {type(value).__name__} "
+                    f"to {self.col_type.__name__}: {e}"
+                )
 
-        # 宽松模式：使用字典查找转换函数
-        try:
-            converter = _TYPE_CONVERTERS.get(self.col_type)
-            if converter is not None:
-                return converter(value)
-            else:
-                # 回退：尝试直接调用类型构造函数
-                return self.col_type(value)  # type: ignore[call-arg]
-        except (ValueError, TypeError) as e:
-            raise ValidationError(
-                f"Column '{self.name}' Cannot convert {type(value).__name__} "
-                f"to {self.col_type.__name__}: {e}"
-            )
+        # 自定义校验器（在类型转换之后调用）
+        if self._validators:
+            for v_func in self._validators:
+                try:
+                    result = v_func(value)
+                except ValidationError:
+                    raise
+                except Exception as e:
+                    raise ValidationError(
+                        f"Column '{self.name}' validation failed: {e}"
+                    )
+                if result is False:
+                    raise ValidationError(
+                        f"Column '{self.name}' validation failed for value: {value!r}"
+                    )
+
+        return value
 
     def __repr__(self) -> str:
         return f"Column(name='{self.name}', type={self.col_type.__name__}, pk={self.primary_key})"
+
+    def resolve_default(self) -> Any:
+        """
+        获取解析后的默认值
+
+        优先使用 default_factory（每次调用生成新值），
+        其次使用 default（静态值）。
+
+        Returns:
+            解析后的默认值，或 None（当 default 和 default_factory 均未设置时）
+        """
+        if self.default_factory is not None:
+            return self.default_factory()
+        return self.default
+
+    def has_default(self) -> bool:
+        """判断列是否设置了默认值（default 或 default_factory）"""
+        return self.default is not None or self.default_factory is not None
 
     # ==================== 描述符协议 ====================
 
@@ -560,13 +659,23 @@ class PureBaseModel:
                 return attr_name
         return None
 
-    def to_dict(self, use_column_names: bool = False) -> Dict[str, Any]:
+    def to_dict(
+        self,
+        use_column_names: bool = False,
+        include: Optional[Set[str]] = None,
+        exclude: Optional[Set[str]] = None,
+        depth: int = 0,
+    ) -> Dict[str, Any]:
         """
         转换为字典
 
         Args:
             use_column_names: 如果为 True，使用 Column.name 作为字典键；
                              否则使用属性名（默认）
+            include: 只包含的字段名集合（使用属性名）。传入时只输出集合内的字段
+            exclude: 排除的字段名集合（使用属性名）。与 include 同时传入时 include 优先
+            depth: 关联数据展开深度（默认 0 不展开）。
+                   depth=1 展开一层 Relationship
 
         Returns:
             包含模型数据的字典
@@ -579,12 +688,92 @@ class PureBaseModel:
             user = User(lv='admin')
             user.to_dict()  # {'lv': 'admin'}
             user.to_dict(use_column_names=True)  # {'level': 'admin'}
+            user.to_dict(include={'lv'})  # {'lv': 'admin'}
+            user.to_dict(exclude={'lv'})  # {} (排除 lv 字段)
         """
         data = {}
         for attr_name, column in self.__columns__.items():
+            # include/exclude 筛选（include 优先于 exclude）
+            if include is not None:
+                if attr_name not in include:
+                    continue
+            elif exclude is not None and attr_name in exclude:
+                continue
             key = column.name if use_column_names and column.name else attr_name
             data[key] = getattr(self, attr_name, None)
+
+        # depth > 0 时展开 Relationship
+        if depth > 0:
+            for rel_name in self.__relationships__:
+                if include is not None:
+                    if rel_name not in include:
+                        continue
+                elif exclude is not None and rel_name in exclude:
+                    continue
+                value = getattr(self, rel_name, None)
+                if value is None:
+                    data[rel_name] = None
+                elif isinstance(value, list):
+                    data[rel_name] = [
+                        item.to_dict(
+                            use_column_names=use_column_names,
+                            depth=depth - 1,
+                        )
+                        if hasattr(item, 'to_dict') else item
+                        for item in value
+                    ]
+                elif hasattr(value, 'to_dict'):
+                    data[rel_name] = value.to_dict(
+                        use_column_names=use_column_names,
+                        depth=depth - 1,
+                    )
+                else:
+                    data[rel_name] = value
+
         return data
+
+    def to_json(
+        self,
+        use_column_names: bool = False,
+        include: Optional[Set[str]] = None,
+        exclude: Optional[Set[str]] = None,
+        depth: int = 0,
+        ensure_ascii: bool = False,
+        indent: Optional[int] = None,
+    ) -> str:
+        """
+        转换为 JSON 字符串
+
+        自动处理 datetime/date/timedelta/bytes 等特殊类型的序列化。
+
+        Args:
+            use_column_names: 如果为 True，使用 Column.name 作为字典键
+            include: 只包含的字段名集合（使用属性名）
+            exclude: 排除的字段名集合（使用属性名）
+            depth: 关联数据展开深度（默认 0 不展开）
+            ensure_ascii: 是否强制 ASCII 编码（默认 False，支持中文）
+            indent: 缩进空格数（默认 None，紧凑输出）
+
+        Returns:
+            JSON 字符串
+
+        Example:
+            user = User(name='Alice', age=25)
+            user.to_json()  # '{"name": "Alice", "age": 25}'
+            user.to_json(indent=2)  # 格式化输出
+        """
+        data = self.to_dict(
+            use_column_names=use_column_names,
+            include=include,
+            exclude=exclude,
+            depth=depth,
+        )
+        return json.dumps(
+            data,
+            ensure_ascii=ensure_ascii,
+            indent=indent,
+            default=_json_serial,
+        )
 
     def __repr__(self) -> str:
         """字符串表示"""
@@ -998,29 +1187,44 @@ def _create_pure_base(
             """子类初始化时自动收集字段并创建表"""
             super().__init_subclass__(**kwargs)
 
-            # 跳过抽象类
-            if cls.__dict__.get('__abstract__', False):
-                return
-
-            # 子类必须定义 __tablename__
-            if not hasattr(cls, '__tablename__') or cls.__tablename__ is None:
-                raise ValidationError(
-                    f"Model {cls.__name__} must define __tablename__"
-                )
-
-            # 收集列定义
+            # 收集列定义（从 MRO 父类继承 + 当前类自身）
             cls.__columns__ = {}
             cls.__relationships__ = {}
-            primary_keys: List[str] = []
 
+            # 从 MRO 父类继承列（从最基础到最近的父类，子类覆盖父类）
+            for parent in reversed(cls.__mro__[1:]):
+                parent_columns = parent.__dict__.get('__columns__')
+                if parent_columns:
+                    cls.__columns__.update(parent_columns)
+                parent_rels = parent.__dict__.get('__relationships__')
+                if parent_rels:
+                    cls.__relationships__.update(parent_rels)
+
+            # 收集当前类直接定义的列和关系（覆盖父类同名定义）
             for attr_name, attr_value in list(cls.__dict__.items()):
                 if isinstance(attr_value, Column):
                     cls.__columns__[attr_name] = attr_value
-                    if attr_value.primary_key:
-                        primary_keys.append(attr_name)
                 elif isinstance(attr_value, Relationship):
                     cls.__relationships__[attr_name] = attr_value
                     attr_value.__set_name__(cls, attr_name)
+
+            # 跳过抽象类（列已收集供子类继承，但不创建表）
+            if cls.__dict__.get('__abstract__', False):
+                return
+
+            # 具体模型：显式标记为非抽象
+            cls.__abstract__ = False
+
+            # 子类必须定义 __tablename__（否则应使用 __abstract__ = True 标记为抽象类）
+            if not cls.__tablename__:
+                raise ValidationError(
+                    f"Model {cls.__name__} must define __tablename__. "
+                    f"If this is a mixin or abstract class, set __abstract__ = True."
+                )
+
+            # 从最终的 __columns__ 中计算主键
+            primary_keys = [name for name, col in cls.__columns__.items()
+                            if col.primary_key]
 
             # 验证主键数量：只允许单主键或无主键
             if len(primary_keys) > 1:
@@ -1063,8 +1267,8 @@ def _create_pure_base(
                 if col_name in kwargs:
                     value = column.validate(kwargs[col_name])
                     setattr(self, col_name, value)
-                elif column.default is not None:
-                    setattr(self, col_name, column.default)
+                elif column.has_default():
+                    setattr(self, col_name, column.resolve_default())
                 elif column.nullable or column.primary_key:
                     setattr(self, col_name, None)
                 else:
@@ -1099,29 +1303,44 @@ def _create_crud_base(
             """子类初始化时自动收集字段并创建表"""
             super().__init_subclass__(**kwargs)
 
-            # 跳过抽象类
-            if cls.__dict__.get('__abstract__', False):
-                return
-
-            # 子类必须定义 __tablename__
-            if not hasattr(cls, '__tablename__') or cls.__tablename__ is None:
-                raise ValidationError(
-                    f"Model {cls.__name__} must define __tablename__"
-                )
-
-            # 收集列定义
+            # 收集列定义（从 MRO 父类继承 + 当前类自身）
             cls.__columns__ = {}
             cls.__relationships__ = {}
-            primary_keys: List[str] = []
 
+            # 从 MRO 父类继承列（从最基础到最近的父类，子类覆盖父类）
+            for parent in reversed(cls.__mro__[1:]):
+                parent_columns = parent.__dict__.get('__columns__')
+                if parent_columns:
+                    cls.__columns__.update(parent_columns)
+                parent_rels = parent.__dict__.get('__relationships__')
+                if parent_rels:
+                    cls.__relationships__.update(parent_rels)
+
+            # 收集当前类直接定义的列和关系（覆盖父类同名定义）
             for attr_name, attr_value in list(cls.__dict__.items()):
                 if isinstance(attr_value, Column):
                     cls.__columns__[attr_name] = attr_value
-                    if attr_value.primary_key:
-                        primary_keys.append(attr_name)
                 elif isinstance(attr_value, Relationship):
                     cls.__relationships__[attr_name] = attr_value
                     attr_value.__set_name__(cls, attr_name)
+
+            # 跳过抽象类（列已收集供子类继承，但不创建表）
+            if cls.__dict__.get('__abstract__', False):
+                return
+
+            # 具体模型：显式标记为非抽象
+            cls.__abstract__ = False
+
+            # 子类必须定义 __tablename__（否则应使用 __abstract__ = True 标记为抽象类）
+            if not cls.__tablename__:
+                raise ValidationError(
+                    f"Model {cls.__name__} must define __tablename__. "
+                    f"If this is a mixin or abstract class, set __abstract__ = True."
+                )
+
+            # 从最终的 __columns__ 中计算主键
+            primary_keys = [name for name, col in cls.__columns__.items()
+                            if col.primary_key]
 
             # 验证主键数量：只允许单主键或无主键
             if len(primary_keys) > 1:
@@ -1167,8 +1386,8 @@ def _create_crud_base(
                 if col_name in kwargs:
                     value = column.validate(kwargs[col_name])
                     setattr(self, col_name, value)
-                elif column.default is not None:
-                    setattr(self, col_name, column.default)
+                elif column.has_default():
+                    setattr(self, col_name, column.resolve_default())
                 elif column.nullable or column.primary_key:
                     setattr(self, col_name, None)
                 else:

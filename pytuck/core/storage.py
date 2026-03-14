@@ -105,6 +105,10 @@ class Table:
         self.indexes: Dict[str, BaseIndex] = {}  # {column_name: BaseIndex}
         self.next_id = 1
 
+        # 脏标记（用于增量保存优化）
+        self._data_dirty: bool = False    # 数据是否被修改（insert/update/delete）
+        self._schema_dirty: bool = False  # 结构是否被修改（add_column/drop_column 等）
+
         # 懒加载支持
         self._pk_offsets: Optional[Dict[Any, int]] = None  # {pk: file_offset}
         self._data_file: Optional[Path] = None  # 数据文件路径
@@ -116,6 +120,16 @@ class Table:
             if col.index:
                 assert col.name is not None, "Column name must be set"
                 self.build_index(col.name)
+
+    @property
+    def is_dirty(self) -> bool:
+        """表是否有任何变更（数据或结构）"""
+        return self._data_dirty or self._schema_dirty
+
+    def reset_dirty(self) -> None:
+        """重置脏标记（由 Storage.flush 在保存完成后调用）"""
+        self._data_dirty = False
+        self._schema_dirty = False
 
     def _normalize_pk(self, pk: Any) -> Any:
         """
@@ -201,6 +215,7 @@ class Table:
         if isinstance(pk, int) and pk >= self.next_id:
             self.next_id = pk + 1
 
+        self._data_dirty = True
         return pk
 
     def update(self, pk: Any, record: Dict[str, Any]) -> None:
@@ -241,6 +256,7 @@ class Table:
 
         # 存储记录
         self.data[pk] = validated_record
+        self._data_dirty = True
 
     def delete(self, pk: Any) -> None:
         """
@@ -267,6 +283,7 @@ class Table:
 
         # 删除记录
         del self.data[pk]
+        self._data_dirty = True
 
     def bulk_insert(self, records: List[Dict[str, Any]]) -> List[Any]:
         """
@@ -364,6 +381,7 @@ class Table:
             if isinstance(pk, int) and pk >= self.next_id:
                 self.next_id = pk + 1
 
+        self._data_dirty = True
         return pks
 
     def bulk_update(self, updates: List[Tuple[Any, Dict[str, Any]]]) -> int:
@@ -414,6 +432,8 @@ class Table:
             self.data[pk] = validated_record
             count += 1
 
+        if count > 0:
+            self._data_dirty = True
         return count
 
     def get(self, pk: Any) -> Dict[str, Any]:
@@ -450,6 +470,8 @@ class Table:
         """
         从文件读取单条记录（懒加载模式）
 
+        委托给 backend.read_lazy_record()，支持加密和非加密文件
+
         Args:
             pk: 主键值
 
@@ -470,12 +492,7 @@ class Table:
 
         offset: int = self._pk_offsets[pk]  # type: ignore
 
-        with open(self._data_file, 'rb') as f:
-            f.seek(offset)
-            # 使用 backend 的 _read_record 方法读取记录
-            _, record = self._backend._read_record(f, self.columns)
-
-        return record
+        return self._backend.read_lazy_record(self._data_file, offset, self.columns)
 
     def scan(self) -> Iterator[Tuple[Any, Dict[str, Any]]]:
         """
@@ -549,9 +566,9 @@ class Table:
 
         # 检查非空约束：如果表中有数据，新增非空列必须有默认值
         has_data = len(self.data) > 0
-        fill_value = default_value if default_value is not None else column.default
+        has_fill = default_value is not None or column.has_default()
 
-        if has_data and not column.nullable and fill_value is None:
+        if has_data and not column.nullable and not has_fill:
             raise SchemaError(
                 f"Cannot add non-nullable column '{col_name}' to table '{self.name}' "
                 "without default value when table has existing data"
@@ -562,6 +579,7 @@ class Table:
 
         # 为现有记录填充默认值
         if has_data:
+            fill_value = default_value if default_value is not None else column.resolve_default()
             for record in self.data.values():
                 if col_name not in record:
                     record[col_name] = fill_value
@@ -569,6 +587,9 @@ class Table:
         # 如果需要索引，构建索引
         if column.index:
             self.build_index(col_name)
+
+        self._schema_dirty = True
+        self._data_dirty = True
 
     def drop_column(self, column_name: str) -> None:
         """
@@ -598,6 +619,9 @@ class Table:
         # 移除索引
         if column_name in self.indexes:
             del self.indexes[column_name]
+
+        self._schema_dirty = True
+        self._data_dirty = True
 
     def alter_column(
         self,
@@ -704,6 +728,8 @@ class Table:
         if new_column.index and column_name in self.indexes:
             del self.indexes[column_name]
             self.build_index(column_name)
+
+        self._schema_dirty = True
 
     def set_primary_key(self, column_name: str) -> None:
         """
@@ -999,6 +1025,8 @@ class Storage:
         # 注意：无主键时，primary_key 为 None
 
         table = Table(name, columns, primary_key, comment)
+        table._schema_dirty = True
+        table._data_dirty = True
         self.tables[name] = table
         self._dirty = True
 
@@ -2453,10 +2481,21 @@ class Storage:
         """强制写入磁盘"""
         if self.backend and self._dirty:
             event.dispatch_storage(self, 'before_flush')
-            self.backend.save(self.tables)
+
+            # 收集变更的表名（用于后端增量保存优化）
+            changed_tables = {
+                name for name, table in self.tables.items()
+                if table.is_dirty
+            }
+
+            self.backend.save(self.tables, changed_tables=changed_tables)
             self._dirty = False
             # 重置 WAL 计数器（checkpoint 会清空 WAL）
             self._wal_entry_count = 0
+
+            # 重置所有表的脏标记
+            for table in self.tables.values():
+                table.reset_dirty()
 
             # 首次保存 binary 引擎后，启用 WAL 模式
             if self.engine_name == 'binary' and not self._use_wal:

@@ -184,6 +184,26 @@ User.create(age='20')          # OK，自动转换为 20
 User.create(strict_age='20')   # ValidationError！
 ```
 
+### 自定义校验器
+
+使用 `validator` 参数对字段值进行更细粒度的约束：
+
+```python
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(int, primary_key=True)
+    name = Column(str, validator=lambda x: len(x) <= 100)  # 限制长度
+    age = Column(int, validator=[                            # 多个约束
+        lambda x: x >= 0,
+        lambda x: x <= 150,
+    ])
+    email = Column(str, validator=lambda x: '@' in x)       # 格式校验
+```
+
+- validator 在类型转换**之后**执行，接收的值已经是正确类型
+- `None` 值跳过 validator（由 `nullable` 控制是否允许 `None`）
+- 返回 `False` 或抛出异常时触发 `ValidationError`
+
 ### 默认值
 
 ```python
@@ -192,8 +212,56 @@ from datetime import datetime
 class Post(Base):
     __tablename__ = 'posts'
     id = Column(int, primary_key=True)
-    status = Column(str, default='draft')           # 固定默认值
-    created_at = Column(datetime, default=datetime.now)  # 可调用默认值
+    status = Column(str, default='draft')                     # 静态默认值
+    created_at = Column(datetime, default_factory=datetime.now)  # 动态默认值（每次创建时调用）
+    tags = Column(list, default_factory=list)                   # 每个实例独立的空列表
+```
+
+- `default`：静态值，直接赋给每个实例
+- `default_factory`：无参可调用对象，每次创建实例时调用
+- 两者**互斥**，不可同时设置
+
+### 模型继承（Mixin 复用）
+
+使用 `__abstract__ = True` 标记抽象基类，将公共列抽取到 Mixin 中复用：
+
+```python
+from datetime import datetime
+
+class CommonBase(Base):
+    """公共基类：所有模型共享的字段"""
+    __abstract__ = True
+    id = Column(int, primary_key=True)
+    created_at = Column(datetime, default_factory=datetime.now)
+    updated_at = Column(datetime, default_factory=datetime.now)
+
+class User(CommonBase):
+    __tablename__ = 'users'
+    name = Column(str, nullable=False)
+    email = Column(str)
+
+class Article(CommonBase):
+    __tablename__ = 'articles'
+    title = Column(str)
+    content = Column(str)
+```
+
+**使用建议：**
+
+- Mixin 必须标记 `__abstract__ = True`，否则会因缺少 `__tablename__` 而报错
+- 子类可以覆盖父类的同名列（例如修改默认值或添加校验）
+- 支持多层继承（A → B → C）和多重继承（同时继承多个 Mixin）
+- Mixin 中的 `validator`、`default`、`default_factory` 等特性会被子类完整继承
+
+```python
+# ❌ 忘记标记 __abstract__
+class MyMixin(Base):
+    shared_field = Column(str)  # ValidationError: 缺少 __tablename__
+
+# ✅ 正确标记
+class MyMixin(Base):
+    __abstract__ = True
+    shared_field = Column(str, default='')
 ```
 
 ---
@@ -289,6 +357,44 @@ if result.has_changes:
 
 ---
 
+## 数据序列化
+
+### to_dict 与 to_json
+
+```python
+user = User.get(1)
+
+# 基础序列化
+data = user.to_dict()           # Python 字典
+json_str = user.to_json()       # JSON 字符串
+
+# 字段筛选（适合 API 响应，隐藏敏感字段）
+user.to_dict(exclude={'password', 'secret'})
+user.to_json(include={'id', 'name', 'email'})
+
+# 展开关联数据（避免 N+1 查询时可配合 prefetch 使用）
+user.to_dict(depth=1)           # 展开一层关联
+user.to_json(depth=1, indent=2) # 格式化 JSON 输出
+```
+
+### Web API 场景
+
+```python
+# 返回 JSON 响应（如 Flask / FastAPI）
+@app.get('/users/{user_id}')
+def get_user(user_id: int):
+    user = User.get(user_id)
+    return user.to_dict(exclude={'password'})
+
+# 列表响应
+@app.get('/users')
+def list_users():
+    users = User.all()
+    return [u.to_dict(include={'id', 'name', 'email'}) for u in users]
+```
+
+---
+
 ## 性能优化
 
 ### 批量操作
@@ -332,6 +438,34 @@ db = Storage(
 )
 # 只加载 schema 和索引，按需读取数据
 ```
+
+懒加载同样支持加密文件——加载时仅解密索引区，读取记录时按需解密对应偏移的数据片段：
+
+```python
+# 加密 + 懒加载
+db = Storage(
+    file_path='large_secure.db',
+    engine='binary',
+    backend_options=BinaryBackendOptions(
+        lazy_load=True,
+        encryption='medium',
+        password='my_password',
+    ),
+)
+# 索引区在加载时解密；数据记录在 get(pk) 时按需解密
+```
+
+### 增量保存（CSV）
+
+CSV 引擎支持增量保存——`Storage.flush()` 时仅重写发生变更的表，未变更表直接从旧 ZIP 复制：
+
+```python
+db = Storage(file_path='data.zip', engine='csv')
+# ...修改 users 表...
+db.flush()  # 仅重写 users 表的 CSV，其他表从旧 ZIP 直接复制
+```
+
+> 启用 ZIP 密码保护时不使用增量策略，此时仍为全量写入。
 
 ### SQLite 原生 SQL
 

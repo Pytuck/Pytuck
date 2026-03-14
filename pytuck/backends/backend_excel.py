@@ -6,8 +6,10 @@ Pytuck Excel存储引擎
 
 import json
 import base64
+import os
+import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Dict, List, Set, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -41,7 +43,7 @@ class ExcelBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 ExcelBackendOptions 类型
         self.options: ExcelBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到Excel工作簿"""
         if self.options.read_only:
             raise SerializationError("Excel backend does not support read-only mode")
@@ -50,7 +52,14 @@ class ExcelBackend(StorageBackend):
         except ImportError:
             raise SerializationError("openpyxl is required for Excel backend. Install with: pip install pytuck[excel]")
 
-        temp_path = self.file_path.parent / (self.file_path.name + '.tmp')
+        # 使用 tempfile.mkstemp 创建安全临时文件
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        os.close(fd)  # 关闭 fd，openpyxl 将自行打开文件
+        temp_path = Path(temp_path_str)
         try:
             wb = Workbook()
             # 删除默认工作表
@@ -94,16 +103,14 @@ class ExcelBackend(StorageBackend):
             # 原子性保存
             wb.save(str(temp_path))
 
-            if self.file_path.exists():
-                self.file_path.unlink()
+            # 原子性替换
             temp_path.replace(self.file_path)
 
         except Exception as e:
-            if temp_path.exists():
-                try:
-                    temp_path.unlink()
-                except FileNotFoundError:
-                    pass
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
             raise SerializationError(f"Failed to save Excel file: {e}")
 
     def load(self) -> Dict[str, 'Table']:

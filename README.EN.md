@@ -34,7 +34,7 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 - **Generic Type Hints** - Complete generic support with precise IDE type inference (`List[User]` instead of `List[PureBaseModel]`)
 - **Pythonic Query Syntax** - Use native Python operators (`User.age >= 18`)
 - **Index Optimization** - Hash and sorted indexes for accelerated queries, range queries and sorting automatically leverage indexes
-- **Type Safety** - Automatic type validation and conversion (loose/strict modes), supports 10 field types
+- **Type Safety** - Automatic type validation and conversion (loose/strict modes), custom validators, supports 10 field types
 - **Relationships** - Supports one-to-many and many-to-one with lazy loading + auto caching
 - **Independent Data Models** - Accessible after session close, usable like Pydantic
 - **Persistence** - Automatic or manual data persistence to disk
@@ -732,6 +732,26 @@ class StrictUser(Base):
 user = StrictUser(age='25')  # ❌ ValidationError
 ```
 
+#### Custom Validators
+
+Use the `validator` parameter to add fine-grained constraints on field values:
+
+```python
+class ValidatedUser(Base):
+    __tablename__ = 'validated_users'
+    id = Column(int, primary_key=True)
+    name = Column(str, validator=lambda x: len(x) <= 100)        # Length limit
+    age = Column(int, validator=[lambda x: x >= 0, lambda x: x <= 150])  # Multiple constraints
+    email = Column(str, validator=lambda x: '@' in x)            # Format check
+
+ValidatedUser.create(name='Alice', age=25, email='a@b.com')  # ✅ Passes
+ValidatedUser.create(age=200)  # ❌ ValidationError: validation failed
+```
+
+- Validators execute **after** type conversion, receiving the correctly-typed value
+- `None` values skip validators (`nullable` controls whether `None` is allowed)
+- Returning `False` or raising an exception triggers `ValidationError`
+
 **Type Conversion Rules (Loose Mode)**:
 
 | Python Type | Conversion Rule | Example |
@@ -763,16 +783,20 @@ def get_user(id: int):
     user = session.execute(stmt).scalars().first()
     session.close()
 
-    # Return model, no concern about closed session
-    return user.to_dict()
+    # Return model with field filtering (hide sensitive fields)
+    return user.to_dict(exclude={'password', 'secret'})
 
 # Data transfer: model objects can be passed freely between functions
 def process_users(users: List[User]) -> List[dict]:
-    return [u.to_dict() for u in users]
+    return [u.to_dict(include={'id', 'name', 'email'}) for u in users]
 
-# JSON serialization
-import json
-user_json = json.dumps(user.to_dict())
+# JSON serialization (auto-handles datetime/bytes and other special types)
+json_str = user.to_json()                    # Compact JSON string
+json_str = user.to_json(indent=2)            # Pretty-printed output
+json_str = user.to_json(exclude={'password'}) # Exclude sensitive fields
+
+# Expand relationship data
+user.to_dict(depth=1)  # Expand one level of Relationships (e.g., orders list)
 ```
 
 ## Performance Benchmark
@@ -940,7 +964,7 @@ Pytuck is a lightweight embedded database designed for simplicity. Here are the 
 |------------|-------------|
 | **No JOIN support** | Single table queries only, no multi-table joins |
 | **No aggregate functions** | No COUNT, SUM, AVG, MIN, MAX support |
-| **Full rewrite on save** | Non-binary/SQLite backends rewrite entire file on each save |
+| **Full rewrite on save** | JSON/Excel/XML backends rewrite entire file on each save (CSV engine supports incremental save) |
 | **No nested transactions** | Only single-level transactions supported |
 
 ### Concurrency Limitations
@@ -1058,6 +1082,8 @@ session.rollback()  # Clears pending, but id=1 record still exists
 - [x] **Relationship Prefetch** - Batch load related data, solving the N+1 problem
 - [x] **Query Index Optimization** - Automatically use indexes for range queries and sorting
 - [x] **Bulk Operations** - `bulk_insert` / `bulk_update` API for efficient batch inserts and updates
+- [x] **to_dict() Enhancement & to_json()** - `include`/`exclude` field filtering, `depth` relationship expansion, `to_json()` JSON serialization
+- [x] **Column-level Validators** - `validator` parameter supports custom validation functions and value range constraints
 
 ### Planned Engines
 
@@ -1066,8 +1092,8 @@ session.rollback()  # Clears pending, but id=1 record still exists
 
 ### Planned Optimizations
 
-- [ ] Incremental save for non-binary backends (currently full rewrite on each save)
-- [ ] Binary encryption + lazy loading compatibility (block-level encryption)
+- [x] **Incremental save for non-binary backends** - Table-level dirty tracking, CSV engine incremental ZIP writing (unchanged tables copied directly)
+- [x] **Binary encryption + lazy loading compatibility** - All three ciphers support random-access decryption (`decrypt_at`), encrypted files can be lazily loaded
 
 ## Examples
 
