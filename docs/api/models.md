@@ -18,7 +18,8 @@ Column(
     nullable: bool = True,       # 是否允许 None
     primary_key: bool = False,   # 是否为主键
     index: Union[bool, str] = False,  # 索引类型
-    default: Any = None,         # 默认值（值或可调用对象）
+    default: Any = None,         # 静态默认值
+    default_factory: Optional[Callable[[], Any]] = None,  # 默认值工厂函数
     foreign_key: Optional[tuple] = None,  # 外键 ('table', 'column')
     comment: Optional[str] = None,  # 列备注
     strict: bool = False,        # 严格模式（禁止类型转换）
@@ -35,7 +36,8 @@ Column(
 | `nullable` | `bool` | `True` | 是否允许 `None` 值 |
 | `primary_key` | `bool` | `False` | 是否为主键。每个模型最多一个主键 |
 | `index` | `Union[bool, str]` | `False` | `False`=无索引, `True`或`'hash'`=哈希索引, `'sorted'`=有序索引 |
-| `default` | `Any` | `None` | 默认值。可以是值或可调用对象（如 `datetime.now`） |
+| `default` | `Any` | `None` | 静态默认值。与 `default_factory` 互斥 |
+| `default_factory` | `Optional[Callable[[], Any]]` | `None` | 默认值工厂函数（无参可调用对象），每次创建实例时调用。与 `default` 互斥 |
 | `foreign_key` | `Optional[tuple]` | `None` | 外键引用 `('表名', '列名')` |
 | `comment` | `Optional[str]` | `None` | 列备注信息 |
 | `strict` | `bool` | `False` | 严格模式：`True` 时类型不匹配直接报错，不自动转换 |
@@ -81,6 +83,59 @@ def check_email(value):
 email = Column(str, validator=check_email)
 ```
 
+### 默认值工厂（default_factory）
+
+`default_factory` 参数接受一个无参可调用对象，**每次创建模型实例时调用**生成默认值。适用于需要动态默认值的场景。
+
+**与 `default` 的区别：**
+- `default`：静态值，所有实例共享同一个默认值
+- `default_factory`：工厂函数，每次实例化时调用，生成新的值
+- 两者**互斥**，不可同时设置
+
+> `default_factory` 仅在 ORM 层生效，不会写入后端引擎的表结构元数据中。
+
+**自动创建时间：**
+
+```python
+from datetime import datetime
+
+class Article(Base):
+    __tablename__ = 'articles'
+    id = Column(int, primary_key=True)
+    title = Column(str)
+    created_at = Column(datetime, default_factory=datetime.now)
+
+article = Article(title='Hello')
+print(article.created_at)  # 2024-01-15 10:30:00.123456
+```
+
+**自增序列号：**
+
+```python
+counter = {'value': 0}
+
+def next_seq():
+    counter['value'] += 1
+    return counter['value']
+
+class Task(Base):
+    __tablename__ = 'tasks'
+    id = Column(int, primary_key=True)
+    seq = Column(int, default_factory=next_seq)
+```
+
+**使用 lambda：**
+
+```python
+import time
+
+class Event(Base):
+    __tablename__ = 'events'
+    id = Column(int, primary_key=True)
+    timestamp = Column(float, default_factory=time.time)
+    tags = Column(list, default_factory=list)  # 每个实例一个新列表
+```
+
 ### 索引类型
 
 | 值 | 索引类型 | 适用场景 |
@@ -117,6 +172,8 @@ User.email.endswith('.com')    # 后缀 → LIKE '%.com'
 |------|---------|------|
 | `to_dict()` | `dict` | 将列元数据转为字典 |
 | `validate(value)` | `Any` | 验证并转换值为列类型 |
+| `has_default()` | `bool` | 判断列是否设置了默认值（`default` 或 `default_factory`） |
+| `resolve_default()` | `Any` | 获取解析后的默认值。`default_factory` 时调用工厂函数生成新值 |
 
 ### 类型转换规则（宽松模式）
 
@@ -390,3 +447,135 @@ class Category(Base):
   - 如果 `foreign_key` 在当前模型中 → 多对一（返回单个对象）
   - 如果 `foreign_key` 在目标模型中 → 一对多（返回列表）
   - 自引用场景需用 `uselist` 显式指定
+
+---
+
+## 模型继承
+
+Pytuck 支持通过抽象基类（Mixin）复用列定义，语义与 SQLAlchemy 的 `__abstract__` 一致。
+
+### __abstract__ 属性
+
+| 属性值 | 含义 |
+|--------|------|
+| `__abstract__ = True` | 抽象类 / Mixin，不创建数据库表，列定义供子类继承 |
+| 未设置 / `False` | 具体模型，必须定义 `__tablename__`，会创建表 |
+
+**规则：**
+- 设置 `__abstract__ = True` 的类不会在 Storage 中创建表
+- 未设置 `__abstract__` 且未定义 `__tablename__` 的类会抛出 `ValidationError`
+- 具体子类的 `__abstract__` 会被自动设为 `False`
+
+### 基本用法
+
+```python
+from datetime import datetime
+
+class TimestampMixin(Base):
+    __abstract__ = True
+    created_at = Column(datetime, default_factory=datetime.now)
+    updated_at = Column(datetime, default_factory=datetime.now)
+
+class User(TimestampMixin):
+    __tablename__ = 'users'
+    id = Column(int, primary_key=True)
+    name = Column(str)
+
+# User 自动拥有 id, name, created_at, updated_at 四个列
+user = User(name='Alice')
+print(user.created_at)  # datetime 对象
+```
+
+### 多层继承
+
+```python
+class BaseMixin(Base):
+    __abstract__ = True
+    id = Column(int, primary_key=True)
+
+class AuditMixin(BaseMixin):
+    __abstract__ = True
+    created_by = Column(str, default='system')
+
+class Article(AuditMixin):
+    __tablename__ = 'articles'
+    title = Column(str)
+
+# Article 拥有 id, created_by, title 三个列
+```
+
+### 多重继承（多个 Mixin）
+
+```python
+class SoftDeleteMixin(Base):
+    __abstract__ = True
+    is_deleted = Column(bool, default=False)
+
+class TagMixin(Base):
+    __abstract__ = True
+    tag = Column(str, default='')
+
+class Post(SoftDeleteMixin, TagMixin):
+    __tablename__ = 'posts'
+    id = Column(int, primary_key=True)
+    content = Column(str)
+
+# Post 拥有 id, content, is_deleted, tag 四个列
+```
+
+### 子类覆盖父类列
+
+子类可以重新定义同名列，覆盖父类的列定义：
+
+```python
+class DefaultMixin(Base):
+    __abstract__ = True
+    status = Column(str, default='inactive')
+
+class ActiveModel(DefaultMixin):
+    __tablename__ = 'active_models'
+    id = Column(int, primary_key=True)
+    status = Column(str, default='active')  # 覆盖父类默认值
+
+model = ActiveModel()
+print(model.status)  # 'active'
+```
+
+### 同一 Mixin 复用
+
+一个 Mixin 可以被多个具体模型继承，各模型独立建表：
+
+```python
+class CommonMixin(Base):
+    __abstract__ = True
+    id = Column(int, primary_key=True)
+    status = Column(str, default='active')
+
+class User(CommonMixin):
+    __tablename__ = 'users'
+    name = Column(str)
+
+class Order(CommonMixin):
+    __tablename__ = 'orders'
+    amount = Column(float)
+
+# users 表和 orders 表各自独立，都拥有 id 和 status 列
+```
+
+### Mixin 中的 validator 和 default_factory
+
+Mixin 中定义的 `validator`、`default_factory` 等列特性会被子类完整继承：
+
+```python
+class ValidatedMixin(Base):
+    __abstract__ = True
+    score = Column(int, validator=lambda x: 0 <= x <= 100)
+
+class Student(ValidatedMixin):
+    __tablename__ = 'students'
+    id = Column(int, primary_key=True)
+    name = Column(str)
+
+Student(name='Alice', score=85)   # OK
+Student(name='Bob', score=150)    # ValidationError
+```

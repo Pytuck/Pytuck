@@ -212,8 +212,56 @@ from datetime import datetime
 class Post(Base):
     __tablename__ = 'posts'
     id = Column(int, primary_key=True)
-    status = Column(str, default='draft')           # 固定默认值
-    created_at = Column(datetime, default=datetime.now)  # 可调用默认值
+    status = Column(str, default='draft')                     # 静态默认值
+    created_at = Column(datetime, default_factory=datetime.now)  # 动态默认值（每次创建时调用）
+    tags = Column(list, default_factory=list)                   # 每个实例独立的空列表
+```
+
+- `default`：静态值，直接赋给每个实例
+- `default_factory`：无参可调用对象，每次创建实例时调用
+- 两者**互斥**，不可同时设置
+
+### 模型继承（Mixin 复用）
+
+使用 `__abstract__ = True` 标记抽象基类，将公共列抽取到 Mixin 中复用：
+
+```python
+from datetime import datetime
+
+class CommonBase(Base):
+    """公共基类：所有模型共享的字段"""
+    __abstract__ = True
+    id = Column(int, primary_key=True)
+    created_at = Column(datetime, default_factory=datetime.now)
+    updated_at = Column(datetime, default_factory=datetime.now)
+
+class User(CommonBase):
+    __tablename__ = 'users'
+    name = Column(str, nullable=False)
+    email = Column(str)
+
+class Article(CommonBase):
+    __tablename__ = 'articles'
+    title = Column(str)
+    content = Column(str)
+```
+
+**使用建议：**
+
+- Mixin 必须标记 `__abstract__ = True`，否则会因缺少 `__tablename__` 而报错
+- 子类可以覆盖父类的同名列（例如修改默认值或添加校验）
+- 支持多层继承（A → B → C）和多重继承（同时继承多个 Mixin）
+- Mixin 中的 `validator`、`default`、`default_factory` 等特性会被子类完整继承
+
+```python
+# ❌ 忘记标记 __abstract__
+class MyMixin(Base):
+    shared_field = Column(str)  # ValidationError: 缺少 __tablename__
+
+# ✅ 正确标记
+class MyMixin(Base):
+    __abstract__ = True
+    shared_field = Column(str, default='')
 ```
 
 ---
