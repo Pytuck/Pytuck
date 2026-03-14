@@ -1154,29 +1154,44 @@ def _create_pure_base(
             """子类初始化时自动收集字段并创建表"""
             super().__init_subclass__(**kwargs)
 
-            # 跳过抽象类
-            if cls.__dict__.get('__abstract__', False):
-                return
-
-            # 子类必须定义 __tablename__
-            if not hasattr(cls, '__tablename__') or cls.__tablename__ is None:
-                raise ValidationError(
-                    f"Model {cls.__name__} must define __tablename__"
-                )
-
-            # 收集列定义
+            # 收集列定义（从 MRO 父类继承 + 当前类自身）
             cls.__columns__ = {}
             cls.__relationships__ = {}
-            primary_keys: List[str] = []
 
+            # 从 MRO 父类继承列（从最基础到最近的父类，子类覆盖父类）
+            for parent in reversed(cls.__mro__[1:]):
+                parent_columns = parent.__dict__.get('__columns__')
+                if parent_columns:
+                    cls.__columns__.update(parent_columns)
+                parent_rels = parent.__dict__.get('__relationships__')
+                if parent_rels:
+                    cls.__relationships__.update(parent_rels)
+
+            # 收集当前类直接定义的列和关系（覆盖父类同名定义）
             for attr_name, attr_value in list(cls.__dict__.items()):
                 if isinstance(attr_value, Column):
                     cls.__columns__[attr_name] = attr_value
-                    if attr_value.primary_key:
-                        primary_keys.append(attr_name)
                 elif isinstance(attr_value, Relationship):
                     cls.__relationships__[attr_name] = attr_value
                     attr_value.__set_name__(cls, attr_name)
+
+            # 跳过抽象类（列已收集供子类继承，但不创建表）
+            if cls.__dict__.get('__abstract__', False):
+                return
+
+            # 具体模型：显式标记为非抽象
+            cls.__abstract__ = False
+
+            # 子类必须定义 __tablename__（否则应使用 __abstract__ = True 标记为抽象类）
+            if not cls.__tablename__:
+                raise ValidationError(
+                    f"Model {cls.__name__} must define __tablename__. "
+                    f"If this is a mixin or abstract class, set __abstract__ = True."
+                )
+
+            # 从最终的 __columns__ 中计算主键
+            primary_keys = [name for name, col in cls.__columns__.items()
+                            if col.primary_key]
 
             # 验证主键数量：只允许单主键或无主键
             if len(primary_keys) > 1:
@@ -1255,29 +1270,44 @@ def _create_crud_base(
             """子类初始化时自动收集字段并创建表"""
             super().__init_subclass__(**kwargs)
 
-            # 跳过抽象类
-            if cls.__dict__.get('__abstract__', False):
-                return
-
-            # 子类必须定义 __tablename__
-            if not hasattr(cls, '__tablename__') or cls.__tablename__ is None:
-                raise ValidationError(
-                    f"Model {cls.__name__} must define __tablename__"
-                )
-
-            # 收集列定义
+            # 收集列定义（从 MRO 父类继承 + 当前类自身）
             cls.__columns__ = {}
             cls.__relationships__ = {}
-            primary_keys: List[str] = []
 
+            # 从 MRO 父类继承列（从最基础到最近的父类，子类覆盖父类）
+            for parent in reversed(cls.__mro__[1:]):
+                parent_columns = parent.__dict__.get('__columns__')
+                if parent_columns:
+                    cls.__columns__.update(parent_columns)
+                parent_rels = parent.__dict__.get('__relationships__')
+                if parent_rels:
+                    cls.__relationships__.update(parent_rels)
+
+            # 收集当前类直接定义的列和关系（覆盖父类同名定义）
             for attr_name, attr_value in list(cls.__dict__.items()):
                 if isinstance(attr_value, Column):
                     cls.__columns__[attr_name] = attr_value
-                    if attr_value.primary_key:
-                        primary_keys.append(attr_name)
                 elif isinstance(attr_value, Relationship):
                     cls.__relationships__[attr_name] = attr_value
                     attr_value.__set_name__(cls, attr_name)
+
+            # 跳过抽象类（列已收集供子类继承，但不创建表）
+            if cls.__dict__.get('__abstract__', False):
+                return
+
+            # 具体模型：显式标记为非抽象
+            cls.__abstract__ = False
+
+            # 子类必须定义 __tablename__（否则应使用 __abstract__ = True 标记为抽象类）
+            if not cls.__tablename__:
+                raise ValidationError(
+                    f"Model {cls.__name__} must define __tablename__. "
+                    f"If this is a mixin or abstract class, set __abstract__ = True."
+                )
+
+            # 从最终的 __columns__ 中计算主键
+            primary_keys = [name for name, col in cls.__columns__.items()
+                            if col.primary_key]
 
             # 验证主键数量：只允许单主键或无主键
             if len(primary_keys) > 1:

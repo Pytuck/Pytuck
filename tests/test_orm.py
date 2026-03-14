@@ -143,11 +143,11 @@ class TestDeclarativeBase(unittest.TestCase):
         self.assertIs(TestModel.__storage__, self.db)
 
     def test_tablename_required(self):
-        """测试 __tablename__ 必须定义"""
+        """测试无 __tablename__ 且未标记 __abstract__ 的类必须报错"""
         Base = declarative_base(self.db)
 
         with self.assertRaises(ValidationError):
-            class TestModel(Base):
+            class BadModel(Base):
                 id = Column(int, primary_key=True)
 
     def test_column_collection(self):
@@ -1268,6 +1268,267 @@ class TestColumnValidator(unittest.TestCase):
             user.name = 'A'  # 长度 < 2
 
 
+class TestModelInheritance(unittest.TestCase):
+    """测试模型继承支持（Mixin 列复用）"""
+
+    def test_mixin_column_inheritance_pure(self):
+        """纯模型模式：子类继承 Mixin 定义的列"""
+        db = Storage()
+        Base = declarative_base(db)
+
+        class TimestampMixin(Base):
+            __abstract__ = True
+            created_at = Column(str, default='now')
+            updated_at = Column(str, default='now')
+
+        class User(TimestampMixin):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        # 验证 User.__columns__ 包含继承的列
+        self.assertIn('id', User.__columns__)
+        self.assertIn('name', User.__columns__)
+        self.assertIn('created_at', User.__columns__)
+        self.assertIn('updated_at', User.__columns__)
+        self.assertEqual(len(User.__columns__), 4)
+
+        # 验证主键正确
+        self.assertEqual(User.__primary_key__, 'id')
+
+    def test_mixin_column_inheritance_crud(self):
+        """CRUD 模式：子类继承 Mixin 定义的列，且 CRUD 操作正常"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class AuditMixin(Base):
+            __abstract__ = True
+            created_by = Column(str, default='system')
+
+        class Product(AuditMixin):
+            __tablename__ = 'products'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        # 创建记录
+        p = Product.create(name='Widget')
+        self.assertEqual(p.name, 'Widget')
+        self.assertEqual(p.created_by, 'system')
+
+        # 查询
+        found = Product.get(p.id)
+        self.assertIsNotNone(found)
+        self.assertEqual(found.name, 'Widget')
+        self.assertEqual(found.created_by, 'system')
+
+    def test_mixin_crud_to_dict(self):
+        """继承的列在 to_dict 中正确显示"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class TagMixin(Base):
+            __abstract__ = True
+            tag = Column(str, default='default')
+
+        class Item(TagMixin):
+            __tablename__ = 'items'
+            id = Column(int, primary_key=True)
+            title = Column(str)
+
+        item = Item.create(title='Test')
+        d = item.to_dict()
+        self.assertIn('tag', d)
+        self.assertEqual(d['tag'], 'default')
+        self.assertIn('title', d)
+        self.assertIn('id', d)
+
+    def test_child_overrides_parent_column(self):
+        """子类可以覆盖父类定义的同名列"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class DefaultMixin(Base):
+            __abstract__ = True
+            status = Column(str, default='inactive')
+
+        class ActiveModel(DefaultMixin):
+            __tablename__ = 'active_models'
+            id = Column(int, primary_key=True)
+            status = Column(str, default='active')  # 覆盖父类
+
+        model = ActiveModel.create()
+        self.assertEqual(model.status, 'active')  # 使用子类的默认值
+
+    def test_multi_level_inheritance(self):
+        """多层继承：A → B → C"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class LevelA(Base):
+            __abstract__ = True
+            col_a = Column(str, default='a')
+
+        class LevelB(LevelA):
+            __abstract__ = True
+            col_b = Column(str, default='b')
+
+        class LevelC(LevelB):
+            __tablename__ = 'level_c'
+            id = Column(int, primary_key=True)
+            col_c = Column(str, default='c')
+
+        # LevelC 应继承 col_a 和 col_b
+        self.assertIn('col_a', LevelC.__columns__)
+        self.assertIn('col_b', LevelC.__columns__)
+        self.assertIn('col_c', LevelC.__columns__)
+        self.assertIn('id', LevelC.__columns__)
+        self.assertEqual(len(LevelC.__columns__), 4)
+
+        item = LevelC.create()
+        self.assertEqual(item.col_a, 'a')
+        self.assertEqual(item.col_b, 'b')
+        self.assertEqual(item.col_c, 'c')
+
+    def test_mixin_with_validator(self):
+        """Mixin 中的 validator 在子类中生效"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class ValidatedMixin(Base):
+            __abstract__ = True
+            score = Column(int, validator=lambda x: 0 <= x <= 100)
+
+        class Student(ValidatedMixin):
+            __tablename__ = 'students_inherit'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        # 合法值
+        s = Student.create(name='Alice', score=85)
+        self.assertEqual(s.score, 85)
+
+        # 不合法值
+        with self.assertRaises(ValidationError):
+            Student.create(name='Bob', score=150)
+
+    def test_mixin_no_table_created(self):
+        """标记 __abstract__ = True 的 Mixin 不创建表"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class MyMixin(Base):
+            __abstract__ = True
+            extra = Column(str, default='x')
+
+        # Mixin 类不应在 Storage 中创建表
+        self.assertNotIn('my_mixin', db.tables)
+        # Mixin 不应有 __tablename__ 设置
+        self.assertIsNone(MyMixin.__tablename__)
+
+    def test_multiple_mixins(self):
+        """多个 Mixin 的列都被继承"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class MixinA(Base):
+            __abstract__ = True
+            field_a = Column(str, default='a')
+
+        class MixinB(Base):
+            __abstract__ = True
+            field_b = Column(str, default='b')
+
+        class Combined(MixinA, MixinB):
+            __tablename__ = 'combined'
+            id = Column(int, primary_key=True)
+
+        self.assertIn('field_a', Combined.__columns__)
+        self.assertIn('field_b', Combined.__columns__)
+        self.assertIn('id', Combined.__columns__)
+
+        item = Combined.create()
+        self.assertEqual(item.field_a, 'a')
+        self.assertEqual(item.field_b, 'b')
+
+    def test_mixin_with_primary_key_inherited(self):
+        """Mixin 中定义主键，子类继承"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class PKMixin(Base):
+            __abstract__ = True
+            id = Column(int, primary_key=True)
+
+        class SimpleModel(PKMixin):
+            __tablename__ = 'simple_model'
+            name = Column(str)
+
+        self.assertEqual(SimpleModel.__primary_key__, 'id')
+        m = SimpleModel.create(name='Test')
+        self.assertIsNotNone(m.id)
+        self.assertEqual(m.name, 'Test')
+
+    def test_abstract_mixin_skipped(self):
+        """标记 __abstract__ = True 的类被跳过"""
+        db = Storage()
+        Base = declarative_base(db)
+
+        class AbstractBase(Base):
+            __abstract__ = True
+            id = Column(int, primary_key=True)
+
+        # 不应报错，AbstractBase 不会触发表创建
+        self.assertTrue(AbstractBase.__abstract__)
+
+    def test_two_concrete_models_from_same_mixin(self):
+        """同一 Mixin 可以被多个具体模型继承"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        class CommonMixin(Base):
+            __abstract__ = True
+            status = Column(str, default='active')
+
+        class ModelA(CommonMixin):
+            __tablename__ = 'model_a'
+            id = Column(int, primary_key=True)
+            name_a = Column(str)
+
+        class ModelB(CommonMixin):
+            __tablename__ = 'model_b'
+            id = Column(int, primary_key=True)
+            name_b = Column(str)
+
+        a = ModelA.create(name_a='A')
+        b = ModelB.create(name_b='B')
+        self.assertEqual(a.status, 'active')
+        self.assertEqual(b.status, 'active')
+        self.assertIn('status', ModelA.__columns__)
+        self.assertIn('status', ModelB.__columns__)
+
+    def test_no_tablename_no_abstract_raises(self):
+        """无 __tablename__ 且无 __abstract__ = True 的类必须报错"""
+        db = Storage()
+        Base = declarative_base(db, crud=True)
+
+        with self.assertRaises(ValidationError) as ctx:
+            class ForgotTablename(Base):
+                id = Column(int, primary_key=True)
+                name = Column(str)
+
+        self.assertIn('__tablename__', str(ctx.exception))
+        self.assertIn('__abstract__', str(ctx.exception))
+
+    def test_no_tablename_no_abstract_raises_pure(self):
+        """纯模型模式：无 __tablename__ 且无 __abstract__ 也报错"""
+        db = Storage()
+        Base = declarative_base(db)
+
+        with self.assertRaises(ValidationError):
+            class BadModel(Base):
+                id = Column(int, primary_key=True)
+
+
 def run_tests():
     """运行所有测试"""
     loader = unittest.TestLoader()
@@ -1283,6 +1544,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestColumnNameMapping))
     suite.addTests(loader.loadTestsFromTestCase(TestToDictEnhanced))
     suite.addTests(loader.loadTestsFromTestCase(TestColumnValidator))
+    suite.addTests(loader.loadTestsFromTestCase(TestModelInheritance))
 
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)
