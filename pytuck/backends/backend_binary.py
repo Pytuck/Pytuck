@@ -351,7 +351,7 @@ class BinaryBackend(StorageBackend):
         self._wal_buffer_size: int = 0  # 缓冲区字节大小
         self._wal_flush_threshold: int = 32 * 1024  # 32KB 阈值
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到二进制文件（v4 格式：双Header + 增量写入支持）"""
         # 清空 WAL 缓冲区（checkpoint 会包含所有数据）
         self._wal_buffer.clear()

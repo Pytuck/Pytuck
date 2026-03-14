@@ -6,7 +6,7 @@ Pytuck SQLite存储引擎
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING, Tuple
+from typing import Any, Dict, List, Optional, Set, Union, TYPE_CHECKING, Tuple
 from datetime import datetime
 
 from .base import StorageBackend
@@ -130,7 +130,7 @@ class SQLiteBackend(StorageBackend):
                         table.next_id += 1
                 table.data[pk] = record
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """
         保存数据到 SQLite 数据库
 

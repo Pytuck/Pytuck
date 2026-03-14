@@ -9,7 +9,7 @@ import inspect
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Dict, Set, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, ConfigurationError
@@ -136,7 +136,7 @@ class JSONBackend(StorageBackend):
             f"Your custom logic must set self._dumps_func, self._loads_func, and self._impl_name"
         )
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到JSON文件"""
         data = {
             'format_version': self.FORMAT_VERSION,

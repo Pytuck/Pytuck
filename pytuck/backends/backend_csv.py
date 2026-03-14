@@ -12,7 +12,7 @@ import tempfile
 import threading
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Dict, Set, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, EncryptionError
@@ -49,8 +49,57 @@ class CSVBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 CsvBackendOptions 类型
         self.options: CsvBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到ZIP压缩包"""
+        # 决定是否可以增量保存
+        can_incremental = (
+            changed_tables is not None
+            and self.file_path.exists()
+            and not self.options.password  # 加密 ZIP 不支持增量
+        )
+
+        if can_incremental:
+            assert changed_tables is not None  # 类型收窄，上面已检查
+            self._save_incremental(tables, changed_tables)
+        else:
+            self._save_full(tables)
+
+    def _build_tables_schema(self, tables: Dict[str, 'Table']) -> Dict[str, Dict[str, Any]]:
+        """构建所有表的 schema 字典"""
+        tables_schema: Dict[str, Dict[str, Any]] = {}
+        for table_name, table in tables.items():
+            tables_schema[table_name] = {
+                'primary_key': table.primary_key,
+                'next_id': table.next_id,
+                'comment': table.comment,
+                'columns': [
+                    {
+                        'name': col.name,
+                        'type': col.col_type.__name__,
+                        'nullable': col.nullable,
+                        'primary_key': col.primary_key,
+                        'index': col.index,
+                        'comment': col.comment,
+                        'default': col.default if isinstance(col.default, (int, float, str, bool, type(None))) else None
+                    }
+                    for col in table.columns.values()
+                ]
+            }
+        return tables_schema
+
+    def _build_metadata_bytes(self, tables: Dict[str, 'Table']) -> bytes:
+        """构建 metadata JSON bytes"""
+        tables_schema = self._build_tables_schema(tables)
+        metadata = {
+            'format_version': self.FORMAT_VERSION,
+            'timestamp': datetime.now().isoformat(),
+            'table_count': len(tables),
+            'tables': tables_schema
+        }
+        return json.dumps(metadata, indent=self.options.indent).encode('utf-8')
+
+    def _save_full(self, tables: Dict[str, 'Table']) -> None:
+        """全量保存所有表数据到ZIP压缩包"""
         # 使用 tempfile.mkstemp 创建安全临时文件
         fd, temp_path_str = tempfile.mkstemp(
             dir=str(self.file_path.parent),
@@ -61,35 +110,7 @@ class CSVBackend(StorageBackend):
         temp_path = Path(temp_path_str)
 
         try:
-            # 收集所有表的 schema
-            tables_schema: Dict[str, Dict[str, Any]] = {}
-            for table_name, table in tables.items():
-                tables_schema[table_name] = {
-                    'primary_key': table.primary_key,
-                    'next_id': table.next_id,
-                    'comment': table.comment,
-                    'columns': [
-                        {
-                            'name': col.name,
-                            'type': col.col_type.__name__,
-                            'nullable': col.nullable,
-                            'primary_key': col.primary_key,
-                            'index': col.index,
-                            'comment': col.comment,
-                            'default': col.default if isinstance(col.default, (int, float, str, bool, type(None))) else None
-                        }
-                        for col in table.columns.values()
-                    ]
-                }
-
-            # 保存全局元数据（包含所有表的 schema）
-            metadata = {
-                'format_version': self.FORMAT_VERSION,
-                'timestamp': datetime.now().isoformat(),
-                'table_count': len(tables),
-                'tables': tables_schema
-            }
-            metadata_bytes = json.dumps(metadata, indent=self.options.indent).encode('utf-8')
+            metadata_bytes = self._build_metadata_bytes(tables)
 
             if self.options.password:
                 # 使用加密 ZIP 写入器
@@ -117,6 +138,63 @@ class CSVBackend(StorageBackend):
             except (FileNotFoundError, OSError):
                 pass
             raise SerializationError(f"Failed to save CSV archive: {e}")
+
+    def _save_incremental(self, tables: Dict[str, 'Table'], changed_tables: Set[str]) -> None:
+        """增量保存：仅重写变更的表，从旧 ZIP 复制未变更的表"""
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        os.close(fd)
+        temp_path = Path(temp_path_str)
+
+        try:
+            # 重新生成 metadata（始终更新）
+            metadata_bytes = self._build_metadata_bytes(tables)
+
+            # 收集旧 ZIP 中的表名
+            old_table_names: Set[str] = set()
+
+            with zipfile.ZipFile(str(self.file_path), 'r') as old_zip:
+                for item in old_zip.infolist():
+                    if item.filename != '_metadata.json' and item.filename.endswith('.csv'):
+                        old_table_names.add(item.filename[:-4])  # 去掉 .csv 后缀
+
+                with zipfile.ZipFile(str(temp_path), 'w', zipfile.ZIP_DEFLATED) as new_zip:
+                    # 写入新 metadata
+                    new_zip.writestr('_metadata.json', metadata_bytes)
+
+                    # 复制未变更的表（从旧 ZIP 直接拷贝二进制数据）
+                    for item in old_zip.infolist():
+                        if item.filename == '_metadata.json':
+                            continue
+                        if not item.filename.endswith('.csv'):
+                            # 保留非 CSV 条目（兼容性）
+                            data = old_zip.read(item.filename)
+                            new_zip.writestr(item, data)
+                            continue
+                        table_name = item.filename[:-4]
+                        if table_name not in changed_tables and table_name in tables:
+                            # 未变更且仍然存在：直接拷贝
+                            data = old_zip.read(item.filename)
+                            new_zip.writestr(item, data)
+
+                    # 写入变更的表和新增的表
+                    for table_name, table in tables.items():
+                        if table_name in changed_tables or table_name not in old_table_names:
+                            self._save_table_to_zip(new_zip, table_name, table)
+
+            # 原子性替换
+            temp_path.replace(self.file_path)
+
+        except Exception as e:
+            # 清理临时文件
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
+            raise SerializationError(f"Failed to save CSV archive (incremental): {e}")
 
     def load(self) -> Dict[str, 'Table']:
         """从ZIP压缩包加载所有表数据"""

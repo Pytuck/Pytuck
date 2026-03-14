@@ -9,7 +9,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Dict, List, Set, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -43,7 +43,7 @@ class ExcelBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 ExcelBackendOptions 类型
         self.options: ExcelBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到Excel工作簿"""
         if self.options.read_only:
             raise SerializationError("Excel backend does not support read-only mode")

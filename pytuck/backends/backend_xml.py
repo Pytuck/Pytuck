@@ -9,7 +9,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Dict, Set, Union, TYPE_CHECKING, Tuple, Optional
 from datetime import datetime, date, timedelta
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -43,7 +43,7 @@ class XMLBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 XmlBackendOptions 类型
         self.options: XmlBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table']) -> None:
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到XML文件"""
         try:
             from lxml import etree
