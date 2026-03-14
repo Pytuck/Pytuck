@@ -284,7 +284,7 @@ class Column:
     """
     __slots__ = ['name', 'col_type', 'nullable', 'primary_key',
                  'index', 'default', 'foreign_key', 'comment', '_type_code',
-                 '_attr_name', '_owner_class', 'strict']
+                 '_attr_name', '_owner_class', 'strict', '_validators']
 
     def __init__(self,
                  col_type: ColumnTypes,
@@ -296,7 +296,11 @@ class Column:
                  default: Any = None,
                  foreign_key: Optional[tuple] = None,
                  comment: Optional[str] = None,
-                 strict: bool = False):
+                 strict: bool = False,
+                 validator: Optional[Union[
+                     Callable[[Any], bool],
+                     List[Callable[[Any], bool]]
+                 ]] = None):
         """
         初始化列定义
 
@@ -310,6 +314,10 @@ class Column:
             foreign_key: 外键关系 (table_name, column_name)
             comment: 列备注/注释
             strict: 是否严格模式（不进行类型转换）
+            validator: 自定义校验函数或校验函数列表。
+                      每个函数接收类型转换后的值，返回 True 通过，
+                      返回 False 或抛出异常则校验失败。
+                      示例: Column(str, validator=lambda x: len(x) <= 100)
         """
         self.name = name  # 可能为 None，将在 __set_name__ 中设置
         self.col_type = col_type
@@ -325,6 +333,18 @@ class Column:
         self.foreign_key = foreign_key
         self.comment = comment
         self.strict = strict
+
+        # 校验器
+        if validator is None:
+            self._validators: List[Callable[[Any], bool]] = []
+        elif callable(validator):
+            self._validators = [validator]
+        elif isinstance(validator, list):
+            self._validators = validator
+        else:
+            raise ValidationError(
+                f"Column '{name}': validator must be callable or list of callables"
+            )
 
         # 获取类型编码
         try:
@@ -357,7 +377,7 @@ class Column:
             验证/转换后的值
 
         Raises:
-            ValidationError: 类型不匹配且无法转换
+            ValidationError: 类型不匹配且无法转换，或自定义校验器校验失败
         """
         # 处理None值
         if value is None:
@@ -376,30 +396,46 @@ class Column:
                     f"Column '{self.name}' expects type int, got bool"
                 )
 
-        # 如果已经是正确类型，直接返回
-        if isinstance(value, self.col_type):
-            return value
+        # 如果已经是正确类型，跳过转换
+        if not isinstance(value, self.col_type):
+            # 严格模式：不进行类型转换
+            if self.strict:
+                raise ValidationError(
+                    f"Column '{self.name}' expects type {self.col_type.__name__}, "
+                    f"got {type(value).__name__} (strict mode)"
+                )
 
-        # 严格模式：不进行类型转换
-        if self.strict:
-            raise ValidationError(
-                f"Column '{self.name}' expects type {self.col_type.__name__}, "
-                f"got {type(value).__name__} (strict mode)"
-            )
+            # 宽松模式：使用字典查找转换函数
+            try:
+                converter = _TYPE_CONVERTERS.get(self.col_type)
+                if converter is not None:
+                    value = converter(value)
+                else:
+                    # 回退：尝试直接调用类型构造函数
+                    value = self.col_type(value)  # type: ignore[call-arg]
+            except (ValueError, TypeError) as e:
+                raise ValidationError(
+                    f"Column '{self.name}' Cannot convert {type(value).__name__} "
+                    f"to {self.col_type.__name__}: {e}"
+                )
 
-        # 宽松模式：使用字典查找转换函数
-        try:
-            converter = _TYPE_CONVERTERS.get(self.col_type)
-            if converter is not None:
-                return converter(value)
-            else:
-                # 回退：尝试直接调用类型构造函数
-                return self.col_type(value)  # type: ignore[call-arg]
-        except (ValueError, TypeError) as e:
-            raise ValidationError(
-                f"Column '{self.name}' Cannot convert {type(value).__name__} "
-                f"to {self.col_type.__name__}: {e}"
-            )
+        # 自定义校验器（在类型转换之后调用）
+        if self._validators:
+            for v_func in self._validators:
+                try:
+                    result = v_func(value)
+                except ValidationError:
+                    raise
+                except Exception as e:
+                    raise ValidationError(
+                        f"Column '{self.name}' validation failed: {e}"
+                    )
+                if result is False:
+                    raise ValidationError(
+                        f"Column '{self.name}' validation failed for value: {value!r}"
+                    )
+
+        return value
 
     def __repr__(self) -> str:
         return f"Column(name='{self.name}', type={self.col_type.__name__}, pk={self.primary_key})"

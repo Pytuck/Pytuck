@@ -1081,6 +1081,193 @@ class TestToDictEnhanced(unittest.TestCase):
         self.assertEqual(data['name'], '张三')
 
 
+class TestColumnValidator(unittest.TestCase):
+    """Column validator 校验器测试"""
+
+    def setUp(self):
+        """设置测试环境"""
+        self.temp_dir = mktemp_dir_project()
+        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db = Storage(file_path=self.db_path)
+
+    def tearDown(self):
+        """清理测试环境"""
+        self.db.close()
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        os.rmdir(self.temp_dir)
+
+    def test_validator_single_pass(self):
+        """单个 validator 通过"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str, validator=lambda x: len(x) <= 100)
+
+        user = User.create(name='Alice')
+        self.assertEqual(user.name, 'Alice')
+
+    def test_validator_single_fail(self):
+        """单个 validator 返回 False，抛出 ValidationError"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str, validator=lambda x: len(x) <= 5)
+
+        with self.assertRaises(ValidationError):
+            User.create(name='TooLongName')
+
+    def test_validator_multiple(self):
+        """多个 validator 全部通过"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            age = Column(int, validator=[
+                lambda x: x >= 0,
+                lambda x: x <= 150,
+            ])
+
+        user = User.create(age=25)
+        self.assertEqual(user.age, 25)
+
+    def test_validator_multiple_fail(self):
+        """多个 validator 中第二个失败"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            age = Column(int, validator=[
+                lambda x: x >= 0,
+                lambda x: x <= 150,
+            ])
+
+        # 超过上限
+        with self.assertRaises(ValidationError):
+            User.create(age=200)
+
+    def test_validator_with_exception(self):
+        """validator 抛出自定义异常，包装为 ValidationError"""
+        def strict_name(value):
+            if not value.isalpha():
+                raise ValueError("Name must contain only letters")
+            return True
+
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str, validator=strict_name)
+
+        # 包含数字，validator 抛出 ValueError -> 包装为 ValidationError
+        with self.assertRaises(ValidationError) as ctx:
+            User.create(name='Alice123')
+        self.assertIn('validation failed', str(ctx.exception))
+
+    def test_validator_none_skipped(self):
+        """None 值跳过 validator"""
+        call_count = [0]
+
+        def never_called(value):
+            call_count[0] += 1
+            return True
+
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str, nullable=True, validator=never_called)
+
+        user = User.create(name=None)
+        self.assertIsNone(user.name)
+        # validator 不应该被调用
+        self.assertEqual(call_count[0], 0)
+
+    def test_validator_after_type_conversion(self):
+        """宽松模式下先转换再校验"""
+        # validator 接收的应该是转换后的 int，而不是原始字符串
+        received_types = []
+
+        def check_type(value):
+            received_types.append(type(value))
+            return value > 0
+
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            age = Column(int, validator=check_type)
+
+        # 传入字符串 '25'，应先被转换为 int，然后 validator 接收 int
+        user = User.create(age='25')
+        self.assertEqual(user.age, 25)
+        # validator 可能被多次调用（初始化、存储层），但每次接收的都是 int
+        self.assertTrue(len(received_types) >= 1)
+        for t in received_types:
+            self.assertEqual(t, int)
+
+    def test_validator_lambda(self):
+        """使用 lambda 作为 validator"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            email = Column(str, validator=lambda x: '@' in x)
+
+        user = User.create(email='alice@example.com')
+        self.assertEqual(user.email, 'alice@example.com')
+
+        with self.assertRaises(ValidationError):
+            User.create(email='invalid-email')
+
+    def test_validator_with_crud(self):
+        """CRUD 模式下 validator 在 create 和 save 时都生效"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            age = Column(int, validator=lambda x: 0 <= x <= 150)
+
+        # create 时校验
+        user = User.create(age=25)
+        self.assertEqual(user.age, 25)
+
+        # save/update 时校验
+        with self.assertRaises(ValidationError):
+            user.age = -1  # 描述符 __set__ -> validate -> validator
+
+    def test_validator_on_update(self):
+        """通过赋值更新字段值时 validator 生效"""
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str, validator=lambda x: len(x) >= 2)
+
+        user = User.create(name='Alice')
+        self.assertEqual(user.name, 'Alice')
+
+        # 更新为合法值
+        user.name = 'Bob'
+        self.assertEqual(user.name, 'Bob')
+
+        # 更新为不合法值
+        with self.assertRaises(ValidationError):
+            user.name = 'A'  # 长度 < 2
+
+
 def run_tests():
     """运行所有测试"""
     loader = unittest.TestLoader()
@@ -1095,6 +1282,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestTypeAnnotations))
     suite.addTests(loader.loadTestsFromTestCase(TestColumnNameMapping))
     suite.addTests(loader.loadTestsFromTestCase(TestToDictEnhanced))
+    suite.addTests(loader.loadTestsFromTestCase(TestColumnValidator))
 
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)
