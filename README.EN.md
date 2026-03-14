@@ -964,7 +964,7 @@ Pytuck is a lightweight embedded database designed for simplicity. Here are the 
 |------------|-------------|
 | **No JOIN support** | Single table queries only, no multi-table joins |
 | **No aggregate functions** | No COUNT, SUM, AVG, MIN, MAX support |
-| **Full rewrite on save** | Non-binary/SQLite backends rewrite entire file on each save |
+| **Full rewrite on save** | JSON/Excel/XML backends rewrite entire file on each save (CSV engine supports incremental save) |
 | **No nested transactions** | Only single-level transactions supported |
 
 ### Concurrency Limitations
@@ -1092,8 +1092,8 @@ session.rollback()  # Clears pending, but id=1 record still exists
 
 ### Planned Optimizations
 
-- [ ] Incremental save for non-binary backends (currently full rewrite on each save)
-- [ ] Binary encryption + lazy loading compatibility (block-level encryption)
+- [x] **Incremental save for non-binary backends** - Table-level dirty tracking, CSV engine incremental ZIP writing (unchanged tables copied directly)
+- [x] **Binary encryption + lazy loading compatibility** - All three ciphers support random-access decryption (`decrypt_at`), encrypted files can be lazily loaded
 
 ## Examples
 

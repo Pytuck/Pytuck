@@ -439,6 +439,34 @@ db = Storage(
 # 只加载 schema 和索引，按需读取数据
 ```
 
+懒加载同样支持加密文件——加载时仅解密索引区，读取记录时按需解密对应偏移的数据片段：
+
+```python
+# 加密 + 懒加载
+db = Storage(
+    file_path='large_secure.db',
+    engine='binary',
+    backend_options=BinaryBackendOptions(
+        lazy_load=True,
+        encryption='medium',
+        password='my_password',
+    ),
+)
+# 索引区在加载时解密；数据记录在 get(pk) 时按需解密
+```
+
+### 增量保存（CSV）
+
+CSV 引擎支持增量保存——`Storage.flush()` 时仅重写发生变更的表，未变更表直接从旧 ZIP 复制：
+
+```python
+db = Storage(file_path='data.zip', engine='csv')
+# ...修改 users 表...
+db.flush()  # 仅重写 users 表的 CSV，其他表从旧 ZIP 直接复制
+```
+
+> 启用 ZIP 密码保护时不使用增量策略，此时仍为全量写入。
+
 ### SQLite 原生 SQL
 
 ```python
