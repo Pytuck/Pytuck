@@ -355,7 +355,9 @@ def sqlite_db_with_users(temp_dir: Path):
     session.commit()
     db.flush()
 
-    return db, User, session
+    yield db, User, session
+
+    db.close()
 
 
 class TestSQLiteNativeSQLStringMatch:
