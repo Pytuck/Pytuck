@@ -11,76 +11,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.8.0] - 2026-03-13
+## [0.9.0] - 2026-03-15
 
 ### Added
 
-- **String Matching Query Operators**
-  - `Column.contains(value)` — Substring match (case-insensitive)
-  - `Column.startswith(value)` — Prefix match (case-insensitive)
-  - `Column.endswith(value)` — Suffix match (case-insensitive)
-  - Supported in both in-memory engines and SQLite native SQL mode
-  - `query_table_data` `filters` parameter supports `LIKE`/`STARTSWITH`/`ENDSWITH` operators
+- **to_dict() Enhancement & to_json()**
+  - `to_dict()` supports `include` / `exclude` field filtering
+  - `depth` parameter controls relationship serialization depth (`depth=1` expands one level of Relationships)
+  - New `to_json()` method with `indent`, `include`, `exclude`, `depth` parameters
   - Example:
     ```python
-    # Find users whose name contains "ali" (case-insensitive)
-    stmt = select(User).where(User.name.contains('ali'))
-
-    # Prefix/suffix matching
-    stmt = select(User).where(User.name.startswith('Al'))
-    stmt = select(User).where(User.email.endswith('.com'))
+    user.to_dict(exclude={'password'})         # Exclude sensitive fields
+    user.to_json(include={'id', 'name'})       # Keep only specified fields
+    user.to_dict(depth=1)                      # Expand one level of relationships
     ```
 
-- **Database Column Operations**
-  - `alter_column()` — Modify column attributes (type, nullability, default value) with automatic data migration
-  - `set_primary_key()` — Change table primary key
-  - `reorder_columns()` — Reorder column positions
-  - Available at both Session and Storage layers; accepts model classes or table name strings
+- **Column-level Validators**
+  - `Column` now accepts a `validator` parameter: a single function or list of functions
+  - Validators execute after type conversion; `None` values skip validation
+  - Returning `False` or raising an exception triggers `ValidationError`
   - Example:
     ```python
-    # Change column type
-    session.alter_column(User, 'age', col_type=str)
-
-    # Change primary key
-    session.set_primary_key(User, 'email')
-
-    # Reorder columns
-    session.reorder_columns(User, ['id', 'email', 'name', 'age'])
+    name = Column(str, validator=lambda x: len(x) <= 100)
+    age = Column(int, validator=[lambda x: x >= 0, lambda x: x <= 150])
     ```
 
-- **query_table_data Advanced Filtering**
-  - `filters` parameter now supports both equality dicts and operator-based list format
-  - Supports all operators: `=`, `!=`, `>`, `<`, `>=`, `<=`, `IN`, `LIKE`, `STARTSWITH`, `ENDSWITH`
-  - Backward compatible: original `dict` format (equality filtering) still works
+- **Model Inheritance (Mixin Support)**
+  - Use `__abstract__ = True` to mark abstract base classes for column reuse via Mixins
+  - Supports multi-level inheritance (A -> B -> C) and multiple inheritance (multiple Mixins)
+  - Subclasses can override parent columns (change defaults, add validators, etc.)
   - Example:
     ```python
-    # New format: operator-based filtering
-    db.query_table_data('users', filters=[
-        {'field': 'name', 'operator': 'LIKE', 'value': 'ali'},
-        {'field': 'age', 'operator': '>=', 'value': 18},
-    ])
+    class TimestampMixin(Base):
+        __abstract__ = True
+        created_at = Column(datetime, default_factory=datetime.now)
+
+    class User(TimestampMixin):
+        __tablename__ = 'users'
+        name = Column(str)
     ```
 
-- **CSV field_size_limit Configuration**
-  - Added `field_size_limit` parameter to `CsvBackendOptions` for custom CSV field size limits
-  - Resolves CSV parsing errors when data contains very large text fields (long articles, Base64 data, etc.)
+- **Column default_factory Support**
+  - `Column` now accepts a `default_factory` parameter: a zero-argument callable invoked on each instance creation
+  - Mutually exclusive with `default` (static value); cannot set both
+  - Similar to Python `dataclass` `field(default_factory=...)` design
+  - Example:
+    ```python
+    created_at = Column(datetime, default_factory=datetime.now)
+    tags = Column(list, default_factory=list)
+    ```
 
-- **Column Default Value Support**
-  - Backend engines support setting column defaults via `alter_column`; new records are automatically populated
+- **Incremental Save for Non-Binary Backends**
+  - Added Table-level dirty flags (`_data_dirty` / `_schema_dirty`)
+  - `Storage.flush()` automatically tracks changed tables and passes only changed table names to the backend
+  - CSV engine implements incremental ZIP writing: unchanged tables are copied directly from the old ZIP (binary copy), only changed tables are rewritten
+  - Other backends (JSON/Excel/XML) have extended signatures but behavior is unchanged (full rewrite)
+  - Incremental strategy is not used when ZIP password protection is enabled (falls back to full rewrite)
 
-- **Complete API Reference Documentation**
-  - Added `docs/api/` directory with 10 documentation files:
-    - Models, Storage, Session, Query System, Engine Comparison
-    - Configuration Options, Exception Hierarchy, Tools & Extensions, Best Practices, Index
-  - Covers all public API signatures, parameter descriptions, usage examples, and caveats
+- **Binary Encryption + Lazy Loading Compatibility**
+  - All three ciphers (XOR/LCG/ChaCha20) now have a `decrypt_at()` method for random-access decryption
+  - Encrypted files now support lazy loading: only the index region is decrypted on load to obtain `pk_offsets`; individual records are decrypted on demand
+  - File format and write path are completely unchanged; this is a read-path optimization
+  - Random-access decryption principles:
+    - XOR: 256-byte periodic keystream, offset modulo
+    - LCG: O(log N) fast-forward algorithm to jump to any offset
+    - ChaCha20: Native random access via block counter
 
-- **Usage Scope Disclaimer**
-  - README now includes prominent positioning and limitation notices (pure Python performance boundaries, data volume recommendations, alternative solutions, etc.)
-  - Best Practices documentation includes detailed scope and limitation tables
+### Improved
+
+- **Temporary File Security**
+  - All backend engines now use `tempfile.mkstemp` instead of manually constructed temp file paths
+  - Temp files are created in the target file's directory, ensuring atomic `replace()` on the same filesystem
+  - Removed unnecessary `unlink()` + `replace()` patterns; uses `replace()` for atomic replacement
+
+### Fixed
+
+- Fixed database connection not properly closed in string matching query tests
 
 ### Tests
 
-- Added string matching query tests (40 test cases covering expression creation, in-memory evaluation, Query/Select integration, query_table_data formats)
-- Added `alter_column` / `set_primary_key` / `reorder_columns` API tests
-- Added CSV `field_size_limit` option tests
-- Added SQLite backend string matching pagination tests
+- Added to_dict/to_json enhancement tests
+- Added Column validator tests
+- Added model inheritance and Mixin tests
+- Added Column default_factory tests
+- Added Table-level dirty flags and incremental save tests
+- Added encrypted lazy loading tests (three encryption levels + decrypt_at consistency verification)
