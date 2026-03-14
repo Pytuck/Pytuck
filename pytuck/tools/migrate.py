@@ -122,6 +122,15 @@ def migrate_engine(
     # 统计记录数
     total_records = sum(len(table.data) for table in tables.values())
 
+    # 数据完整性检查：确保数据已加载
+    for table_name, table in tables.items():
+        if not table.data and len(table.columns) > 0:
+            # 尝试备用方式填充数据
+            if hasattr(source_backend, 'populate_tables_with_data'):
+                source_backend.populate_tables_with_data(tables)
+                total_records = sum(len(t.data) for t in tables.values())
+                break
+
     # 保存到目标
     try:
         # 使用 save_full() 确保所有数据被保存（处理延迟加载后端）

@@ -209,7 +209,8 @@ class SQLiteBackend(StorageBackend):
                         'nullable': col.nullable,
                         'primary_key': col.primary_key,
                         'index': col.index,
-                        'comment': col.comment
+                        'comment': col.comment,
+                        'default': col.default if isinstance(col.default, (int, float, str, bool, type(None))) else None
                     }
                     for col in table.columns.values()
                 ])
@@ -363,7 +364,8 @@ class SQLiteBackend(StorageBackend):
                 nullable=col_data['nullable'],
                 primary_key=col_data['primary_key'],
                 index=col_data.get('index', False),
-                comment=col_data.get('comment')
+                comment=col_data.get('comment'),
+                default=col_data.get('default')
             )
             columns.append(column)
 
@@ -419,7 +421,8 @@ class SQLiteBackend(StorageBackend):
                 'nullable': col.nullable,
                 'primary_key': col.primary_key,
                 'index': col.index,
-                'comment': col.comment
+                'comment': col.comment,
+                'default': col.default if isinstance(col.default, (int, float, str, bool, type(None))) else None
             }
             for col in table.columns.values()
         ])
@@ -559,7 +562,8 @@ class SQLiteBackend(StorageBackend):
                 nullable=col_data['nullable'],
                 primary_key=col_data['primary_key'],
                 index=col_data.get('index', False),
-                comment=col_data.get('comment')
+                comment=col_data.get('comment'),
+                default=col_data.get('default')
             )
             columns.append(column)
 
@@ -685,10 +689,23 @@ class SQLiteBackend(StorageBackend):
                         operator = condition.get('operator', '=')
                         value = condition['value']
 
-                        if operator == '=':
-                            where_parts.append(f"`{field}` = ?")
+                        if operator == 'LIKE':
+                            where_parts.append(f"`{field}` LIKE ?")
+                            params.append(f"%{value}%")
+                        elif operator == 'STARTSWITH':
+                            where_parts.append(f"`{field}` LIKE ?")
+                            params.append(f"{value}%")
+                        elif operator == 'ENDSWITH':
+                            where_parts.append(f"`{field}` LIKE ?")
+                            params.append(f"%{value}")
+                        elif operator == 'IN':
+                            if isinstance(value, (list, tuple)) and len(value) > 0:
+                                placeholders = ', '.join('?' for _ in value)
+                                where_parts.append(f"`{field}` IN ({placeholders})")
+                                params.extend(value)
+                        elif operator in ('=', '!=', '>', '<', '>=', '<='):
+                            where_parts.append(f"`{field}` {operator} ?")
                             params.append(value)
-                        # 可以扩展更多操作符
 
                     if where_parts:
                         where_clause = "WHERE " + " AND ".join(where_parts)

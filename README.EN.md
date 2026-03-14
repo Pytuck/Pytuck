@@ -13,6 +13,13 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 
 > **Design Philosophy**: Provide a zero-dependency relational database solution for restricted Python environments like Ren'Py, enabling SQLAlchemy-style Pythonic data operations in any limited environment.
 
+> [!IMPORTANT]
+> **When to use Pytuck**: Pytuck is a pure Python embedded database designed for **small-to-medium datasets** and **restricted environments**.
+> - **Data volume**: Best for up to ~10K records; for 100K+, use the SQLite engine or consider alternatives
+> - **Performance**: Pure Python means it cannot match C-extension databases (SQLite, PostgreSQL, etc.) — not suitable for high-concurrency or compute-intensive scenarios
+> - **Concurrency**: Designed for single-process embedded use; no multi-process concurrent access support
+> - **If your environment has no special restrictions**, consider [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite/PostgreSQL first — they offer better performance, a more mature ecosystem, and broader community support
+
 ## Repository Mirrors
 
 - **GitHub**: https://github.com/Pytuck/Pytuck

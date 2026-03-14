@@ -444,6 +444,21 @@ class Column:
         from ..query import BinaryExpression
         return BinaryExpression(self, 'IN', values)
 
+    def contains(self, value: str) -> 'BinaryExpression':
+        """包含匹配（大小写不敏感）：User.name.contains('ali')"""
+        from ..query import BinaryExpression
+        return BinaryExpression(self, 'LIKE', value)
+
+    def startswith(self, value: str) -> 'BinaryExpression':
+        """前缀匹配（大小写不敏感）：User.name.startswith('Al')"""
+        from ..query import BinaryExpression
+        return BinaryExpression(self, 'STARTSWITH', value)
+
+    def endswith(self, value: str) -> 'BinaryExpression':
+        """后缀匹配（大小写不敏感）：User.name.endswith('ce')"""
+        from ..query import BinaryExpression
+        return BinaryExpression(self, 'ENDSWITH', value)
+
 
 # ==================== 模型基类定义 ====================
 
