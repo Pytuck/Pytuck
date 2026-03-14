@@ -6,7 +6,7 @@
 - 懒加载模式下按主键查询单条记录
 - 索引字段在懒加载下工作
 - 全表数据加载（populate_tables_with_data）
-- 加密模式下懒加载被禁用
+- 加密模式下懒加载正常工作（通过 decrypt_at 实现按需解密）
 - 多表懒加载
 """
 
@@ -252,14 +252,13 @@ class TestPopulateTablesWithData:
 class TestLazyLoadWithEncryption:
     """加密模式下懒加载行为测试"""
 
-    def test_encryption_disables_lazy_load(self, temp_dir: Path) -> None:
-        """加密模式下懒加载被禁用，数据全量加载"""
-        db_path = temp_dir / 'enc_lazy.db'
+    def _create_encrypted_db(self, db_path: Path, level: str = 'low', password: str = 'test') -> None:
+        """创建加密数据库并填充数据"""
         db = Storage(
             file_path=str(db_path),
             engine='binary',
             backend_options=BinaryBackendOptions(
-                encryption='low', password='test'
+                encryption=level, password=password
             )
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -268,27 +267,252 @@ class TestLazyLoadWithEncryption:
             __tablename__ = 'users'
             id = Column(int, primary_key=True)
             name = Column(str)
+            age = Column(int, nullable=True)
 
         session = Session(db)
-        session.execute(insert(User).values(name='Alice'))
-        session.execute(insert(User).values(name='Bob'))
+        session.execute(insert(User).values(name='Alice', age=20))
+        session.execute(insert(User).values(name='Bob', age=25))
+        session.execute(insert(User).values(name='Charlie', age=30))
         session.commit()
         db.flush()
         db.close()
 
-        # 即使指定 lazy_load=True，加密文件也应该全量加载
+    def test_encrypted_lazy_load_low(self, temp_dir: Path) -> None:
+        """low 级别加密 + 懒加载正常工作"""
+        db_path = temp_dir / 'enc_lazy_low.db'
+        self._create_encrypted_db(db_path, level='low')
+
         backend = BinaryBackend(
             str(db_path),
-            BinaryBackendOptions(
-                lazy_load=True, encryption='low', password='test'
-            )
+            BinaryBackendOptions(lazy_load=True, encryption='low', password='test')
         )
         tables = backend.load()
         table = tables['users']
 
-        # 加密时应该全量加载，不是懒加载
-        assert not getattr(table, '_lazy_loaded', False)
-        assert len(table.data) == 2
+        # 应该是懒加载
+        assert table._lazy_loaded is True
+        assert len(table.data) == 0
+
+        # 按需读取正确
+        assert table.get(1)['name'] == 'Alice'
+        assert table.get(1)['age'] == 20
+        assert table.get(2)['name'] == 'Bob'
+        assert table.get(3)['name'] == 'Charlie'
+
+    def test_encrypted_lazy_load_medium(self, temp_dir: Path) -> None:
+        """medium 级别加密 + 懒加载正常工作"""
+        db_path = temp_dir / 'enc_lazy_medium.db'
+        self._create_encrypted_db(db_path, level='medium')
+
+        backend = BinaryBackend(
+            str(db_path),
+            BinaryBackendOptions(lazy_load=True, encryption='medium', password='test')
+        )
+        tables = backend.load()
+        table = tables['users']
+
+        assert table._lazy_loaded is True
+        assert table.get(1)['name'] == 'Alice'
+        assert table.get(2)['name'] == 'Bob'
+        assert table.get(3)['name'] == 'Charlie'
+
+    def test_encrypted_lazy_load_high(self, temp_dir: Path) -> None:
+        """high 级别加密 + 懒加载正常工作"""
+        db_path = temp_dir / 'enc_lazy_high.db'
+        self._create_encrypted_db(db_path, level='high')
+
+        backend = BinaryBackend(
+            str(db_path),
+            BinaryBackendOptions(lazy_load=True, encryption='high', password='test')
+        )
+        tables = backend.load()
+        table = tables['users']
+
+        assert table._lazy_loaded is True
+        assert table.get(1)['name'] == 'Alice'
+        assert table.get(2)['name'] == 'Bob'
+        assert table.get(3)['name'] == 'Charlie'
+
+    def test_encrypted_lazy_load_all_records_match(self, temp_dir: Path) -> None:
+        """加密懒加载读取所有记录，与全量加载结果一致"""
+        db_path = temp_dir / 'enc_lazy_match.db'
+        self._create_encrypted_db(db_path)
+
+        # 全量加载
+        backend_full = BinaryBackend(
+            str(db_path),
+            BinaryBackendOptions(lazy_load=False, encryption='low', password='test')
+        )
+        tables_full = backend_full.load()
+        full_data = dict(tables_full['users'].data)
+
+        # 懒加载
+        backend_lazy = BinaryBackend(
+            str(db_path),
+            BinaryBackendOptions(lazy_load=True, encryption='low', password='test')
+        )
+        tables_lazy = backend_lazy.load()
+        table_lazy = tables_lazy['users']
+
+        # 逐条对比
+        for pk, expected_record in full_data.items():
+            lazy_record = table_lazy.get(pk)
+            assert lazy_record == expected_record, f"pk={pk}: {lazy_record} != {expected_record}"
+
+    def test_encrypted_lazy_load_populate(self, temp_dir: Path) -> None:
+        """加密懒加载后 populate_tables_with_data 正确填充"""
+        db_path = temp_dir / 'enc_lazy_populate.db'
+        self._create_encrypted_db(db_path)
+
+        backend = BinaryBackend(
+            str(db_path),
+            BinaryBackendOptions(lazy_load=True, encryption='low', password='test')
+        )
+        tables = backend.load()
+
+        # 懒加载，数据未加载
+        assert len(tables['users'].data) == 0
+
+        # populate 填充数据
+        backend.populate_tables_with_data(tables)
+
+        # 数据已加载
+        assert len(tables['users'].data) == 3
+        names = {r['name'] for r in tables['users'].data.values()}
+        assert names == {'Alice', 'Bob', 'Charlie'}
+
+    def test_encrypted_lazy_load_multi_table(self, temp_dir: Path) -> None:
+        """多表加密懒加载"""
+        db_path = temp_dir / 'enc_lazy_multi.db'
+        db = Storage(
+            file_path=str(db_path),
+            engine='binary',
+            backend_options=BinaryBackendOptions(encryption='medium', password='secret')
+        )
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        class Product(Base):
+            __tablename__ = 'products'
+            id = Column(int, primary_key=True)
+            title = Column(str)
+
+        session = Session(db)
+        session.execute(insert(User).values(name='Alice'))
+        session.execute(insert(User).values(name='Bob'))
+        session.execute(insert(Product).values(title='Widget'))
+        session.execute(insert(Product).values(title='Gadget'))
+        session.commit()
+        db.flush()
+        db.close()
+
+        # 加密懒加载
+        backend = BinaryBackend(
+            str(db_path),
+            BinaryBackendOptions(lazy_load=True, encryption='medium', password='secret')
+        )
+        tables = backend.load()
+
+        # 两个表都应该是懒加载
+        assert tables['users']._lazy_loaded is True
+        assert tables['products']._lazy_loaded is True
+
+        # 按需读取
+        assert tables['users'].get(1)['name'] == 'Alice'
+        assert tables['users'].get(2)['name'] == 'Bob'
+        assert tables['products'].get(1)['title'] == 'Widget'
+        assert tables['products'].get(2)['title'] == 'Gadget'
+
+
+# ---------- decrypt_at 一致性测试 ----------
+
+
+class TestDecryptAtConsistency:
+    """验证 decrypt_at 与 decrypt 结果一致"""
+
+    def test_xor_cipher_decrypt_at(self) -> None:
+        """XORCipher.decrypt_at 与完整 decrypt 结果一致"""
+        from pytuck.common.crypto import XORCipher
+        key = b'test-key-for-xor-cipher'
+        cipher = XORCipher(key)
+
+        plaintext = b'Hello, World! This is a test of XOR cipher random access decryption.'
+        encrypted = cipher.encrypt(plaintext)
+
+        # 从各种偏移位置解密片段
+        for offset in [0, 5, 13, 32, 50]:
+            for length in [1, 4, 10, 15]:
+                end = min(offset + length, len(encrypted))
+                fragment = encrypted[offset:end]
+                decrypted = cipher.decrypt_at(offset, fragment)
+                assert decrypted == plaintext[offset:end], \
+                    f"XOR decrypt_at failed at offset={offset}, length={length}"
+
+    def test_lcg_cipher_decrypt_at(self) -> None:
+        """LCGCipher.decrypt_at 与完整 decrypt 结果一致"""
+        from pytuck.common.crypto import LCGCipher
+        key = b'test-key-for-lcg-cipher'
+        cipher = LCGCipher(key)
+
+        plaintext = b'Hello, World! This is a test of LCG cipher random access decryption.'
+        encrypted = cipher.encrypt(plaintext)
+
+        # 从各种偏移位置解密片段
+        for offset in [0, 5, 13, 32, 50]:
+            for length in [1, 4, 10, 15]:
+                end = min(offset + length, len(encrypted))
+                fragment = encrypted[offset:end]
+                decrypted = cipher.decrypt_at(offset, fragment)
+                assert decrypted == plaintext[offset:end], \
+                    f"LCG decrypt_at failed at offset={offset}, length={length}"
+
+    def test_chacha20_cipher_decrypt_at(self) -> None:
+        """ChaCha20Cipher.decrypt_at 与完整 decrypt 结果一致"""
+        from pytuck.common.crypto import ChaCha20Cipher
+        key = b'test-key-for-chacha20-cipher!!!!'  # 需要足够长
+        cipher = ChaCha20Cipher(key)
+
+        # 使用较大的数据以跨越多个 64 字节块
+        plaintext = b'A' * 200 + b'B' * 100 + b'C' * 50
+        encrypted = cipher.encrypt(plaintext)
+
+        # 从各种偏移位置解密片段，包括跨块边界
+        test_cases = [
+            (0, 10),       # 第一个块内
+            (60, 10),      # 跨第一和第二个块的边界
+            (64, 10),      # 第二个块开头
+            (128, 20),     # 第三个块
+            (0, 64),       # 完整第一个块
+            (0, 128),      # 两个完整块
+            (100, 200),    # 跨多个块的大片段
+        ]
+        for offset, length in test_cases:
+            end = min(offset + length, len(encrypted))
+            fragment = encrypted[offset:end]
+            decrypted = cipher.decrypt_at(offset, fragment)
+            assert decrypted == plaintext[offset:end], \
+                f"ChaCha20 decrypt_at failed at offset={offset}, length={length}"
+
+    def test_decrypt_at_full_data(self) -> None:
+        """decrypt_at(0, data) 等价于 decrypt(data)"""
+        from pytuck.common.crypto import XORCipher, LCGCipher, ChaCha20Cipher
+
+        plaintext = b'Full data decryption test with various cipher types.'
+
+        for CipherClass, key in [
+            (XORCipher, b'key1'),
+            (LCGCipher, b'key2'),
+            (ChaCha20Cipher, b'key3'),
+        ]:
+            cipher = CipherClass(key)
+            encrypted = cipher.encrypt(plaintext)
+
+            # decrypt_at(0, ...) 应等价于 decrypt(...)
+            assert cipher.decrypt_at(0, encrypted) == cipher.decrypt(encrypted)
 
 
 # ---------- 多表懒加载 ----------

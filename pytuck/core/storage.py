@@ -470,6 +470,8 @@ class Table:
         """
         从文件读取单条记录（懒加载模式）
 
+        委托给 backend.read_lazy_record()，支持加密和非加密文件
+
         Args:
             pk: 主键值
 
@@ -490,12 +492,7 @@ class Table:
 
         offset: int = self._pk_offsets[pk]  # type: ignore
 
-        with open(self._data_file, 'rb') as f:
-            f.seek(offset)
-            # 使用 backend 的 _read_record 方法读取记录
-            _, record = self._backend._read_record(f, self.columns)
-
-        return record
+        return self._backend.read_lazy_record(self._data_file, offset, self.columns)
 
     def scan(self) -> Iterator[Tuple[Any, Dict[str, Any]]]:
         """

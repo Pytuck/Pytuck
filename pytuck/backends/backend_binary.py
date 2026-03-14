@@ -351,6 +351,10 @@ class BinaryBackend(StorageBackend):
         self._wal_buffer_size: int = 0  # 缓冲区字节大小
         self._wal_flush_threshold: int = 32 * 1024  # 32KB 阈值
 
+        # 懒加载加密支持
+        self._lazy_cipher: Optional[CipherType] = None
+        self._lazy_data_offset: int = 0
+
     def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到二进制文件（v4 格式：双Header + 增量写入支持）"""
         # 清空 WAL 缓冲区（checkpoint 会包含所有数据）
@@ -600,8 +604,11 @@ class BinaryBackend(StorageBackend):
 
         tables = {}
 
-        # 懒加载模式（加密时不支持懒加载，因为需要完整解密数据区）
-        if self.options.lazy_load and index_data and not cipher:
+        # 懒加载模式（通过 decrypt_at 实现加密文件的按需解密）
+        if self.options.lazy_load and index_data:
+            # 保存 cipher 引用供懒加载时按需解密
+            self._lazy_cipher = cipher
+            self._lazy_data_offset = header.data_offset
             for schema in tables_schema:
                 table = self._create_lazy_table(schema, index_data, header.data_offset)
                 tables[table.name] = table
@@ -679,6 +686,48 @@ class BinaryBackend(StorageBackend):
             table.indexes[col_name] = index
 
         return table
+
+    def read_lazy_record(
+        self,
+        file_path: Path,
+        offset: int,
+        columns: Dict[str, 'Column']
+    ) -> Dict[str, Any]:
+        """
+        读取单条懒加载记录，支持加密文件的按需解密
+
+        通过 cipher.decrypt_at() 实现随机位置解密，无需解密整个数据区
+
+        Args:
+            file_path: 数据文件路径
+            offset: 记录在文件中的绝对偏移
+            columns: 列定义
+
+        Returns:
+            记录字典
+        """
+        with open(str(file_path), 'rb') as f:
+            f.seek(offset)
+
+            if self._lazy_cipher:
+                relative_offset = offset - self._lazy_data_offset
+
+                # 解密 record length（4 字节）
+                enc_len = f.read(4)
+                dec_len = self._lazy_cipher.decrypt_at(relative_offset, enc_len)
+                record_len = struct.unpack('<I', dec_len)[0]
+
+                # 解密 record data
+                enc_data = f.read(record_len)
+                dec_data = self._lazy_cipher.decrypt_at(relative_offset + 4, enc_data)
+
+                # 从解密后的数据解析记录
+                stream = io.BytesIO(dec_len + dec_data)
+                _, record = self._read_record(stream, columns)
+            else:
+                _, record = self._read_record(f, columns)
+
+        return record
 
     def exists(self) -> bool:
         """检查文件是否存在"""
