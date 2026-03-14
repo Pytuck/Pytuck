@@ -832,6 +832,255 @@ class TestColumnNameMapping(unittest.TestCase):
         self.assertEqual(user.nm, 'Charlie')
 
 
+class TestToDictEnhanced(unittest.TestCase):
+    """to_dict() 增强功能和 to_json() 测试"""
+
+    def setUp(self):
+        """设置测试环境"""
+        self.temp_dir = mktemp_dir_project()
+        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db = Storage(file_path=self.db_path)
+
+        Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
+
+        class Department(Base):
+            __tablename__ = 'departments'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+            employees: list = Relationship('employees', foreign_key='dept_id')  # type: ignore
+
+        class Employee(Base):
+            __tablename__ = 'employees'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+            age = Column(int)
+            dept_id = Column(int)
+            department: 'Department' = Relationship(  # type: ignore
+                'departments', foreign_key='dept_id', uselist=False
+            )
+
+        self.Department = Department
+        self.Employee = Employee
+        self.Base = Base
+
+    def tearDown(self):
+        """清理测试环境"""
+        self.db.close()
+        if os.path.exists(self.db_path):
+            os.remove(self.db_path)
+        os.rmdir(self.temp_dir)
+
+    # ---- to_dict include/exclude ----
+
+    def test_to_dict_include(self):
+        """include 参数只返回指定字段"""
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        d = emp.to_dict(include={'name', 'age'})
+        self.assertIn('name', d)
+        self.assertIn('age', d)
+        self.assertNotIn('id', d)
+        self.assertNotIn('dept_id', d)
+
+    def test_to_dict_exclude(self):
+        """exclude 参数排除指定字段"""
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        d = emp.to_dict(exclude={'age', 'dept_id'})
+        self.assertIn('name', d)
+        self.assertIn('id', d)
+        self.assertNotIn('age', d)
+        self.assertNotIn('dept_id', d)
+
+    def test_to_dict_include_priority(self):
+        """include 和 exclude 同时传入时 include 优先"""
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        # include 和 exclude 同时指定，include 优先
+        d = emp.to_dict(include={'name', 'age'}, exclude={'name'})
+        self.assertIn('name', d)
+        self.assertIn('age', d)
+        self.assertNotIn('id', d)
+        self.assertNotIn('dept_id', d)
+
+    def test_to_dict_include_empty(self):
+        """include 为空集合时返回空字典"""
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        d = emp.to_dict(include=set())
+        self.assertEqual(d, {})
+
+    def test_to_dict_exclude_empty(self):
+        """exclude 为空集合时返回全部字段"""
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        d = emp.to_dict(exclude=set())
+        self.assertIn('name', d)
+        self.assertIn('age', d)
+        self.assertIn('id', d)
+        self.assertIn('dept_id', d)
+
+    # ---- to_dict depth ----
+
+    def test_to_dict_depth_zero(self):
+        """depth=0 不展开 Relationship（默认行为）"""
+        dept = self.Department.create(name='Engineering')
+        self.Employee.create(name='Alice', age=25, dept_id=dept.id)
+        d = dept.to_dict()
+        # depth=0 时不应包含 Relationship 字段
+        self.assertNotIn('employees', d)
+
+    def test_to_dict_depth_one(self):
+        """depth=1 展开一层关联数据（多对一）"""
+        dept = self.Department.create(name='Engineering')
+        emp = self.Employee.create(name='Alice', age=25, dept_id=dept.id)
+        d = emp.to_dict(depth=1)
+        self.assertIn('department', d)
+        self.assertIsInstance(d['department'], dict)
+        self.assertEqual(d['department']['name'], 'Engineering')
+
+    def test_to_dict_depth_with_list(self):
+        """depth 展开一对多关联（返回列表）"""
+        dept = self.Department.create(name='Engineering')
+        self.Employee.create(name='Alice', age=25, dept_id=dept.id)
+        self.Employee.create(name='Bob', age=30, dept_id=dept.id)
+        d = dept.to_dict(depth=1)
+        self.assertIn('employees', d)
+        self.assertIsInstance(d['employees'], list)
+        self.assertEqual(len(d['employees']), 2)
+        names = {e['name'] for e in d['employees']}
+        self.assertEqual(names, {'Alice', 'Bob'})
+
+    def test_to_dict_depth_none_relation(self):
+        """关联值为 None 时的处理"""
+        # dept_id 为 None，关联应返回 None
+        emp = self.Employee.create(name='Alice', age=25, dept_id=None)
+        d = emp.to_dict(depth=1)
+        self.assertIn('department', d)
+        self.assertIsNone(d['department'])
+
+    def test_to_dict_include_with_depth(self):
+        """include + depth 组合使用"""
+        dept = self.Department.create(name='Engineering')
+        emp = self.Employee.create(name='Alice', age=25, dept_id=dept.id)
+        # include 同时包含普通字段和 relationship 名
+        d = emp.to_dict(include={'name', 'department'}, depth=1)
+        self.assertIn('name', d)
+        self.assertIn('department', d)
+        self.assertNotIn('id', d)
+        self.assertNotIn('age', d)
+        self.assertNotIn('dept_id', d)
+
+    def test_to_dict_exclude_with_depth(self):
+        """exclude + depth 组合使用"""
+        dept = self.Department.create(name='Engineering')
+        emp = self.Employee.create(name='Alice', age=25, dept_id=dept.id)
+        d = emp.to_dict(exclude={'department'}, depth=1)
+        self.assertIn('name', d)
+        self.assertNotIn('department', d)
+
+    # ---- to_json ----
+
+    def test_to_json_basic(self):
+        """to_json 返回合法 JSON 字符串"""
+        import json
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        json_str = emp.to_json()
+        self.assertIsInstance(json_str, str)
+        data = json.loads(json_str)
+        self.assertEqual(data['name'], 'Alice')
+        self.assertEqual(data['age'], 25)
+
+    def test_to_json_with_datetime(self):
+        """to_json 处理 datetime 类型"""
+        import json
+        from datetime import datetime
+
+        # 创建包含 datetime 列的模型
+        Base = self.Base
+
+        class Event(Base):
+            __tablename__ = 'events'
+            id = Column(int, primary_key=True)
+            title = Column(str)
+            created_at = Column(datetime)
+
+        dt = datetime(2024, 1, 15, 10, 30, 0)
+        event = Event.create(title='Meeting', created_at=dt)
+        json_str = event.to_json()
+        data = json.loads(json_str)
+        self.assertEqual(data['title'], 'Meeting')
+        self.assertEqual(data['created_at'], '2024-01-15T10:30:00')
+
+    def test_to_json_with_bytes(self):
+        """to_json 处理 bytes 类型"""
+        import json
+        import base64
+
+        Base = self.Base
+
+        class BlobData(Base):
+            __tablename__ = 'blobs'
+            id = Column(int, primary_key=True)
+            data = Column(bytes)
+
+        raw = b'hello world'
+        blob = BlobData.create(data=raw)
+        json_str = blob.to_json()
+        data = json.loads(json_str)
+        # bytes 应被转换为 base64 字符串
+        decoded = base64.b64decode(data['data'])
+        self.assertEqual(decoded, raw)
+
+    def test_to_json_with_indent(self):
+        """to_json indent 参数"""
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        json_str = emp.to_json(indent=2)
+        self.assertIn('\n', json_str)
+        self.assertIn('  ', json_str)
+
+    def test_to_json_with_include_exclude(self):
+        """to_json 的 include/exclude 参数透传"""
+        import json
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        json_str = emp.to_json(include={'name', 'age'})
+        data = json.loads(json_str)
+        self.assertIn('name', data)
+        self.assertIn('age', data)
+        self.assertNotIn('id', data)
+
+    def test_to_json_with_depth(self):
+        """to_json 的 depth 参数透传"""
+        import json
+        dept = self.Department.create(name='Engineering')
+        emp = self.Employee.create(name='Alice', age=25, dept_id=dept.id)
+        json_str = emp.to_json(depth=1)
+        data = json.loads(json_str)
+        self.assertIn('department', data)
+        self.assertIsInstance(data['department'], dict)
+        self.assertEqual(data['department']['name'], 'Engineering')
+
+    def test_to_json_roundtrip(self):
+        """to_json 结果可被 json.loads 正确解析"""
+        import json
+        emp = self.Employee.create(name='Alice', age=25, dept_id=1)
+        json_str = emp.to_json()
+        data = json.loads(json_str)
+        # 与 to_dict 结果对比
+        d = emp.to_dict()
+        self.assertEqual(data, d)
+
+    def test_to_json_ensure_ascii(self):
+        """to_json ensure_ascii 参数"""
+        import json
+        emp = self.Employee.create(name='张三', age=25, dept_id=1)
+
+        # 默认 ensure_ascii=False，中文直接输出
+        json_str = emp.to_json()
+        self.assertIn('张三', json_str)
+
+        # ensure_ascii=True 时中文转义
+        json_str_ascii = emp.to_json(ensure_ascii=True)
+        self.assertNotIn('张三', json_str_ascii)
+        data = json.loads(json_str_ascii)
+        self.assertEqual(data['name'], '张三')
+
+
 def run_tests():
     """运行所有测试"""
     loader = unittest.TestLoader()
@@ -845,6 +1094,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestMultipleEngines))
     suite.addTests(loader.loadTestsFromTestCase(TestTypeAnnotations))
     suite.addTests(loader.loadTestsFromTestCase(TestColumnNameMapping))
+    suite.addTests(loader.loadTestsFromTestCase(TestToDictEnhanced))
 
     # 运行测试
     runner = unittest.TextTestRunner(verbosity=2)

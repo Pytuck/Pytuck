@@ -6,9 +6,11 @@ Pytuck ORM层
 - CRUDBaseModel: Active Record 模式，模型自带 CRUD 方法
 """
 import sys
+import json
+import base64
 from typing import (
     Any, Callable, Dict, List, Optional, Tuple, Type, Union, TYPE_CHECKING,
-    overload, Literal, Generic, cast
+    Set, overload, Literal, Generic, cast
 )
 from datetime import datetime, date, timedelta, timezone
 
@@ -25,6 +27,34 @@ if TYPE_CHECKING:
 
 # 无主键时使用的内部 rowid 保留键名
 PSEUDO_PK_NAME: str = '_pytuck_rowid'
+
+
+# ==================== JSON 序列化辅助 ====================
+
+def _json_serial(obj: Any) -> Any:
+    """JSON 序列化辅助：处理非原生 JSON 类型
+
+    用于 json.dumps 的 default 参数，将 datetime/date/timedelta/bytes
+    等类型转换为 JSON 可序列化的形式。
+
+    Args:
+        obj: 待序列化的对象
+
+    Returns:
+        JSON 可序列化的值
+
+    Raises:
+        TypeError: 不支持的类型
+    """
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, date):
+        return obj.isoformat()
+    if isinstance(obj, timedelta):
+        return obj.total_seconds()
+    if isinstance(obj, bytes):
+        return base64.b64encode(obj).decode('ascii')
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 # ==================== 类型转换函数（模块级别） ====================
@@ -560,13 +590,23 @@ class PureBaseModel:
                 return attr_name
         return None
 
-    def to_dict(self, use_column_names: bool = False) -> Dict[str, Any]:
+    def to_dict(
+        self,
+        use_column_names: bool = False,
+        include: Optional[Set[str]] = None,
+        exclude: Optional[Set[str]] = None,
+        depth: int = 0,
+    ) -> Dict[str, Any]:
         """
         转换为字典
 
         Args:
             use_column_names: 如果为 True，使用 Column.name 作为字典键；
                              否则使用属性名（默认）
+            include: 只包含的字段名集合（使用属性名）。传入时只输出集合内的字段
+            exclude: 排除的字段名集合（使用属性名）。与 include 同时传入时 include 优先
+            depth: 关联数据展开深度（默认 0 不展开）。
+                   depth=1 展开一层 Relationship
 
         Returns:
             包含模型数据的字典
@@ -579,12 +619,92 @@ class PureBaseModel:
             user = User(lv='admin')
             user.to_dict()  # {'lv': 'admin'}
             user.to_dict(use_column_names=True)  # {'level': 'admin'}
+            user.to_dict(include={'lv'})  # {'lv': 'admin'}
+            user.to_dict(exclude={'lv'})  # {} (排除 lv 字段)
         """
         data = {}
         for attr_name, column in self.__columns__.items():
+            # include/exclude 筛选（include 优先于 exclude）
+            if include is not None:
+                if attr_name not in include:
+                    continue
+            elif exclude is not None and attr_name in exclude:
+                continue
             key = column.name if use_column_names and column.name else attr_name
             data[key] = getattr(self, attr_name, None)
+
+        # depth > 0 时展开 Relationship
+        if depth > 0:
+            for rel_name in self.__relationships__:
+                if include is not None:
+                    if rel_name not in include:
+                        continue
+                elif exclude is not None and rel_name in exclude:
+                    continue
+                value = getattr(self, rel_name, None)
+                if value is None:
+                    data[rel_name] = None
+                elif isinstance(value, list):
+                    data[rel_name] = [
+                        item.to_dict(
+                            use_column_names=use_column_names,
+                            depth=depth - 1,
+                        )
+                        if hasattr(item, 'to_dict') else item
+                        for item in value
+                    ]
+                elif hasattr(value, 'to_dict'):
+                    data[rel_name] = value.to_dict(
+                        use_column_names=use_column_names,
+                        depth=depth - 1,
+                    )
+                else:
+                    data[rel_name] = value
+
         return data
+
+    def to_json(
+        self,
+        use_column_names: bool = False,
+        include: Optional[Set[str]] = None,
+        exclude: Optional[Set[str]] = None,
+        depth: int = 0,
+        ensure_ascii: bool = False,
+        indent: Optional[int] = None,
+    ) -> str:
+        """
+        转换为 JSON 字符串
+
+        自动处理 datetime/date/timedelta/bytes 等特殊类型的序列化。
+
+        Args:
+            use_column_names: 如果为 True，使用 Column.name 作为字典键
+            include: 只包含的字段名集合（使用属性名）
+            exclude: 排除的字段名集合（使用属性名）
+            depth: 关联数据展开深度（默认 0 不展开）
+            ensure_ascii: 是否强制 ASCII 编码（默认 False，支持中文）
+            indent: 缩进空格数（默认 None，紧凑输出）
+
+        Returns:
+            JSON 字符串
+
+        Example:
+            user = User(name='Alice', age=25)
+            user.to_json()  # '{"name": "Alice", "age": 25}'
+            user.to_json(indent=2)  # 格式化输出
+        """
+        data = self.to_dict(
+            use_column_names=use_column_names,
+            include=include,
+            exclude=exclude,
+            depth=depth,
+        )
+        return json.dumps(
+            data,
+            ensure_ascii=ensure_ascii,
+            indent=indent,
+            default=_json_serial,
+        )
 
     def __repr__(self) -> str:
         """字符串表示"""
