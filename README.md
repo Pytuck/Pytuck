@@ -1059,6 +1059,21 @@ pip install pytuck[xml]      # 仅 XML 支持
 pip install pytuck[dev]      # 开发工具
 ```
 
+### 使用 uv 安装（推荐）
+
+[uv](https://github.com/astral-sh/uv) 是一个极快的 Python 包管理器，安装速度比 pip 快 10-100 倍。
+
+```bash
+# 基础安装
+uv pip install pytuck
+
+# 安装特定功能
+uv pip install pytuck[all]      # 所有可选引擎
+uv pip install pytuck[excel]    # 仅 Excel 支持
+uv pip install pytuck[xml]      # 仅 XML 支持
+uv pip install pytuck[dev]      # 开发工具
+```
+
 ### 从源码安装
 
 ```bash
@@ -1066,14 +1081,15 @@ pip install pytuck[dev]      # 开发工具
 git clone https://github.com/Pytuck/Pytuck.git
 cd pytuck
 
-# 可编辑安装
+# 使用 pip 可编辑安装
 pip install -e .
+pip install -e .[all]    # 安装所有可选依赖
+pip install -e .[dev]    # 开发模式
 
-# 安装所有可选依赖
-pip install -e .[all]
-
-# 开发模式
-pip install -e .[dev]
+# 使用 uv 可编辑安装（更快）
+uv pip install -e .
+uv pip install -e .[all]    # 安装所有可选依赖
+uv pip install -e .[dev]    # 开发模式
 ```
 
 ### 打包与发布

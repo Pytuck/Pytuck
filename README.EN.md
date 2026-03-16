@@ -861,6 +861,21 @@ pip install pytuck[xml]      # XML support only
 pip install pytuck[dev]      # Development tools
 ```
 
+### Install with uv (Recommended)
+
+[uv](https://github.com/astral-sh/uv) is an extremely fast Python package manager, 10-100x faster than pip.
+
+```bash
+# Basic installation
+uv pip install pytuck
+
+# With specific extras
+uv pip install pytuck[all]      # All optional engines
+uv pip install pytuck[excel]    # Excel support only
+uv pip install pytuck[xml]      # XML support only
+uv pip install pytuck[dev]      # Development tools
+```
+
 ### Install from Source
 
 ```bash
@@ -868,14 +883,15 @@ pip install pytuck[dev]      # Development tools
 git clone https://github.com/Pytuck/Pytuck.git
 cd pytuck
 
-# Editable install
+# Editable install with pip
 pip install -e .
+pip install -e .[all]    # With all extras
+pip install -e .[dev]    # Development mode
 
-# With all extras
-pip install -e .[all]
-
-# Development mode
-pip install -e .[dev]
+# Editable install with uv (faster)
+uv pip install -e .
+uv pip install -e .[all]    # With all extras
+uv pip install -e .[dev]    # Development mode
 ```
 
 ### Build and Publish
