@@ -9,6 +9,7 @@ tmp
 dist/
 build/
 nul
+uv.lock
 
 # database files
 *.json
