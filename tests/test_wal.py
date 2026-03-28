@@ -4,9 +4,9 @@ WAL 预写日志测试
 覆盖 pytuck/backends/backend_binary.py 中的 WAL 相关功能：
 - WALEntry pack/unpack 往返一致性
 - WALEntry CRC 校验
-- HeaderV4 pack/unpack 往返一致性
-- HeaderV4 CRC 校验与损坏检测
-- HeaderV4 加密标志操作
+- HeaderV5 pack/unpack 往返一致性
+- HeaderV5 CRC 校验与损坏检测
+- HeaderV5 加密标志操作
 - WAL 集成测试（append/read/replay/checkpoint/has_pending）
 """
 
@@ -20,7 +20,7 @@ import pytest
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, insert, select
 from pytuck.backends.backend_binary import (
-    WALEntry, WALOpType, HeaderV4, BinaryBackend
+    WALEntry, WALOpType, HeaderV5, BinaryBackend
 )
 from pytuck.common.exceptions import SerializationError
 from pytuck.common.options import BinaryBackendOptions
@@ -160,17 +160,17 @@ class TestWALEntryPackUnpack:
         assert offset == len(data)
 
 
-# ---------- HeaderV4 ----------
+# ---------- HeaderV5 ----------
 
 
-class TestHeaderV4:
-    """v4 文件头结构测试"""
+class TestHeaderV5:
+    """PTK5 文件头结构测试"""
 
     def test_pack_unpack_roundtrip(self) -> None:
-        """HeaderV4 pack/unpack 字段一致"""
-        header = HeaderV4(
-            magic=b'PTK4',
-            version=4,
+        """HeaderV5 pack/unpack 字段一致"""
+        header = HeaderV5(
+            magic=b'PTK5',
+            version=5,
             generation=10,
             schema_offset=256,
             schema_size=100,
@@ -186,9 +186,9 @@ class TestHeaderV4:
         packed = header.pack()
         assert len(packed) == 128
 
-        unpacked = HeaderV4.unpack(packed)
-        assert unpacked.magic == b'PTK4'
-        assert unpacked.version == 4
+        unpacked = HeaderV5.unpack(packed)
+        assert unpacked.magic == b'PTK5'
+        assert unpacked.version == 5
         assert unpacked.generation == 10
         assert unpacked.schema_offset == 256
         assert unpacked.schema_size == 100
@@ -203,23 +203,23 @@ class TestHeaderV4:
 
     def test_verify_crc_valid(self) -> None:
         """合法数据 CRC 校验通过"""
-        header = HeaderV4(generation=5)
+        header = HeaderV5(generation=5)
         packed = header.pack()
-        unpacked = HeaderV4.unpack(packed)
+        unpacked = HeaderV5.unpack(packed)
         assert unpacked.verify_crc(packed)
 
     def test_verify_crc_corrupted(self) -> None:
         """损坏数据 CRC 校验失败"""
-        header = HeaderV4(generation=5)
+        header = HeaderV5(generation=5)
         packed = bytearray(header.pack())
         # 篡改 generation 字段
         packed[6] ^= 0xFF
-        unpacked = HeaderV4.unpack(bytes(packed))
+        unpacked = HeaderV5.unpack(bytes(packed))
         assert not unpacked.verify_crc(bytes(packed))
 
     def test_encryption_flags(self) -> None:
         """set_encryption/get_encryption_level/is_encrypted"""
-        header = HeaderV4()
+        header = HeaderV5()
 
         # 默认未加密
         assert not header.is_encrypted()
@@ -234,7 +234,7 @@ class TestHeaderV4:
 
         # pack/unpack 后保持
         packed = header.pack()
-        unpacked = HeaderV4.unpack(packed)
+        unpacked = HeaderV5.unpack(packed)
         assert unpacked.is_encrypted()
         assert unpacked.get_encryption_level() == 'low'
         assert unpacked.salt == salt
@@ -243,22 +243,22 @@ class TestHeaderV4:
     def test_encryption_levels(self) -> None:
         """三种加密等级都能正确设置和读取"""
         for level in ('low', 'medium', 'high'):
-            header = HeaderV4()
+            header = HeaderV5()
             header.set_encryption(level, b'\x00' * 16, b'\x00' * 4)
             packed = header.pack()
-            unpacked = HeaderV4.unpack(packed)
+            unpacked = HeaderV5.unpack(packed)
             assert unpacked.get_encryption_level() == level
 
     def test_header_too_short_raises(self) -> None:
         """Header 数据过短时抛 SerializationError"""
         with pytest.raises(SerializationError, match="Header too short"):
-            HeaderV4.unpack(b'\x00' * 64)
+            HeaderV5.unpack(b'\x00' * 64)
 
     def test_default_values(self) -> None:
         """默认值正确"""
-        header = HeaderV4()
-        assert header.magic == b'PTK4'
-        assert header.version == 4
+        header = HeaderV5()
+        assert header.magic == b'PTK5'
+        assert header.version == 5
         assert header.generation == 0
         assert header.wal_offset == 0
         assert header.wal_size == 0
@@ -266,13 +266,13 @@ class TestHeaderV4:
 
     def test_index_compressed_flag(self) -> None:
         """索引压缩标志位操作"""
-        header = HeaderV4()
-        header.flags |= HeaderV4.FLAG_INDEX_COMPRESSED
-        assert (header.flags & HeaderV4.FLAG_INDEX_COMPRESSED) != 0
+        header = HeaderV5()
+        header.flags |= HeaderV5.FLAG_INDEX_COMPRESSED
+        assert (header.flags & HeaderV5.FLAG_INDEX_COMPRESSED) != 0
 
         packed = header.pack()
-        unpacked = HeaderV4.unpack(packed)
-        assert (unpacked.flags & HeaderV4.FLAG_INDEX_COMPRESSED) != 0
+        unpacked = HeaderV5.unpack(packed)
+        assert (unpacked.flags & HeaderV5.FLAG_INDEX_COMPRESSED) != 0
 
 
 # ---------- WAL 集成测试 ----------
@@ -287,7 +287,7 @@ class TestWALIntegration:
         backend_options: Optional[BinaryBackendOptions] = None
     ) -> tuple:
         """创建临时数据库和模型"""
-        db_path = temp_dir / 'wal_test.db'
+        db_path = temp_dir / 'wal_test.pytuck'
         if backend_options is None:
             db = Storage(file_path=str(db_path))
         else:
@@ -697,6 +697,63 @@ class TestWALIntegration:
 
         db.close()
 
+    def test_default_checkpoint_writes_ptk5_and_probe_reports_v5(self, temp_dir: Path) -> None:
+        """默认 checkpoint 写出 PTK5，probe 报告 v5"""
+        db, db_path, User = self._create_db(temp_dir)
+
+        session = Session(db)
+        stmt = insert(User).values(name='Alice', age=20)
+        session.execute(stmt)
+        session.commit()
+        db.flush()
+
+        with open(db_path, 'rb') as f:
+            assert f.read(4) == b'PTK5'
+
+        matched, info = BinaryBackend.probe(str(db_path))
+        assert matched is True
+        assert info is not None
+        assert info['format_version'] == 5
+
+        db.close()
+
+    def test_query_with_pagination_applies_buffered_wal_and_updates_indexes(self, temp_dir: Path) -> None:
+        """分页查询应看到 buffered WAL 更新，并移除旧索引命中"""
+        db_path = temp_dir / 'wal_query_buffered.pytuck'
+        db = Storage(file_path=str(db_path), engine='pytuck')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str, index=True)
+
+        session = Session(db)
+        session.execute(insert(User).values(name='Alice'))
+        session.commit()
+        db.flush()
+
+        backend = db.backend
+        assert isinstance(backend, BinaryBackend)
+
+        db.update('users', 1, {'name': 'Bob'})
+        assert backend.has_pending_wal()
+
+        result_old = backend.query_with_pagination('users', [
+            {'field': 'name', 'operator': '=', 'value': 'Alice'}
+        ])
+        result_new = backend.query_with_pagination('users', [
+            {'field': 'name', 'operator': '=', 'value': 'Bob'}
+        ])
+
+        assert result_old['total_count'] == 0
+        assert result_old['records'] == []
+        assert result_new['total_count'] == 1
+        assert result_new['records'][0]['id'] == 1
+        assert result_new['records'][0]['name'] == 'Bob'
+
+        db.close()
+
 
 # ---------- 双 Header 测试 ----------
 
@@ -706,14 +763,14 @@ class TestDualHeader:
 
     def test_both_valid_higher_generation_wins(self) -> None:
         """两个 Header 都合法时选择 generation 更大的"""
-        header_a = HeaderV4(generation=5)
-        header_b = HeaderV4(generation=10)
+        header_a = HeaderV5(generation=5)
+        header_b = HeaderV5(generation=10)
 
         packed_a = header_a.pack()
         packed_b = header_b.pack()
 
-        unpacked_a = HeaderV4.unpack(packed_a)
-        unpacked_b = HeaderV4.unpack(packed_b)
+        unpacked_a = HeaderV5.unpack(packed_a)
+        unpacked_b = HeaderV5.unpack(packed_b)
 
         # 两个都合法
         assert unpacked_a.verify_crc(packed_a)
@@ -729,7 +786,7 @@ class TestDualHeader:
 
     def test_one_corrupted_uses_valid(self) -> None:
         """一个 Header 损坏时使用另一个"""
-        header = HeaderV4(generation=5)
+        header = HeaderV5(generation=5)
         packed = header.pack()
 
         # 损坏副本
@@ -737,25 +794,25 @@ class TestDualHeader:
         corrupted[6] ^= 0xFF  # 篡改 generation
         corrupted_bytes = bytes(corrupted)
 
-        unpacked_valid = HeaderV4.unpack(packed)
-        unpacked_corrupted = HeaderV4.unpack(corrupted_bytes)
+        unpacked_valid = HeaderV5.unpack(packed)
+        unpacked_corrupted = HeaderV5.unpack(corrupted_bytes)
 
         assert unpacked_valid.verify_crc(packed)
         assert not unpacked_corrupted.verify_crc(corrupted_bytes)
 
     def test_same_generation_picks_a(self) -> None:
         """同 generation 时优先选择 Header A"""
-        header = HeaderV4(generation=5)
+        header = HeaderV5(generation=5)
         packed = header.pack()
 
-        unpacked_a = HeaderV4.unpack(packed)
-        unpacked_b = HeaderV4.unpack(packed)
+        unpacked_a = HeaderV5.unpack(packed)
+        unpacked_b = HeaderV5.unpack(packed)
 
         # 两个合法且 generation 相同
         assert unpacked_a.verify_crc(packed)
         assert unpacked_b.verify_crc(packed)
 
-        # 按 _load_v4 逻辑，generation 相等时选 A
+        # 按双 Header 选择逻辑，generation 相等时选 A
         if unpacked_a.generation >= unpacked_b.generation:
             selected_slot = 0  # A
         else:

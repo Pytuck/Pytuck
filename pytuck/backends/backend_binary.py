@@ -10,10 +10,10 @@ import os
 import struct
 import tempfile
 import zlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Set, Union, TYPE_CHECKING, BinaryIO, Tuple, Optional, Iterator
+from typing import Any, Callable, Dict, List, Set, Union, TYPE_CHECKING, BinaryIO, Tuple, Optional, Iterator, Type
 
 if TYPE_CHECKING:
     from ..core.storage import Table
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, EncryptionError
 from ..core.types import TypeRegistry, TypeCode
-from ..core.orm import Column
+from ..core.orm import Column, PSEUDO_PK_NAME
 from ..core.index import HashIndex
 from .versions import get_format_version
 
@@ -68,7 +68,7 @@ _INDEX_VALUE_DESERIALIZERS: Dict[int, Callable[[bytes], Any]] = {
 }
 
 
-# ============== v4 数据结构定义 ==============
+# ============== PTK5 数据结构定义 ==============
 
 class WALOpType(IntEnum):
     """WAL 操作类型"""
@@ -78,10 +78,10 @@ class WALOpType(IntEnum):
 
 
 @dataclass
-class HeaderV4:
-    """v4 文件头结构 (128 bytes)"""
-    magic: bytes = b'PTK4'
-    version: int = 4
+class HeaderV5:
+    """PTK5 文件头结构 (128 bytes)"""
+    magic: bytes = b'PTK5'
+    version: int = 5
     generation: int = 0
     schema_offset: int = 0
     schema_size: int = 0
@@ -98,9 +98,8 @@ class HeaderV4:
     salt: bytes = field(default_factory=lambda: b'\x00' * 16)
     key_check: bytes = field(default_factory=lambda: b'\x00' * 4)
 
-    # Header 布局常量
     HEADER_SIZE = 128
-    MAGIC_V4 = b'PTK4'
+    MAGIC_V5 = b'PTK5'
 
     # flags 位定义
     FLAG_INDEX_COMPRESSED = 0x01    # bit 0: 索引区已压缩
@@ -112,52 +111,30 @@ class HeaderV4:
         """序列化为 128 字节"""
         buf = bytearray(self.HEADER_SIZE)
 
-        # Magic (4B)
         buf[0:4] = self.magic
-
-        # Version (2B)
         struct.pack_into('<H', buf, 4, self.version)
-
-        # Generation (8B)
         struct.pack_into('<Q', buf, 6, self.generation)
-
-        # Schema offset/size (8B + 8B)
         struct.pack_into('<Q', buf, 14, self.schema_offset)
         struct.pack_into('<Q', buf, 22, self.schema_size)
-
-        # Data offset/size (8B + 8B)
         struct.pack_into('<Q', buf, 30, self.data_offset)
         struct.pack_into('<Q', buf, 38, self.data_size)
-
-        # Index offset/size (8B + 8B)
         struct.pack_into('<Q', buf, 46, self.index_offset)
         struct.pack_into('<Q', buf, 54, self.index_size)
-
-        # WAL offset/size (8B + 8B)
         struct.pack_into('<Q', buf, 62, self.wal_offset)
         struct.pack_into('<Q', buf, 70, self.wal_size)
-
-        # Checkpoint LSN (8B)
         struct.pack_into('<Q', buf, 78, self.checkpoint_lsn)
-
-        # Flags (4B)
         struct.pack_into('<I', buf, 86, self.flags)
 
-        # 计算 CRC32（对前 90 字节计算）
         crc = zlib.crc32(buf[:90]) & 0xFFFFFFFF
         struct.pack_into('<I', buf, 90, crc)
 
-        # 加密元数据（reserved 区域 94-127）
-        # Salt (16B) at offset 94
         buf[94:110] = self.salt[:16].ljust(16, b'\x00')
-        # Key check (4B) at offset 110
         buf[110:114] = self.key_check[:4].ljust(4, b'\x00')
-        # Remaining reserved (14B) at offset 114-127 stays zero
 
         return bytes(buf)
 
     @classmethod
-    def unpack(cls, data: bytes) -> 'HeaderV4':
+    def unpack(cls: Type['HeaderV5'], data: bytes) -> 'HeaderV5':
         """从 128 字节反序列化"""
         if len(data) < cls.HEADER_SIZE:
             raise SerializationError(f"Header too short: {len(data)} bytes")
@@ -177,8 +154,6 @@ class HeaderV4:
         header.checkpoint_lsn = struct.unpack('<Q', data[78:86])[0]
         header.flags = struct.unpack('<I', data[86:90])[0]
         header.crc32 = struct.unpack('<I', data[90:94])[0]
-
-        # 加密元数据
         header.salt = data[94:110]
         header.key_check = data[110:114]
 
@@ -312,37 +287,35 @@ class WALEntry:
 
 
 class BinaryBackend(StorageBackend):
-    """Binary format storage engine (default, no dependencies)"""
+    """Pytuck format storage engine (default, no dependencies)"""
 
-    ENGINE_NAME = 'binary'
+    ENGINE_NAME = 'pytuck'
     REQUIRED_DEPENDENCIES = []
 
     # 文件格式常量
-    MAGIC_NUMBER = b'PYTK'
-    FORMAT_VERSION = get_format_version('binary')
-    FILE_HEADER_SIZE = 64
+    FORMAT_VERSION = get_format_version('pytuck')
 
-    # v4 格式常量
-    MAGIC_V4 = b'PTK4'
-    HEADER_SIZE_V4 = 128  # 双 header，每个 128 字节
-    DUAL_HEADER_SIZE = 256  # 两个 header 的总大小
+    # PTK5 格式常量
+    MAGIC_V5 = HeaderV5.MAGIC_V5
+    HEADER_SIZE = HeaderV5.HEADER_SIZE
+    DUAL_HEADER_SIZE = HeaderV5.HEADER_SIZE * 2
     WAL_SIDECAR_SUFFIX = '.wal'
 
     def __init__(self, file_path: Union[str, Path], options: BinaryBackendOptions):
         """
-        初始化 Binary 后端
+        初始化 Pytuck 后端
 
         Args:
-            file_path: 二进制文件路径
-            options: Binary 后端配置选项
+            file_path: Pytuck 数据文件路径
+            options: BinaryBackendOptions 配置选项
         """
         assert isinstance(options, BinaryBackendOptions), "options must be an instance of BinaryBackendOptions"
         super().__init__(file_path, options)
         # 类型安全：将 options 转为具体的 BinaryBackendOptions 类型
         self.options: BinaryBackendOptions = options
 
-        # v4 运行时状态
-        self._active_header: Optional[HeaderV4] = None
+        # v5 运行时状态
+        self._active_header: Optional[HeaderV5] = None
         self._active_slot: int = 0  # 0 = Header A, 1 = Header B
         self._current_lsn: int = 0
         self._file_handle: Optional[BinaryIO] = None
@@ -385,190 +358,23 @@ class BinaryBackend(StorageBackend):
             yield entry
             offset += consumed
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
-        """保存所有表数据到二进制文件（v4 格式：双Header + 增量写入支持）"""
-        # 清空 WAL 缓冲区（checkpoint 会包含所有数据）
-        self._wal_buffer.clear()
-        self._wal_buffer_size = 0
-
-        # 对于新文件或全量保存，使用 checkpoint
-        self._checkpoint_v4(tables)
-        self._clear_sidecar_wal()
-
-    def _checkpoint_v4(self, tables: Dict[str, 'Table']) -> None:
-        """
-        执行 v4 checkpoint（全量写入）
-
-        v4 文件布局:
-        - Header A (128B)
-        - Header B (128B)
-        - Schema Region（不加密）
-        - Data Region（可加密）
-        - Index Region（可加密）
-        """
-        # 加密设置（在创建临时文件前完成校验，避免 fd 泄漏）
-        encryption_level = self.options.encryption
-        cipher: Optional[CipherType] = None
-        salt = b'\x00' * 16
-        key_check = b'\x00' * 4
-
-        if encryption_level:
-            if not self.options.password:
-                raise EncryptionError("加密需要提供密码")
-            if encryption_level not in ENCRYPTION_LEVELS:
-                raise EncryptionError(f"无效的加密等级: {encryption_level}，必须是 {ENCRYPTION_LEVELS} 之一")
-
-            # 生成随机盐并派生密钥
-            salt = os.urandom(16)
-            key = CryptoProvider.derive_key(self.options.password, salt, encryption_level)
-            key_check = CryptoProvider.compute_key_check(key)
-            cipher = get_cipher(encryption_level, key)
-
-        # 使用 tempfile.mkstemp 创建安全临时文件
-        fd, temp_path_str = tempfile.mkstemp(
-            dir=str(self.file_path.parent),
-            prefix=f'.{self.file_path.stem}.',
-            suffix='.tmp'
-        )
-        temp_path = Path(temp_path_str)
-
-        # 收集所有表的 pk_offsets 和索引数据
-        all_table_index_data: Dict[str, Dict[str, Any]] = {}
-
-        try:
-            with os.fdopen(fd, 'wb') as f:
-                # 1. 预留双 Header 空间（256 字节）
-                f.write(b'\x00' * self.DUAL_HEADER_SIZE)
-
-                # 2. 写入 Schema 区（不加密，保持可探测性）
-                schema_offset = f.tell()
-                for table_name, table in tables.items():
-                    self._write_table_schema(f, table)
-                schema_size = f.tell() - schema_offset
-
-                # 3. 写入数据区（记录每条记录的偏移）
-                data_offset = f.tell()
-                # 先写入到内存缓冲区
-                import io
-                data_buffer = io.BytesIO()
-                for table_name, table in tables.items():
-                    pk_offsets = self._write_table_data(data_buffer, table)
-                    all_table_index_data[table_name] = {
-                        'pk_offsets': pk_offsets,
-                        'indexes': table.indexes
-                    }
-                data_bytes = data_buffer.getvalue()
-
-                # 如果启用加密，加密数据区
-                if cipher:
-                    data_bytes = cipher.encrypt(data_bytes)
-
-                f.write(data_bytes)
-                data_size = len(data_bytes)
-
-                # 4. 写入索引区（使用压缩，可加密）
-                index_offset = f.tell()
-                compressed_index = self._write_index_region_compressed(all_table_index_data)
-
-                # 如果启用加密，加密索引区
-                if cipher:
-                    compressed_index = cipher.encrypt(compressed_index)
-
-                f.write(compressed_index)
-                index_size = len(compressed_index)
-
-                # 5. 创建并写入 v4 Header
-                new_generation = 1
-                if self._active_header:
-                    new_generation = self._active_header.generation + 1
-
-                # flags: bit 0 = 索引区已压缩
-                flags = HeaderV4.FLAG_INDEX_COMPRESSED
-
-                header = HeaderV4(
-                    magic=self.MAGIC_V4,
-                    version=4,
-                    generation=new_generation,
-                    schema_offset=schema_offset,
-                    schema_size=schema_size,
-                    data_offset=data_offset,
-                    data_size=data_size,
-                    index_offset=index_offset,
-                    index_size=index_size,
-                    wal_offset=0,
-                    wal_size=0,
-                    checkpoint_lsn=self._current_lsn,
-                    flags=flags
-                )
-
-                # 如果启用加密，设置加密标志和元数据
-                if encryption_level:
-                    header.set_encryption(encryption_level, salt, key_check)
-
-                # 写入 Header A（slot 0）
-                f.seek(0)
-                f.write(header.pack())
-
-                # 写入 Header B（slot 1）作为备份
-                f.seek(self.HEADER_SIZE_V4)
-                f.write(header.pack())
-
-            # 原子性重命名
-            temp_path.replace(self.file_path)
-
-            # 更新运行时状态
-            self._active_header = header
-            self._active_slot = 0
-
-        except Exception as e:
-            # 清理临时文件
-            try:
-                temp_path.unlink()
-            except (FileNotFoundError, OSError):
-                pass
-            raise SerializationError(f"Failed to save binary file: {e}")
-
-    def load(self) -> Dict[str, 'Table']:
-        """从二进制文件加载所有表数据（v4 格式，支持懒加载）"""
-        if not self.exists():
-            raise FileNotFoundError(f"Binary file not found: {self.file_path}")
-
-        try:
-            with open(self.file_path, 'rb') as f:
-                # 检测文件格式版本
-                magic = f.read(4)
-                f.seek(0)
-
-                if magic == self.MAGIC_V4:
-                    return self._load_v4(f)
-                else:
-                    raise SerializationError(
-                        f"不支持的文件格式: {magic!r}，请使用 v4 格式（PTK4）"
-                    )
-
-        except EncryptionError:
-            # 加密异常直接抛出，不包装
-            raise
-        except Exception as e:
-            raise SerializationError(f"Failed to load binary file: {e}")
-
-    def _load_v4(self, f: BinaryIO) -> Dict[str, 'Table']:
-        """加载 v4 格式文件"""
-        # 读取双 Header
-        header_a = HeaderV4.unpack(f.read(self.HEADER_SIZE_V4))
-        header_b = HeaderV4.unpack(f.read(self.HEADER_SIZE_V4))
-
-        # 选择有效的 Header（generation 更大且 CRC 正确的）
+    def _read_active_dual_header(self, f: BinaryIO) -> HeaderV5:
+        """读取并选择当前生效的 v5 双 Header。"""
         f.seek(0)
-        header_a_data = f.read(self.HEADER_SIZE_V4)
-        f.seek(self.HEADER_SIZE_V4)
-        header_b_data = f.read(self.HEADER_SIZE_V4)
+        header_a_data = f.read(self.HEADER_SIZE)
+        header_b_data = f.read(self.HEADER_SIZE)
 
-        header_a_valid = header_a.magic == self.MAGIC_V4 and header_a.verify_crc(header_a_data)
-        header_b_valid = header_b.magic == self.MAGIC_V4 and header_b.verify_crc(header_b_data)
+        if len(header_a_data) < self.HEADER_SIZE or len(header_b_data) < self.HEADER_SIZE:
+            raise SerializationError("Pytuck dual header is incomplete")
+
+        header_a = HeaderV5.unpack(header_a_data)
+        header_b = HeaderV5.unpack(header_b_data)
+
+        valid_magics = {self.MAGIC_V5}
+        header_a_valid = header_a.magic in valid_magics and header_a.verify_crc(header_a_data)
+        header_b_valid = header_b.magic in valid_magics and header_b.verify_crc(header_b_data)
 
         if header_a_valid and header_b_valid:
-            # 选择 generation 更大的
             if header_a.generation >= header_b.generation:
                 header = header_a
                 self._active_slot = 0
@@ -585,12 +391,164 @@ class BinaryBackend(StorageBackend):
             raise SerializationError("Both headers are corrupted")
 
         self._active_header = header
-        self._current_lsn = header.checkpoint_lsn
+        return header
 
-        # 检查加密状态
+    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+        """保存所有表数据到二进制文件（默认写出 v5 双 Header 格式）"""
+        # 清空 WAL 缓冲区（checkpoint 会包含所有数据）
+        self._wal_buffer.clear()
+        self._wal_buffer_size = 0
+
+        # 对于新文件或全量保存，使用 checkpoint
+        self._checkpoint_v5(tables)
+        self._clear_sidecar_wal()
+
+    def _checkpoint_v5(self, tables: Dict[str, 'Table']) -> None:
+        """
+        执行 v5 checkpoint（全量写入）
+
+        v5 文件布局:
+        - Header A (128B)
+        - Header B (128B)
+        - Schema Region（不加密）
+        - Data Region（可加密，记录编码升级为紧凑格式）
+        - Index Region（可加密）
+        """
+        encryption_level = self.options.encryption
+        cipher: Optional[CipherType] = None
+        salt = b'\x00' * 16
+        key_check = b'\x00' * 4
+
+        if encryption_level:
+            if not self.options.password:
+                raise EncryptionError("加密需要提供密码")
+            if encryption_level not in ENCRYPTION_LEVELS:
+                raise EncryptionError(f"无效的加密等级: {encryption_level}，必须是 {ENCRYPTION_LEVELS} 之一")
+
+            salt = os.urandom(16)
+            key = CryptoProvider.derive_key(self.options.password, salt, encryption_level)
+            key_check = CryptoProvider.compute_key_check(key)
+            cipher = get_cipher(encryption_level, key)
+
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        temp_path = Path(temp_path_str)
+
+        all_table_index_data: Dict[str, Dict[str, Any]] = {}
+
+        try:
+            with os.fdopen(fd, 'wb') as f:
+                f.write(b'\x00' * self.DUAL_HEADER_SIZE)
+
+                schema_offset = f.tell()
+                for table in tables.values():
+                    self._write_table_schema(f, table)
+                schema_size = f.tell() - schema_offset
+
+                data_offset = f.tell()
+                data_buffer = io.BytesIO()
+                for table_name, table in tables.items():
+                    pk_offsets = self._write_table_data_v5(data_buffer, table)
+                    all_table_index_data[table_name] = {
+                        'pk_offsets': pk_offsets,
+                        'indexes': table.indexes
+                    }
+                data_bytes = data_buffer.getvalue()
+
+                if cipher:
+                    data_bytes = cipher.encrypt(data_bytes)
+
+                f.write(data_bytes)
+                data_size = len(data_bytes)
+
+                index_offset = f.tell()
+                compressed_index = self._write_index_region_compressed(all_table_index_data)
+
+                if cipher:
+                    compressed_index = cipher.encrypt(compressed_index)
+
+                f.write(compressed_index)
+                index_size = len(compressed_index)
+
+                new_generation = 1
+                if self._active_header:
+                    new_generation = self._active_header.generation + 1
+
+                flags = HeaderV5.FLAG_INDEX_COMPRESSED
+                header = HeaderV5(
+                    magic=self.MAGIC_V5,
+                    version=5,
+                    generation=new_generation,
+                    schema_offset=schema_offset,
+                    schema_size=schema_size,
+                    data_offset=data_offset,
+                    data_size=data_size,
+                    index_offset=index_offset,
+                    index_size=index_size,
+                    wal_offset=0,
+                    wal_size=0,
+                    checkpoint_lsn=self._current_lsn,
+                    flags=flags
+                )
+
+                if encryption_level:
+                    header.set_encryption(encryption_level, salt, key_check)
+
+                f.seek(0)
+                f.write(header.pack())
+                f.seek(self.HEADER_SIZE)
+                f.write(header.pack())
+
+            temp_path.replace(self.file_path)
+            self._active_header = header
+            self._active_slot = 0
+
+        except Exception as e:
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
+            raise SerializationError(f"Failed to save Pytuck file: {e}")
+
+    def load(self) -> Dict[str, 'Table']:
+        """从 Pytuck 文件加载所有表数据（仅支持 PTK5 与懒加载）"""
+        if not self.exists():
+            raise FileNotFoundError(f"Pytuck file not found: {self.file_path}")
+
+        try:
+            with open(self.file_path, 'rb') as f:
+                magic = f.read(4)
+                f.seek(0)
+
+                if magic == self.MAGIC_V5:
+                    return self._load_checkpoint_format(f)
+
+                raise SerializationError(
+                    f"不支持的文件格式: {magic!r}，当前仅支持 PTK5（.pytuck）格式"
+                )
+
+        except EncryptionError:
+            raise
+        except Exception as e:
+            raise SerializationError(f"Failed to load Pytuck file: {e}")
+
+    def _load_checkpoint_format(
+        self,
+        f: BinaryIO,
+        *,
+        force_lazy: Optional[bool] = None
+    ) -> Dict[str, 'Table']:
+        """加载 v5 双 Header checkpoint 格式文件。"""
+        header = self._read_active_dual_header(f)
+        self._current_lsn = header.checkpoint_lsn
+        self._lazy_cipher = None
+        self._lazy_data_offset = 0
+
         cipher: Optional[CipherType] = None
         if header.is_encrypted():
-            # 文件已加密，需要密码
             if not self.options.password:
                 raise EncryptionError("文件已加密，需要提供密码")
 
@@ -598,68 +556,61 @@ class BinaryBackend(StorageBackend):
             if not encryption_level:
                 raise EncryptionError("无法识别加密等级")
 
-            # 派生密钥
             key = CryptoProvider.derive_key(
                 self.options.password, header.salt, encryption_level
             )
-
-            # 验证密钥
             if not CryptoProvider.verify_key(key, header.key_check):
                 raise EncryptionError("密码错误")
 
-            # 创建解密器
             cipher = get_cipher(encryption_level, key)
 
-        # 读取 Schema 区（不加密）
         f.seek(header.schema_offset)
         tables_schema = []
-        # 需要知道表数量，从 schema 区逐个读取直到到达 data_offset
         while f.tell() < header.data_offset:
             schema = self._read_table_schema(f)
             tables_schema.append(schema)
 
-        # 读取索引区
         index_data: Dict[str, Dict[str, Any]] = {}
         if header.index_offset > 0 and header.index_size > 0:
             f.seek(header.index_offset)
-            # 检查 flags 判断索引区是否压缩
-            is_compressed = (header.flags & HeaderV4.FLAG_INDEX_COMPRESSED) != 0
+            is_compressed = (header.flags & HeaderV5.FLAG_INDEX_COMPRESSED) != 0
 
             if cipher:
-                # 读取加密的索引区数据并解密
                 encrypted_index = f.read(header.index_size)
                 decrypted_index = cipher.decrypt(encrypted_index)
                 index_data = self._parse_index_region(decrypted_index, compressed=is_compressed)
             else:
                 index_data = self._read_index_region(f, compressed=is_compressed)
 
-        tables = {}
+        tables: Dict[str, 'Table'] = {}
+        lazy_load_enabled = self.options.lazy_load if force_lazy is None else force_lazy
 
-        # 懒加载模式（通过 decrypt_at 实现加密文件的按需解密）
-        if self.options.lazy_load and index_data:
-            # 保存 cipher 引用供懒加载时按需解密
+        if lazy_load_enabled and index_data:
             self._lazy_cipher = cipher
             self._lazy_data_offset = header.data_offset
             for schema in tables_schema:
                 table = self._create_lazy_table(schema, index_data, header.data_offset)
                 tables[table.name] = table
-        else:
-            if cipher:
-                # 加密模式：读取并解密整个数据区
-                f.seek(header.data_offset)
-                encrypted_data = f.read(header.data_size)
-                decrypted_data = cipher.decrypt(encrypted_data)
-                data_stream = io.BytesIO(decrypted_data)
+            return tables
 
-                for schema in tables_schema:
-                    table = self._read_table_data(data_stream, schema, index_data)
-                    tables[table.name] = table
-            else:
-                # 完整加载模式
-                f.seek(header.data_offset)
-                for schema in tables_schema:
-                    table = self._read_table_data(f, schema, index_data)
-                    tables[table.name] = table
+        data_stream: BinaryIO
+        if cipher:
+            f.seek(header.data_offset)
+            encrypted_data = f.read(header.data_size)
+            decrypted_data = cipher.decrypt(encrypted_data)
+            data_stream = io.BytesIO(decrypted_data)
+            data_region_offset = 0
+        else:
+            f.seek(header.data_offset)
+            data_stream = f
+            data_region_offset = header.data_offset
+
+        if header.version != 5:
+            raise SerializationError(f"Unsupported Pytuck checkpoint version: {header.version}")
+
+        for schema in tables_schema:
+            table = self._read_table_data_v5(data_stream, schema, index_data, data_region_offset)
+            tables[table.name] = table
 
         return tables
 
@@ -722,41 +673,29 @@ class BinaryBackend(StorageBackend):
         self,
         file_path: Path,
         offset: int,
-        columns: Dict[str, 'Column']
+        columns: Dict[str, 'Column'],
+        pk: Any = None
     ) -> Dict[str, Any]:
         """
-        读取单条懒加载记录，支持加密文件的按需解密
+        读取单条懒加载记录，支持加密文件的按需解密。
 
-        通过 cipher.decrypt_at() 实现随机位置解密，无需解密整个数据区
-
-        Args:
-            file_path: 数据文件路径
-            offset: 记录在文件中的绝对偏移
-            columns: 列定义
-
-        Returns:
-            记录字典
+        通过 cipher.decrypt_at() 实现随机位置解密，无需解密整个数据区。
         """
         with open(str(file_path), 'rb') as f:
             f.seek(offset)
 
             if self._lazy_cipher:
                 relative_offset = offset - self._lazy_data_offset
-
-                # 解密 record length（4 字节）
                 enc_len = f.read(4)
                 dec_len = self._lazy_cipher.decrypt_at(relative_offset, enc_len)
                 record_len = struct.unpack('<I', dec_len)[0]
 
-                # 解密 record data
                 enc_data = f.read(record_len)
                 dec_data = self._lazy_cipher.decrypt_at(relative_offset + 4, enc_data)
-
-                # 从解密后的数据解析记录
                 stream = io.BytesIO(dec_len + dec_data)
-                _, record = self._read_record(stream, columns)
+                _, record = self._read_record_v5(stream, columns, pk)
             else:
-                _, record = self._read_record(f, columns)
+                _, record = self._read_record_v5(f, columns, pk)
 
         return record
 
@@ -806,6 +745,169 @@ class BinaryBackend(StorageBackend):
             for pk in pk_offsets:
                 record = table.get(pk)
                 table.data[pk] = record
+
+    def supports_server_side_pagination(self) -> bool:
+        """Pytuck 后端支持基于索引和按需读取的分页查询。"""
+        return True
+
+    def query_with_pagination(
+        self,
+        table_name: str,
+        conditions: List[Dict[str, Any]],
+        limit: Optional[int] = None,
+        offset: int = 0,
+        order_by: Optional[str] = None,
+        order_desc: bool = False
+    ) -> Dict[str, Any]:
+        """使用索引和懒加载能力实现按需分页查询。"""
+        if not self.exists():
+            return {'records': [], 'total_count': 0, 'has_more': False}
+
+        from ..query import Condition
+
+        has_pending_wal = self.has_pending_wal()
+        query_options = replace(self.options, lazy_load=not has_pending_wal)
+        query_backend = BinaryBackend(str(self.file_path), query_options)
+        if has_pending_wal and self._wal_buffer:
+            query_backend._wal_buffer = list(self._wal_buffer)
+            query_backend._wal_buffer_size = self._wal_buffer_size
+        tables = query_backend.load()
+
+        if has_pending_wal:
+            query_backend.replay_wal(tables)
+
+        table = tables.get(table_name)
+        if table is None:
+            return {'records': [], 'total_count': 0, 'has_more': False}
+
+        parsed_conditions = [
+            Condition(cond['field'], cond.get('operator', '='), cond['value'])
+            for cond in conditions
+        ]
+
+        effective_limit = limit if limit is not None and limit > 0 else None
+        all_pks = list(table._pk_offsets.keys()) if table._pk_offsets is not None else list(table.data.keys())
+        candidate_pks: Optional[Set[Any]] = None
+        remaining_conditions: List[Condition] = []
+
+        def _intersect(pks: Set[Any]) -> None:
+            nonlocal candidate_pks
+            if candidate_pks is None:
+                candidate_pks = set(pks)
+            else:
+                candidate_pks = candidate_pks.intersection(pks)
+
+        for condition in parsed_conditions:
+            if table.primary_key and condition.field == table.primary_key and condition.operator == '=':
+                normalized_pk = table._normalize_pk(condition.value)
+                exists_in_file = table._pk_offsets is not None and normalized_pk in table._pk_offsets
+                exists_in_memory = normalized_pk in table.data
+                _intersect({normalized_pk} if (exists_in_file or exists_in_memory) else set())
+            elif (
+                table.primary_key
+                and condition.field == table.primary_key
+                and condition.operator == 'IN'
+                and isinstance(condition.value, (list, tuple, set))
+            ):
+                normalized_pks = {table._normalize_pk(value) for value in condition.value}
+                existing_pks = {
+                    pk for pk in normalized_pks
+                    if (table._pk_offsets is not None and pk in table._pk_offsets) or pk in table.data
+                }
+                _intersect(existing_pks)
+            elif condition.operator == '=' and condition.field in table.indexes:
+                _intersect(table.indexes[condition.field].lookup(condition.value))
+            elif (
+                condition.operator == 'IN'
+                and condition.field in table.indexes
+                and isinstance(condition.value, (list, tuple, set))
+            ):
+                matched_pks: Set[Any] = set()
+                for value in condition.value:
+                    matched_pks.update(table.indexes[condition.field].lookup(value))
+                _intersect(matched_pks)
+            else:
+                remaining_conditions.append(condition)
+
+        if candidate_pks is None:
+            ordered_candidate_pks = all_pks
+        else:
+            ordered_candidate_pks = [pk for pk in all_pks if pk in candidate_pks]
+            for pk in table.data.keys():
+                if pk in candidate_pks and pk not in ordered_candidate_pks:
+                    ordered_candidate_pks.append(pk)
+
+        def _get_record(pk: Any) -> Dict[str, Any]:
+            if pk in table.data:
+                return table.data[pk]
+            return table.get(pk)
+
+        def _build_result_record(pk: Any, record: Dict[str, Any]) -> Dict[str, Any]:
+            result = record.copy()
+            if not table.primary_key:
+                result[PSEUDO_PK_NAME] = pk
+            return result
+
+        def _matches(record: Dict[str, Any]) -> bool:
+            return all(condition.evaluate(record) for condition in remaining_conditions)
+
+        def _sort_records(records: List[Dict[str, Any]]) -> None:
+            if not order_by or order_by not in table.columns:
+                return
+
+            def sort_key(_record: Dict[str, Any]) -> tuple:
+                value = _record.get(order_by)
+                if value is None:
+                    return (1, 0) if not order_desc else (0, 0)
+                return (0, value) if not order_desc else (1, value)
+
+            try:
+                records.sort(key=sort_key, reverse=order_desc)
+            except TypeError:
+                records.sort(key=lambda r: str(r.get(order_by, '')), reverse=order_desc)
+
+        if order_by and order_by in table.columns:
+            matched_records: List[Dict[str, Any]] = []
+            for pk in ordered_candidate_pks:
+                record = _get_record(pk)
+                if _matches(record):
+                    matched_records.append(_build_result_record(pk, record))
+
+            total_count = len(matched_records)
+            _sort_records(matched_records)
+            if offset > 0:
+                matched_records = matched_records[offset:]
+            if effective_limit is not None:
+                matched_records = matched_records[:effective_limit]
+
+            return {
+                'records': matched_records,
+                'total_count': total_count,
+                'has_more': (offset + len(matched_records)) < total_count if effective_limit is not None else False
+            }
+
+        total_count = 0
+        records: List[Dict[str, Any]] = []
+        skipped = 0
+
+        for pk in ordered_candidate_pks:
+            record = _get_record(pk)
+            if not _matches(record):
+                continue
+
+            total_count += 1
+            if skipped < offset:
+                skipped += 1
+                continue
+
+            if effective_limit is None or len(records) < effective_limit:
+                records.append(_build_result_record(pk, record))
+
+        return {
+            'records': records,
+            'total_count': total_count,
+            'has_more': (offset + len(records)) < total_count if effective_limit is not None else False
+        }
 
     # ============== WAL 操作方法 ==============
 
@@ -876,37 +978,37 @@ class BinaryBackend(StorageBackend):
                 f.flush()
         else:
             with open(self.file_path, 'r+b') as f:
-                # 读取当前 header
-                if self._active_header is None:
-                    f.seek(0)
-                    header_data = f.read(self.HEADER_SIZE_V4)
-                    self._active_header = HeaderV4.unpack(header_data)
+                # 读取当前活跃 header
+                active_header = self._active_header
+                if active_header is None:
+                    active_header = self._read_active_dual_header(f)
 
                 # 计算 WAL 写入位置
-                if self._active_header.wal_offset == 0:
+                if active_header.wal_offset == 0:
                     # 首次写 WAL，在文件末尾
                     f.seek(0, 2)  # 移到文件末尾
                     wal_offset = f.tell()
                 else:
                     # 追加到现有 WAL
-                    wal_offset = self._active_header.wal_offset
-                    f.seek(wal_offset + self._active_header.wal_size)
+                    wal_offset = active_header.wal_offset
+                    f.seek(wal_offset + active_header.wal_size)
 
                 # 写入所有 WAL 条目
                 f.write(all_bytes)
                 f.flush()
 
                 # 更新 header 中的 WAL 信息
-                new_wal_size = self._active_header.wal_size + len(all_bytes)
-                if self._active_header.wal_offset == 0:
-                    self._active_header.wal_offset = wal_offset
+                new_wal_size = active_header.wal_size + len(all_bytes)
+                if active_header.wal_offset == 0:
+                    active_header.wal_offset = wal_offset
 
-                self._active_header.wal_size = new_wal_size
-                self._active_header.checkpoint_lsn = self._current_lsn
+                active_header.wal_size = new_wal_size
+                active_header.checkpoint_lsn = self._current_lsn
+                self._active_header = active_header
 
                 # 更新 header（写入当前活跃槽）
-                header_bytes = self._active_header.pack()
-                f.seek(self._active_slot * self.HEADER_SIZE_V4)
+                header_bytes = active_header.pack()
+                f.seek(self._active_slot * self.HEADER_SIZE)
                 f.write(header_bytes)
                 f.flush()
 
@@ -993,18 +1095,17 @@ class BinaryBackend(StorageBackend):
                 yield entry
         elif self.exists():
             with open(self.file_path, 'rb') as f:
-                # 读取 header
-                header_data = f.read(self.HEADER_SIZE_V4)
-                if len(header_data) >= self.HEADER_SIZE_V4:
-                    header = HeaderV4.unpack(header_data)
+                try:
+                    header = self._read_active_dual_header(f)
+                except SerializationError:
+                    header = None
 
-                    if header.wal_offset > 0 and header.wal_size > 0:
-                        # 读取 WAL 区域
-                        f.seek(header.wal_offset)
-                        wal_data = f.read(header.wal_size)
+                if header and header.wal_offset > 0 and header.wal_size > 0:
+                    f.seek(header.wal_offset)
+                    wal_data = f.read(header.wal_size)
 
-                        for entry in self._iter_packed_wal_entries(wal_data):
-                            yield entry
+                    for entry in self._iter_packed_wal_entries(wal_data):
+                        yield entry
 
         # 然后返回缓冲区中的条目
         for entry in self._wal_buffer:
@@ -1047,12 +1148,18 @@ class BinaryBackend(StorageBackend):
                         entry.record_bytes,
                         table.columns
                     )
+                    existing_record: Optional[Dict[str, Any]] = table.data.get(pk)
                     table.data[pk] = record
 
                     # 更新索引
                     for col_name, idx in table.indexes.items():
-                        if col_name in record:
-                            idx.insert(record[col_name], pk)
+                        old_value = existing_record.get(col_name) if existing_record is not None else None
+                        new_value = record.get(col_name)
+                        if old_value != new_value:
+                            if old_value is not None:
+                                idx.remove(old_value, pk)
+                            if new_value is not None:
+                                idx.insert(new_value, pk)
 
             count += 1
             self._current_lsn = max(self._current_lsn, entry.lsn)
@@ -1129,11 +1236,10 @@ class BinaryBackend(StorageBackend):
             return False
 
         with open(self.file_path, 'rb') as f:
-            header_data = f.read(self.HEADER_SIZE_V4)
-            if len(header_data) < self.HEADER_SIZE_V4:
+            try:
+                header = self._read_active_dual_header(f)
+            except SerializationError:
                 return False
-
-            header = HeaderV4.unpack(header_data)
             return header.wal_size > 0
 
     def _write_table_schema(self, f: BinaryIO, table: 'Table') -> None:
@@ -1216,105 +1322,75 @@ class BinaryBackend(StorageBackend):
         }
 
     @staticmethod
-    def _write_table_data(f: BinaryIO, table: 'Table') -> Dict[Any, int]:
+    def _write_table_data_v5(f: BinaryIO, table: 'Table') -> Dict[Any, int]:
         """
-        写入单个表的数据（记录 pk_offsets）
+        写入单个表的数据（v5 紧凑记录格式）
 
         格式：
         - Record Count (4 bytes)
         - Records Data
+          - Record Length (4 bytes)
+          - Null Bitmap (按列顺序，主键列不重复存储)
+          - Value Payloads（按 schema 顺序拼接，NULL 列跳过）
 
         Returns:
-            pk_offsets: 主键到文件偏移的映射
+            pk_offsets: 主键到数据区相对偏移的映射
         """
         pk_offsets: Dict[Any, int] = {}
+        stored_columns = [col for col in table.columns.values() if not col.primary_key]
+        bitmap_size = (len(stored_columns) + 7) // 8
+        codec_cache = []
+        for col in stored_columns:
+            assert col.name is not None, "Column name must be set"
+            _, codec = TypeRegistry.get_codec(col.col_type)
+            codec_cache.append((col.name, codec))
 
-        # Record Count
         f.write(struct.pack('<I', len(table.data)))
 
-        # 预先构建列名到索引的映射和编解码器缓存
-        col_idx_map = {name: idx for idx, name in enumerate(table.columns.keys())}
-
-        # 缓存编解码器（避免重复查找）
-        codec_cache: Dict[str, tuple] = {}
-        pk_codec = None
-        for col in table.columns.values():
-            assert col.name is not None, "Column name must be set"
-            type_code, codec = TypeRegistry.get_codec(col.col_type)
-            codec_cache[col.name] = (type_code, codec)
-            if col.primary_key:
-                pk_codec = codec
-
-        # 批量写入缓冲区
         buf = bytearray()
         base_offset = f.tell()
         buf_offset = 0
 
-        # Records（使用批量缓冲）
         for pk, record in table.data.items():
             pk_offsets[pk] = base_offset + buf_offset
 
-            # 构建单条记录
-            record_data = bytearray()
-
-            # Primary Key
-            if pk_codec:
-                pk_bytes = pk_codec.encode(pk)
-                record_data.extend(pk_bytes)
-
-            # Field Count
-            record_data.extend(struct.pack('<H', len(record)))
-
-            # Fields
-            for col_name, value in record.items():
-                col_idx = col_idx_map[col_name]
-                record_data.extend(struct.pack('<H', col_idx))
-
+            null_bitmap = bytearray(bitmap_size)
+            payload = bytearray()
+            for idx, (col_name, codec) in enumerate(codec_cache):
+                value = record.get(col_name)
                 if value is None:
-                    record_data.extend(b'\xff\x00')  # NULL: type=0xFF, len=0
-                else:
-                    type_code, codec = codec_cache[col_name]
-                    value_bytes = codec.encode(value)
-                    record_data.extend(struct.pack('<BI', type_code, len(value_bytes)))
-                    record_data.extend(value_bytes)
+                    null_bitmap[idx // 8] |= 1 << (idx % 8)
+                    continue
+                payload.extend(codec.encode(value))
 
-            # 添加到缓冲区
+            record_data = bytes(null_bitmap) + bytes(payload)
             record_len = len(record_data)
             buf.extend(struct.pack('<I', record_len))
             buf.extend(record_data)
             buf_offset += 4 + record_len
 
-            # 缓冲区超过 1MB 时刷新
             if len(buf) > 1024 * 1024:
                 f.write(buf)
                 base_offset = f.tell()
                 buf_offset = 0
                 buf.clear()
 
-        # 写入剩余数据
         if buf:
             f.write(buf)
 
         return pk_offsets
 
     @staticmethod
-    def _read_table_data(f: BinaryIO, schema: Dict[str, Any], index_data: Dict[str, Dict[str, Any]]) -> 'Table':
-        """
-        根据 schema 读取表数据（从索引区恢复索引）
-
-        Args:
-            f: 文件句柄
-            schema: 表结构信息
-            index_data: 从索引区读取的索引数据
-
-        Returns:
-            Table 对象
-        """
+    def _read_table_data_v5(
+        f: BinaryIO,
+        schema: Dict[str, Any],
+        index_data: Dict[str, Dict[str, Any]],
+        data_region_offset: int = 0
+    ) -> 'Table':
+        """根据 schema 和索引区读取 v5 紧凑记录格式表数据。"""
         from ..core.storage import Table
 
         table_name = schema['table_name']
-
-        # 创建 Table 对象
         table = Table(
             table_name,
             schema['columns'],
@@ -1323,94 +1399,32 @@ class BinaryBackend(StorageBackend):
         )
         table.next_id = schema['next_id']
 
-        # 构建 columns 字典用于记录读取
         columns_dict = {col.name: col for col in schema['columns']}
-        col_list = list(columns_dict.values())
+        table_idx_data = index_data.get(table_name, {})
+        relative_pk_offsets = table_idx_data.get('pk_offsets', {})
 
-        # 缓存编解码器
-        codec_cache: Dict[int, tuple] = {}
-        pk_codec = None
-        for col in col_list:
-            type_code, codec = TypeRegistry.get_codec(col.col_type)
-            codec_cache[type_code] = (col.col_type, codec)
-            if col.primary_key:
-                pk_codec = codec
-
-        # Record Count
         record_count_bytes = f.read(4)
         if len(record_count_bytes) < 4:
             raise SerializationError(f"读取表 {table_name} 的记录数失败：文件意外结束")
         record_count = struct.unpack('<I', record_count_bytes)[0]
 
+        if record_count > 0 and not relative_pk_offsets:
+            raise SerializationError(f"读取表 {table_name} 的 v5 数据失败：缺少 pk_offsets")
+        offset_to_pk = {relative_offset: pk for pk, relative_offset in relative_pk_offsets.items()}
+
         for _ in range(record_count):
-            # Record Length
-            rec_len_bytes = f.read(4)
-            if len(rec_len_bytes) < 4:
-                raise SerializationError(f"读取表 {table_name} 的记录长度失败：文件意外结束")
-            record_len = struct.unpack('<I', rec_len_bytes)[0]
+            record_offset = f.tell() - data_region_offset
+            pk = offset_to_pk.get(record_offset)
+            if pk is None:
+                raise SerializationError(
+                    f"读取表 {table_name} 的 v5 数据失败：找不到偏移 {record_offset} 对应的主键"
+                )
 
-            # Record Data
-            record_data = f.read(record_len)
-            if len(record_data) < record_len:
-                raise SerializationError(f"读取表 {table_name} 的记录数据失败：文件意外结束")
+            _, record = BinaryBackend._read_record_v5(f, columns_dict, pk)
+            table.data[pk] = record
 
-            # 解析记录
-            pos = 0
-            pk: Any = None  # 初始化 pk
-
-            # Primary Key
-            if pk_codec:
-                pk, consumed = pk_codec.decode(record_data[pos:])
-                pos += consumed
-
-            # Field Count
-            field_count = struct.unpack('<H', record_data[pos:pos+2])[0]
-            pos += 2
-
-            # Fields
-            record: Dict[str, Any] = {}
-            for _ in range(field_count):
-                # Column Index
-                col_idx = struct.unpack('<H', record_data[pos:pos+2])[0]
-                pos += 2
-
-                # Type Code
-                raw_type_code: int = record_data[pos]
-                pos += 1
-
-                if raw_type_code == 0xFF:
-                    # NULL value
-                    pos += 1  # 跳过长度字节（值为 0）
-                    value = None
-                else:
-                    # Value Length
-                    value_len = struct.unpack('<I', record_data[pos:pos+4])[0]
-                    pos += 4
-                    value_bytes = record_data[pos:pos+value_len]
-                    pos += value_len
-
-                    # 解码值
-                    if raw_type_code in codec_cache:
-                        _, codec = codec_cache[raw_type_code]
-                        value, _ = codec.decode(value_bytes)
-                    else:
-                        _, codec = TypeRegistry.get_codec_by_code(TypeCode(raw_type_code))
-                        value, _ = codec.decode(value_bytes)
-
-                # 获取列名
-                if col_idx < len(col_list):
-                    col_name = col_list[col_idx].name
-                    record[col_name] = value
-
-            if pk is not None:
-                table.data[pk] = record
-
-        # 从索引区恢复索引（如果有）
-        table_idx_data = index_data.get(table_name, {})
         idx_maps = table_idx_data.get('indexes', {})
-
         if idx_maps:
-            # 从持久化数据恢复索引
             for col_name, idx_map in idx_maps.items():
                 if col_name in table.indexes:
                     del table.indexes[col_name]
@@ -1418,7 +1432,6 @@ class BinaryBackend(StorageBackend):
                 index.map = idx_map
                 table.indexes[col_name] = index
         else:
-            # 没有索引区数据，重建索引
             for col_name, column in table.columns.items():
                 if column.index:
                     if col_name in table.indexes:
@@ -1499,129 +1512,51 @@ class BinaryBackend(StorageBackend):
         )
 
     @staticmethod
-    def _write_record(
-        f: BinaryIO,
-        pk: Any,
-        record: Dict[str, Any],
-        columns: Dict[str, Column],
-        col_idx_map: Dict[str, int]
-    ) -> None:
-        """
-        写入单条记录
-
-        格式：
-            - Record Length (4 bytes) - 整条记录的字节数（不含此字段）
-            - Primary Key (variable)
-            - Field Count (2 bytes)
-            - Fields (variable)
-
-        Args:
-            f: 文件句柄
-            pk: 主键值
-            record: 记录字典
-            columns: 列定义字典
-            col_idx_map: 预构建的列名到索引的映射
-        """
-        # 先在内存中构建记录数据
-        record_data = bytearray()
-
-        # Primary Key
-        pk_col = None
-        for col in columns.values():
-            if col.primary_key:
-                pk_col = col
-                break
-
-        if pk_col:
-            _, codec = TypeRegistry.get_codec(pk_col.col_type)
-            pk_bytes = codec.encode(pk)
-            record_data.extend(pk_bytes)
-
-        # Field Count
-        record_data.extend(struct.pack('<H', len(record)))
-
-        # Fields
-        for col_name, value in record.items():
-            # Column Index（使用预构建的映射，O(1) 查找）
-            col_idx = col_idx_map[col_name]
-            record_data.extend(struct.pack('<H', col_idx))
-
-            # Value
-            column = columns[col_name]
-            if value is None:
-                # NULL value: 类型码 0xFF，长度 0
-                record_data.extend(struct.pack('BB', 0xFF, 0))
-            else:
-                type_code, codec = TypeRegistry.get_codec(column.col_type)
-                value_bytes = codec.encode(value)
-                # 类型码 + 长度 + 数据
-                record_data.extend(struct.pack('<BI', type_code, len(value_bytes)))
-                record_data.extend(value_bytes)
-
-        # 写入记录长度和数据
-        f.write(struct.pack('<I', len(record_data)))
-        f.write(record_data)
-
-    @staticmethod
-    def _read_record(f: BinaryIO, columns: Dict[str, Column]) -> tuple:
-        """读取单条记录，返回 (pk, record_dict)"""
-        # Record Length
-        record_len = struct.unpack('<I', f.read(4))[0]
+    def _read_record_v5(f: BinaryIO, columns: Dict[str, Column], pk: Any = None) -> tuple:
+        """读取单条 v5 紧凑记录，返回 (pk, record_dict)。"""
+        record_len_bytes = f.read(4)
+        if len(record_len_bytes) < 4:
+            raise SerializationError("读取 v5 记录长度失败：文件意外结束")
+        record_len = struct.unpack('<I', record_len_bytes)[0]
         record_data = f.read(record_len)
+        if len(record_data) < record_len:
+            raise SerializationError("读取 v5 记录数据失败：文件意外结束")
 
-        offset = 0
+        pk_col_name: Optional[str] = None
+        stored_columns: List[Column] = []
+        for column in columns.values():
+            assert column.name is not None, "Column name must be set"
+            if column.primary_key:
+                pk_col_name = column.name
+                continue
+            stored_columns.append(column)
 
-        # Primary Key
-        pk_col = None
-        for col in columns.values():
-            if col.primary_key:
-                pk_col = col
-                break
+        bitmap_size = (len(stored_columns) + 7) // 8
+        if len(record_data) < bitmap_size:
+            raise SerializationError("读取 v5 记录失败：null bitmap 长度不足")
 
-        if pk_col:
-            _, codec = TypeRegistry.get_codec(pk_col.col_type)
-            pk, consumed = codec.decode(record_data[offset:])
-            offset += consumed
-        else:
-            pk = None
-
-        # Field Count
-        field_count = struct.unpack('<H', record_data[offset:offset+2])[0]
-        offset += 2
-
-        # Fields
+        null_bitmap = record_data[:bitmap_size]
+        payload = record_data[bitmap_size:]
+        payload_offset = 0
         record: Dict[str, Any] = {}
-        col_names = list(columns.keys())
 
-        for _ in range(field_count):
-            # Column Index
-            col_idx = struct.unpack('<H', record_data[offset:offset+2])[0]
-            offset += 2
-
-            col_name = col_names[col_idx]
-            column = columns[col_name]
-
-            # Type Code
-            type_code = struct.unpack('B', record_data[offset:offset+1])[0]
-            offset += 1
-
-            if type_code == 0xFF:
-                # NULL value
+        for idx, column in enumerate(stored_columns):
+            col_name = column.name
+            assert col_name is not None, "Column name must be set"
+            if null_bitmap[idx // 8] & (1 << (idx % 8)):
                 record[col_name] = None
-                offset += 1  # Skip length byte
-            else:
-                # Value Length
-                value_len = struct.unpack('<I', record_data[offset:offset+4])[0]
-                offset += 4
+                continue
 
-                # Value Data
-                value_data = record_data[offset:offset+value_len]
-                offset += value_len
+            _, codec = TypeRegistry.get_codec(column.col_type)
+            value, consumed = codec.decode(payload[payload_offset:])
+            payload_offset += consumed
+            record[col_name] = value
 
-                # Decode
-                _, codec = TypeRegistry.get_codec(column.col_type)
-                value, _ = codec.decode(value_data)
-                record[col_name] = value
+        if payload_offset != len(payload):
+            raise SerializationError("读取 v5 记录失败：payload 长度不匹配")
+
+        if pk_col_name is not None:
+            record[pk_col_name] = pk
 
         return pk, record
 
@@ -1635,7 +1570,7 @@ class BinaryBackend(StorageBackend):
         modified_time = file_stat.st_mtime
 
         return {
-            'engine': 'binary',
+            'engine': 'pytuck',
             'file_size': file_size,
             'modified': modified_time,
         }
@@ -1643,10 +1578,9 @@ class BinaryBackend(StorageBackend):
     @classmethod
     def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
         """
-        轻量探测文件是否为 Binary 引擎格式
+        轻量探测文件是否为 Pytuck 引擎格式
 
-        通过检查文件头的魔数和版本号来识别 Binary 格式文件。
-        只读取前 64 字节文件头，非常快速。
+        通过检查文件头的魔数来识别 PTK5 / .pytuck 格式文件。
 
         Returns:
             Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或None)
@@ -1666,44 +1600,13 @@ class BinaryBackend(StorageBackend):
             with open(file_path, 'rb') as f:
                 magic = f.read(4)
 
-                # 检查 v4 格式 (PTK4)
-                if magic == cls.MAGIC_V4:
+                if magic == cls.MAGIC_V5:
                     if file_size < cls.DUAL_HEADER_SIZE:
-                        return False, {'error': 'file_too_small_for_v4'}
+                        return False, {'error': 'file_too_small_for_checkpoint'}
 
                     return True, {
-                        'engine': 'binary',
-                        'format_version': 4,
-                        'file_size': file_size,
-                        'modified': file_stat.st_mtime,
-                        'confidence': 'high'
-                    }
-
-                # 检查旧版格式 (PYTK)
-                if magic == cls.MAGIC_NUMBER:
-                    if file_size < cls.FILE_HEADER_SIZE:
-                        return False, {'error': 'file_too_small'}
-
-                    f.seek(0)
-                    header = f.read(cls.FILE_HEADER_SIZE)
-
-                    # 检查版本号
-                    try:
-                        version = struct.unpack('<H', header[4:6])[0]
-                    except struct.error:
-                        return False, {'error': 'invalid_version_format'}
-
-                    # 读取表数量
-                    try:
-                        table_count = struct.unpack('<I', header[6:10])[0]
-                    except struct.error:
-                        return False, {'error': 'invalid_table_count_format'}
-
-                    # 成功识别为 Binary 格式
-                    return True, {
-                        'engine': 'binary',
-                        'format_version': version,
-                        'table_count': table_count,
+                        'engine': 'pytuck',
+                        'format_version': 5,
                         'file_size': file_size,
                         'modified': file_stat.st_mtime,
                         'confidence': 'high'
