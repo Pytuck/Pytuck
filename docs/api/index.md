@@ -13,7 +13,7 @@
 | [存储引擎](storage.md) | `Storage` 类的完整 API（CRUD、表管理、事务、持久化） |
 | [会话管理](session.md) | `Session` 类（执行语句、对象状态追踪、事务、Schema 操作） |
 | [查询系统](query.md) | `select`/`insert`/`update`/`delete` 语句、`Query` 构建器、`Result` 结果集、逻辑操作符 |
-| [引擎对比与特性](engines.md) | 六种引擎的特性、限制、选型建议、配置示例 |
+| [引擎对比与特性](engines.md) | 七种引擎的特性、限制、选型建议、配置示例 |
 | [配置选项](options.md) | 所有 `BackendOptions`、`SyncOptions`、`ConnectorOptions` 的字段说明 |
 | [异常体系](exceptions.md) | 异常层次结构与每个异常的触发场景 |
 | [工具与扩展](tools.md) | 数据迁移、事件钩子、关系预取、类型系统 |
@@ -36,7 +36,8 @@ from pytuck import (
 # 配置选项
 from pytuck.common.options import (
     BinaryBackendOptions, JsonBackendOptions, CsvBackendOptions,
-    SqliteBackendOptions, ExcelBackendOptions, XmlBackendOptions,
+    SqliteBackendOptions, DuckdbBackendOptions,
+    DuckdbConnectorOptions, ExcelBackendOptions, XmlBackendOptions,
 )
 
 # 异常

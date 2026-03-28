@@ -20,7 +20,7 @@
 > | 大数据量 + 复杂查询 | [SQLAlchemy](https://www.sqlalchemy.org/) + PostgreSQL/MySQL |
 > | 轻量嵌入式 + SQL 支持 | [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite |
 > | 高性能键值存储 | Redis、LMDB |
-> | 分析型查询 | DuckDB、Pandas |
+> | 复杂分析型查询（超出 Pytuck ORM 范围） | DuckDB、Pandas |
 > | 分布式/高并发 | PostgreSQL、MongoDB |
 >
 > ### Pytuck 的最佳使用场景
@@ -40,7 +40,8 @@
 | 场景 | 推荐 | 备选 |
 |------|------|------|
 | 通用生产环境 | Binary | SQLite |
-| 大数据量（>10 万条） | SQLite | Binary（懒加载） |
+| 大数据量（>10 万条） | DuckDB / SQLite | Binary（懒加载） |
+| 分析型查询 / 多 schema | DuckDB | SQLite |
 | 需要加密保护 | Binary（加密） | CSV（ZIP 密码） |
 | 开发调试 | JSON | — |
 | 与 Excel 互操作 | Excel | CSV |

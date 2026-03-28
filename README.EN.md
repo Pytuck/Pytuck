@@ -230,8 +230,8 @@ db = Storage(file_path='secure.db', engine='binary', backend_options=opts)
 | medium | 82ms | 86ms | 183KB | +418% |
 | high | 342ms | 335ms | 183KB | +1928% |
 
-> **Note**: Encryption uses pure Python implementation to maintain zero dependencies. For better performance, consider using `low` or `medium` levels.
-> Run `examples/benchmark_encryption.py` to test performance in your environment.
+> **Note**: Encryption uses a pure Python implementation to maintain zero dependencies. For better performance, consider using `low` or `medium` levels.
+> Run `uv run python tests/benchmark/benchmark_encryption.py` to reproduce the encryption-specific benchmark in your environment.
 
 **Use Cases**:
 - Production deployment
@@ -801,50 +801,64 @@ user.to_dict(depth=1)  # Expand one level of Relationships (e.g., orders list)
 
 ## Performance Benchmark
 
-Here are v4 version benchmark results.
+The following numbers come from the benchmark scripts in this repository, not from an old static v4 table.
 
 ### Test Environment
 
-- **System**: Windows 11, Python 3.12.10
+- **System**: Linux 6.18.7-76061807-generic
+- **Python**: 3.12.3
 - **Test Data**: 100,000 records
-- **Mode**: Extended test (including index comparison, range queries, batch reads, lazy loading)
+- **Mode**: Extended benchmark (index comparison, range queries, batch reads, lazy loading)
+- **Command**: `uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark-final.json`
 
 ### Performance Comparison
 
 | Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
 |--------|--------|---------|-------------|---------|-------|------|------|------|------|
-| Binary | 794.57ms | 1.39ms | 7.13s | 5124x | 333.29ms | 869.68ms | 1.01s | 319.88ms | 11.73MB |
-| JSON | 844.76ms | 1.42ms | 8.95s | 6279x | 337.01ms | 845.77ms | 319.37ms | - | 18.90MB |
-| CSV | 838.89ms | 1.47ms | 7.24s | 4939x | 346.85ms | 453.50ms | 472.90ms | - | 731.9KB |
-| SQLite | 879.05ms | 1.40ms | 7.21s | 5145x | 333.84ms | 325.80ms | 393.39ms | - | 6.97MB |
-| Excel | 897.48ms | 1.41ms | 7.25s | 5150x | 340.40ms | 5.75s | 7.63s | - | 2.84MB |
-| XML | 1.23s | 1.41ms | 7.41s | 5248x | 333.87ms | 2.49s | 2.03s | - | 34.54MB |
+| Binary | 829.25ms | 1.79ms | 4.66s | 2607x | 396.86ms | 776.86ms | 1.03s | 327.86ms | 11.73MB |
+| JSON | 914.12ms | 1.75ms | 4.79s | 2741x | 385.80ms | 289.49ms | 370.47ms | - | 10.70MB |
+| CSV | 871.90ms | 2.40ms | 4.69s | 1951x | 392.43ms | 450.32ms | 512.40ms | - | 731.9KB |
+| SQLite | 1.97s | 4.35ms | 484.05ms | 111x | 506.23ms | 11.44ms | 343.6μs | - | 6.97MB |
+| DuckDB | 279.19s | 56.64ms | 193.83ms | 3x | 478.79ms | 19.49ms | 27.56ms | - | 4.76MB |
+| Excel | 813.44ms | 1.73ms | 4.72s | 2730x | 391.43ms | 5.55s | 7.48s | - | 2.84MB |
+| XML | 766.44ms | 1.94ms | 4.55s | 2342x | 386.67ms | 2.31s | 1.92s | - | 34.54MB |
 
 **Notes**:
-- **Indexed**: 100 indexed field equality lookups (millisecond level)
-- **Non-Indexed**: 100 non-indexed field full table scans (second level)
-- **Speedup**: Index query vs non-indexed query speedup ratio
-- **Range**: Range condition queries (e.g., `age >= 20 AND age < 62`)
-- **Lazy**: Only Binary engine supports lazy loading (loads index only, not data)
+- **Indexed**: 100 indexed equality lookups
+- **Non-Indexed**: 100 non-indexed full scans
+- **Speedup**: Indexed query vs non-indexed query speedup ratio
+- **Range**: Range-condition queries such as `age >= 20 AND age < 62`
+- **Lazy**: Only Binary supports lazy loading (load index first, records on demand)
+- These numbers go through Pytuck's current ORM / Session write path; the DuckDB write / update / delete numbers mainly reflect the current row-by-row DML path rather than DuckDB's native bulk-load ceiling
+
+### How to Reproduce
+
+```bash
+# General performance benchmark
+uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark-final.json
+
+# Encryption-specific benchmark (Binary / CSV only)
+uv run python tests/benchmark/benchmark_encryption.py
+```
 
 ### Engine Feature Comparison
 
 | Engine | Query Perf | I/O Perf | Storage Eff | Human Readable | Dependencies | Recommended Use |
 |--------|-----------|----------|-------------|----------------|--------------|-----------------|
-| Binary | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | None | **Production First Choice** |
-| JSON | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | None | Development, Config Storage |
-| CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | None | Data Exchange, Minimum Size |
-| SQLite | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | None | SQL Needed, ACID Guarantee |
-| Excel | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ | ✅ | openpyxl | Visual Editing, Reports |
-| XML | ⭐⭐⭐⭐ | ⭐⭐ | ⭐ | ✅ | lxml | Enterprise Integration |
+| Binary | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | None | **Production default** |
+| JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | None | Development, config storage |
+| CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | None | Data exchange, smallest footprint |
+| SQLite | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | None | Stable SQL writes, transactions, fast reload |
+| DuckDB | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | duckdb | Analytical queries, DuckDB ecosystem integration, multi-schema workflows |
+| Excel | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ | ✅ | openpyxl | Visual editing, reports |
+| XML | ⭐⭐⭐ | ⭐⭐ | ⭐ | ✅ | lxml | Enterprise integration, standardized exchange |
 
 **Conclusions**:
-- **Binary** fastest insert (794ms), supports lazy loading and encryption, **production first choice**
-- **JSON** fastest load (319ms), easy debugging, suitable for development and config storage
-- **CSV** smallest file (732KB, ZIP compressed), excellent I/O, suitable for data exchange
-- **SQLite** best I/O (save 325ms), well-balanced, suitable for ACID requirements
-- **Excel** slower I/O (7.63s load), suitable for visual editing scenarios
-- **XML** largest file (34.54MB), suitable for enterprise integration
+- **Binary** remains the most balanced default engine overall, with the best indexed-query and lazy-loading behavior
+- **JSON** and **CSV** are still the most convenient human-readable / exchange-friendly options, and CSV remains the smallest on disk
+- **SQLite** is the most practical general-purpose SQL backend in the current benchmark, with the lowest save/load overhead
+- **DuckDB** is attractive for analytical reads, filtering, and existing DuckDB integration, but the current row-by-row write path is clearly not its strength in this benchmark
+- **Excel** and **XML** are best treated as interoperability / delivery formats rather than primary storage when I/O speed matters
 
 ## Installation Methods
 
@@ -1099,10 +1113,10 @@ session.rollback()  # Clears pending, but id=1 record still exists
 - [x] **Bulk Operations** - `bulk_insert` / `bulk_update` API for efficient batch inserts and updates
 - [x] **to_dict() Enhancement & to_json()** - `include`/`exclude` field filtering, `depth` relationship expansion, `to_json()` JSON serialization
 - [x] **Column-level Validators** - `validator` parameter supports custom validation functions and value range constraints
+- [x] **DuckDB Engine** - Native DuckDB backend with multi-schema support, native SQL, comments, and server-side pagination
 
 ### Planned Engines
 
-- [ ] DuckDB - Embedded analytical database
 - [ ] LMDB - High-performance embedded key-value database
 
 ### Planned Optimizations

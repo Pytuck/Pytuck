@@ -9,7 +9,8 @@
 ## 已完成
 
 - [x] 核心 ORM 和内存存储
-- [x] 插件化多引擎持久化（Binary、JSON、CSV、SQLite、Excel、XML）
+- [x] 插件化多引擎持久化（Binary、JSON、CSV、SQLite、DuckDB、Excel、XML）
+- [x] DuckDB 原生后端（多 schema、原生 SQL、原生注释、服务端分页）
 - [x] SQLAlchemy 2.0 风格 API（select、insert、update、delete）
 - [x] 基础事务支持
 - [x] Identity Map（对象唯一性管理）
@@ -79,11 +80,6 @@
 ---
 
 ## 计划增加的引擎
-
-- [ ] **DuckDB** - 嵌入式分析型数据库
-  - 列式存储，分析性能强
-  - 嵌入式设计，安装方便
-  - 适合需要复杂查询和分析能力的场景
 
 - [ ] **LMDB** - 高性能嵌入式键值数据库
   - 读取极快，ACID 事务保证

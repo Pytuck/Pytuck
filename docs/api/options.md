@@ -5,8 +5,10 @@
 ```python
 from pytuck.common.options import (
     BinaryBackendOptions, JsonBackendOptions, CsvBackendOptions,
-    SqliteBackendOptions, ExcelBackendOptions, XmlBackendOptions,
-    SqliteConnectorOptions, SyncOptions, SyncResult,
+    SqliteBackendOptions, DuckdbBackendOptions,
+    ExcelBackendOptions, XmlBackendOptions,
+    SqliteConnectorOptions, DuckdbConnectorOptions,
+    SyncOptions, SyncResult,
 )
 ```
 
@@ -83,6 +85,23 @@ class SqliteBackendOptions(SqliteConnectorOptions):
 | `timeout` | `Optional[float]` | `None` | 连接超时时间（继承） |
 | `isolation_level` | `Optional[str]` | `None` | 事务隔离级别（继承） |
 
+### DuckdbBackendOptions
+
+继承自 `DuckdbConnectorOptions`。
+
+```python
+@dataclass
+class DuckdbBackendOptions(DuckdbConnectorOptions):
+    use_native_sql: bool = True
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `use_native_sql` | `bool` | `True` | 使用原生 SQL 模式 |
+| `read_only` | `bool` | `False` | 只读模式（继承） |
+| `threads` | `Optional[int]` | `None` | DuckDB 线程数，`None` 表示自动（继承） |
+| `schema` | `str` | `'main'` | 默认 schema 名称（继承） |
+
 ### ExcelBackendOptions
 
 ```python
@@ -113,17 +132,38 @@ class XmlBackendOptions:
 
 ---
 
+## 连接器配置选项
+
+### DuckdbConnectorOptions
+
+```python
+@dataclass
+class DuckdbConnectorOptions:
+    read_only: bool = False
+    threads: Optional[int] = None
+    schema: str = 'main'
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `read_only` | `bool` | `False` | 只读模式 |
+| `threads` | `Optional[int]` | `None` | DuckDB 线程数，`None` 表示自动 |
+| `schema` | `str` | `'main'` | 默认 schema 名称 |
+
+---
+
 ## 联合类型
 
 ```python
 # 后端配置选项联合类型
 BackendOptions = Union[
     JsonBackendOptions, CsvBackendOptions, SqliteBackendOptions,
-    ExcelBackendOptions, XmlBackendOptions, BinaryBackendOptions
+    DuckdbBackendOptions, ExcelBackendOptions,
+    XmlBackendOptions, BinaryBackendOptions
 ]
 
 # 连接器配置选项联合类型
-ConnectorOptions = Union[SqliteConnectorOptions]
+ConnectorOptions = Union[SqliteConnectorOptions, DuckdbConnectorOptions]
 ```
 
 ### 默认选项工具函数
@@ -134,9 +174,11 @@ from pytuck.common.options import get_default_backend_options, get_default_conne
 # 根据引擎类型返回默认配置
 options = get_default_backend_options('json')    # JsonBackendOptions()
 options = get_default_backend_options('sqlite')  # SqliteBackendOptions()
+options = get_default_backend_options('duckdb')  # DuckdbBackendOptions()
 
 # 根据连接器类型返回默认配置
-options = get_default_connector_options('sqlite') # SqliteConnectorOptions()
+options = get_default_connector_options('sqlite')  # SqliteConnectorOptions()
+options = get_default_connector_options('duckdb')  # DuckdbConnectorOptions()
 ```
 
 ---

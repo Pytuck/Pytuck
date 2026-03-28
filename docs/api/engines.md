@@ -1,20 +1,20 @@
 # 引擎对比与特性
 
-Pytuck 支持 6 种存储引擎，每种引擎有不同的特性、限制和适用场景。
+Pytuck 支持 7 种存储引擎，每种引擎有不同的特性、限制和适用场景。
 
 ## 引擎总览
 
-| 特性 | Binary | JSON | CSV | SQLite | Excel | XML |
-|------|--------|------|-----|--------|-------|-----|
-| 文件扩展名 | `.db` | `.json` | `.zip` | `.sqlite` / `.db` | `.xlsx` | `.xml` |
-| 外部依赖 | 无 | 无 | 无 | 无 | `openpyxl` | `lxml` |
-| 懒加载 | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| 加密支持 | ✅ | ❌ | ✅（ZIP 密码） | ❌ | ❌ | ❌ |
-| 原生 SQL | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| 服务端分页 | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| 类型精确保留 | ✅ | ⚠️ 部分 | ⚠️ 有限 | ⚠️ 部分 | ⚠️ 部分 | ⚠️ 部分 |
-| 人类可读 | ❌ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| 大文件性能 | ✅ 优秀 | ⚠️ 一般 | ⚠️ 一般 | ✅ 优秀 | ⚠️ 一般 | ⚠️ 一般 |
+| 特性 | Binary | JSON | CSV | SQLite | DuckDB | Excel | XML |
+|------|--------|------|-----|--------|--------|-------|-----|
+| 文件扩展名 | `.db` | `.json` | `.zip` | `.sqlite` / `.db` | `.duckdb` | `.xlsx` | `.xml` |
+| 外部依赖 | 无 | 无 | 无 | 无 | `duckdb` | `openpyxl` | `lxml` |
+| 懒加载 | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| 加密支持 | ✅ | ❌ | ✅（ZIP 密码） | ❌ | ❌ | ❌ | ❌ |
+| 原生 SQL | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| 服务端分页 | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| 类型精确保留 | ✅ | ⚠️ 部分 | ⚠️ 有限 | ⚠️ 部分 | ⚠️ 部分 | ⚠️ 部分 | ⚠️ 部分 |
+| 人类可读 | ❌ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| 大文件性能 | ✅ 优秀 | ⚠️ 一般 | ⚠️ 一般 | ✅ 优秀 | ✅ 优秀 | ⚠️ 一般 | ⚠️ 一般 |
 
 ---
 
@@ -198,6 +198,45 @@ db = Storage(
 
 ---
 
+## DuckDB 引擎
+
+使用 DuckDB 数据库作为后端，适合分析型查询、已有 DuckDB 文件接入和多 schema 工作流。
+
+### 特性
+- **原生 SQL 模式**：默认开启，直接执行 SQL 语句
+- **多 schema 支持**：可通过 `schema` 选项切换默认 schema
+- **服务端分页**：`query_table_data` 可直接在数据库端分页
+- **原生注释支持**：表备注与列备注直接写入 DuckDB catalog
+
+### 配置
+
+```python
+from pytuck.common.options import DuckdbBackendOptions
+
+db = Storage(
+    file_path='data.duckdb',
+    engine='duckdb',
+    backend_options=DuckdbBackendOptions(
+        use_native_sql=True,
+        schema='main',
+        read_only=False,
+        threads=None,
+    )
+)
+```
+
+### 依赖
+```bash
+pip install duckdb
+```
+
+### 限制
+- 需要安装 `duckdb`
+- 当前 ORM / Session 的逐条写入路径不适合大批量写入 benchmark；DuckDB 更适合分析查询和原生 SQL 场景
+- `list` / `dict` 类型以 JSON 形式存储
+
+---
+
 ## Excel 引擎
 
 使用 `.xlsx` 格式存储。
@@ -275,7 +314,8 @@ pip install lxml
 | 场景 | 推荐引擎 | 理由 |
 |------|----------|------|
 | 生产环境（通用） | Binary | 性能最优，支持懒加载和加密 |
-| 需要 SQL 查询能力 | SQLite | 原生 SQL，大数据量友好 |
+| 需要 SQL 查询能力 | SQLite / DuckDB | 都支持原生 SQL；SQLite 更偏通用事务写入，DuckDB 更偏分析查询 |
+| 分析型查询 / 多 schema | DuckDB | 原生 DuckDB 后端，支持多 schema 与服务端分页 |
 | 需要人类可读 | JSON | 直接查看和编辑 |
 | 需要 Excel 打开 | Excel / CSV | 兼容办公软件 |
 | 数据交换格式 | CSV / JSON | 通用数据交换 |

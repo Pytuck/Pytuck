@@ -26,7 +26,7 @@ Storage(
 |------|------|--------|------|
 | `file_path` | `Optional[Union[str, Path]]` | `None` | 数据文件路径。`None` 表示纯内存模式 |
 | `in_memory` | `bool` | `False` | 是否纯内存模式（不持久化） |
-| `engine` | `str` | `'binary'` | 后端引擎名称：`'binary'`、`'json'`、`'csv'`、`'sqlite'`、`'excel'`、`'xml'` |
+| `engine` | `str` | `'binary'` | 后端引擎名称：`'binary'`、`'json'`、`'csv'`、`'sqlite'`、`'duckdb'`、`'excel'`、`'xml'` |
 | `auto_flush` | `bool` | `False` | 是否在每次 `commit()` / `save()` 后自动写入磁盘 |
 | `backend_options` | `Optional[BackendOptions]` | `None` | 强类型后端配置选项。`None` 时使用引擎默认值 |
 
@@ -34,7 +34,7 @@ Storage(
 
 ```python
 from pytuck import Storage
-from pytuck.common.options import JsonBackendOptions, SqliteBackendOptions
+from pytuck.common.options import JsonBackendOptions, SqliteBackendOptions, DuckdbBackendOptions
 
 # 默认 binary 引擎
 db = Storage(file_path='data.db')
@@ -51,6 +51,13 @@ db = Storage(
     file_path='data.sqlite',
     engine='sqlite',
     backend_options=SqliteBackendOptions(use_native_sql=True)
+)
+
+# DuckDB 引擎（原生 SQL + 多 schema）
+db = Storage(
+    file_path='data.duckdb',
+    engine='duckdb',
+    backend_options=DuckdbBackendOptions(use_native_sql=True, schema='main')
 )
 
 # 纯内存模式（不持久化）

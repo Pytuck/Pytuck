@@ -133,8 +133,23 @@ def get_available_engines() -> Dict[str, bool]
 from pytuck.tools.migrate import get_available_engines
 
 engines = get_available_engines()
-# {'binary': True, 'json': True, 'csv': True, 'sqlite': True, 'excel': False, 'xml': False}
+# {'binary': True, 'json': True, 'csv': True, 'sqlite': True, 'duckdb': True, 'excel': False, 'xml': False}
 ```
+
+### benchmark 脚本
+
+性能 benchmark 脚本位于 `tests/benchmark/` 目录下：
+
+```bash
+# 通用性能 benchmark
+uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
+
+# 加密专项 benchmark（仅 Binary / CSV）
+uv run python tests/benchmark/benchmark_encryption.py
+```
+
+- `benchmark.py` 会输出可直接拷贝到 `README.md` / `README.EN.md` 的 Markdown 表格
+- `benchmark_encryption.py` 只覆盖加密相关路径，不替代通用引擎 benchmark
 
 ---
 
