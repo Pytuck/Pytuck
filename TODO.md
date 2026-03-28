@@ -42,11 +42,22 @@
 
 ## 近期计划
 
-（暂无）
+- [ ] **Binary v5 里程碑格式**
+  - 固定稳定的 header / schema / data / index / wal 布局
+  - 紧凑记录编码，减少字段级元数据与主键重复存储
+  - sidecar WAL
+  - 面向 lazy load / on-demand query 设计
+  - 保持 v4 读取兼容
 
 ---
 
 ## 中期计划
+
+- [ ] **binary-only 精简库**
+  - 复用同一 v5 文件格式
+  - 保留与 Pytuck ORM 兼容的核心 API 面
+  - 舍弃多引擎、tools 等无关代码
+  - 目标是尽量只改 import 即可切换
 
 - [x] **to_dict() 增强**
   - 支持 `include` / `exclude` 字段筛选

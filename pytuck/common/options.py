@@ -115,6 +115,7 @@ class XmlBackendOptions:
 class BinaryBackendOptions:
     """Binary 后端配置选项"""
     lazy_load: bool = False  # 是否懒加载（只加载 schema 和索引，按需读取数据）
+    sidecar_wal: bool = False  # 是否将 WAL 写入独立 sidecar 文件（.<db>.wal）
 
     # 加密选项（v4 新增）
     encryption: Optional[Literal['low', 'medium', 'high']] = None  # 加密等级: 'low' | 'medium' | 'high' | None

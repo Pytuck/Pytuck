@@ -13,7 +13,7 @@ WAL 预写日志测试
 import struct
 import zlib
 from pathlib import Path
-from typing import Type
+from typing import Optional, Type
 
 import pytest
 
@@ -281,10 +281,17 @@ class TestHeaderV4:
 class TestWALIntegration:
     """WAL 集成测试（通过 Storage + BinaryBackend）"""
 
-    def _create_db(self, temp_dir: Path) -> tuple:
+    def _create_db(
+        self,
+        temp_dir: Path,
+        backend_options: Optional[BinaryBackendOptions] = None
+    ) -> tuple:
         """创建临时数据库和模型"""
         db_path = temp_dir / 'wal_test.db'
-        db = Storage(file_path=str(db_path))
+        if backend_options is None:
+            db = Storage(file_path=str(db_path))
+        else:
+            db = Storage(file_path=str(db_path), backend_options=backend_options)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -481,6 +488,106 @@ class TestWALIntegration:
         backend.save(db.tables)
 
         # WAL 应该被清除
+        new_backend = BinaryBackend(str(db_path), BinaryBackendOptions())
+        assert not new_backend.has_pending_wal()
+
+        db.close()
+
+    def test_flush_wal_buffer_writes_sidecar_file(self, temp_dir: Path) -> None:
+        """启用 sidecar_wal 时，WAL 写入独立文件"""
+        db, db_path, User = self._create_db(
+            temp_dir,
+            BinaryBackendOptions(sidecar_wal=True)
+        )
+
+        session = Session(db)
+        stmt = insert(User).values(name='Alice', age=20)
+        session.execute(stmt)
+        session.commit()
+        db.flush()
+
+        backend = db.backend
+        assert isinstance(backend, BinaryBackend)
+
+        backend.append_wal_entry(
+            WALOpType.INSERT, 'wal_users',
+            pk=2, record={'name': 'Bob', 'age': 25},
+            columns=db.get_table('wal_users').columns
+        )
+        backend.flush_wal_buffer()
+
+        wal_path = db_path.with_name('.' + db_path.name + '.wal')
+        assert wal_path.exists()
+        assert wal_path.stat().st_size > 0
+
+        entries = list(backend.read_wal_entries())
+        assert len(entries) == 1
+        assert entries[0].table_name == 'wal_users'
+        assert entries[0].op_type == WALOpType.INSERT
+
+        db.close()
+
+    def test_sidecar_wal_detected_on_reopen(self, temp_dir: Path) -> None:
+        """sidecar WAL 即使不用 sidecar 配置重新打开，也能被检测和回放"""
+        db, db_path, User = self._create_db(
+            temp_dir,
+            BinaryBackendOptions(sidecar_wal=True)
+        )
+
+        session = Session(db)
+        stmt = insert(User).values(name='Alice', age=20)
+        session.execute(stmt)
+        session.commit()
+        db.flush()
+
+        backend = db.backend
+        assert isinstance(backend, BinaryBackend)
+
+        backend.append_wal_entry(
+            WALOpType.INSERT, 'wal_users',
+            pk=2, record={'name': 'Bob', 'age': 30},
+            columns=db.get_table('wal_users').columns
+        )
+        backend.flush_wal_buffer()
+        db.close()
+
+        new_backend = BinaryBackend(str(db_path), BinaryBackendOptions())
+        assert new_backend.has_pending_wal()
+
+        tables = new_backend.load()
+        count = new_backend.replay_wal(tables)
+        assert count == 1
+        assert tables['wal_users'].data[2]['name'] == 'Bob'
+
+    def test_checkpoint_clears_sidecar_wal_file(self, temp_dir: Path) -> None:
+        """checkpoint 后应删除 sidecar WAL 文件"""
+        db, db_path, User = self._create_db(
+            temp_dir,
+            BinaryBackendOptions(sidecar_wal=True)
+        )
+
+        session = Session(db)
+        stmt = insert(User).values(name='Alice', age=20)
+        session.execute(stmt)
+        session.commit()
+        db.flush()
+
+        backend = db.backend
+        assert isinstance(backend, BinaryBackend)
+
+        backend.append_wal_entry(
+            WALOpType.INSERT, 'wal_users',
+            pk=2, record={'name': 'Bob', 'age': 25},
+            columns=db.get_table('wal_users').columns
+        )
+        backend.flush_wal_buffer()
+
+        wal_path = db_path.with_name('.' + db_path.name + '.wal')
+        assert wal_path.exists()
+
+        backend.save(db.tables)
+
+        assert not wal_path.exists()
         new_backend = BinaryBackend(str(db_path), BinaryBackendOptions())
         assert not new_backend.has_pending_wal()
 

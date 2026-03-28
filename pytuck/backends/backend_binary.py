@@ -326,6 +326,7 @@ class BinaryBackend(StorageBackend):
     MAGIC_V4 = b'PTK4'
     HEADER_SIZE_V4 = 128  # 双 header，每个 128 字节
     DUAL_HEADER_SIZE = 256  # 两个 header 的总大小
+    WAL_SIDECAR_SUFFIX = '.wal'
 
     def __init__(self, file_path: Union[str, Path], options: BinaryBackendOptions):
         """
@@ -355,6 +356,35 @@ class BinaryBackend(StorageBackend):
         self._lazy_cipher: Optional[CipherType] = None
         self._lazy_data_offset: int = 0
 
+    def _get_wal_sidecar_path(self) -> Path:
+        """获取隐藏的 sidecar WAL 文件路径。"""
+        return self.file_path.with_name('.' + self.file_path.name + self.WAL_SIDECAR_SUFFIX)
+
+    def _has_sidecar_wal(self) -> bool:
+        """检查是否存在非空 sidecar WAL 文件。"""
+        wal_path = self._get_wal_sidecar_path()
+        return wal_path.exists() and wal_path.stat().st_size > 0
+
+    def _clear_sidecar_wal(self) -> None:
+        """删除 sidecar WAL 文件（如果存在）。"""
+        wal_path = self._get_wal_sidecar_path()
+        try:
+            wal_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    @staticmethod
+    def _iter_packed_wal_entries(wal_data: bytes) -> Iterator[WALEntry]:
+        """按顺序解析 WAL 条目，遇到损坏条目时停止。"""
+        offset = 0
+        while offset < len(wal_data):
+            try:
+                entry, consumed = WALEntry.unpack(wal_data[offset:])
+            except SerializationError:
+                break
+            yield entry
+            offset += consumed
+
     def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到二进制文件（v4 格式：双Header + 增量写入支持）"""
         # 清空 WAL 缓冲区（checkpoint 会包含所有数据）
@@ -363,6 +393,7 @@ class BinaryBackend(StorageBackend):
 
         # 对于新文件或全量保存，使用 checkpoint
         self._checkpoint_v4(tables)
+        self._clear_sidecar_wal()
 
     def _checkpoint_v4(self, tables: Dict[str, 'Table']) -> None:
         """
@@ -838,40 +869,46 @@ class BinaryBackend(StorageBackend):
         for entry in self._wal_buffer:
             all_bytes.extend(entry.pack())
 
-        with open(self.file_path, 'r+b') as f:
-            # 读取当前 header
-            if self._active_header is None:
-                f.seek(0)
-                header_data = f.read(self.HEADER_SIZE_V4)
-                self._active_header = HeaderV4.unpack(header_data)
+        if self.options.sidecar_wal:
+            wal_path = self._get_wal_sidecar_path()
+            with open(wal_path, 'ab') as f:
+                f.write(all_bytes)
+                f.flush()
+        else:
+            with open(self.file_path, 'r+b') as f:
+                # 读取当前 header
+                if self._active_header is None:
+                    f.seek(0)
+                    header_data = f.read(self.HEADER_SIZE_V4)
+                    self._active_header = HeaderV4.unpack(header_data)
 
-            # 计算 WAL 写入位置
-            if self._active_header.wal_offset == 0:
-                # 首次写 WAL，在文件末尾
-                f.seek(0, 2)  # 移到文件末尾
-                wal_offset = f.tell()
-            else:
-                # 追加到现有 WAL
-                wal_offset = self._active_header.wal_offset
-                f.seek(wal_offset + self._active_header.wal_size)
+                # 计算 WAL 写入位置
+                if self._active_header.wal_offset == 0:
+                    # 首次写 WAL，在文件末尾
+                    f.seek(0, 2)  # 移到文件末尾
+                    wal_offset = f.tell()
+                else:
+                    # 追加到现有 WAL
+                    wal_offset = self._active_header.wal_offset
+                    f.seek(wal_offset + self._active_header.wal_size)
 
-            # 写入所有 WAL 条目
-            f.write(all_bytes)
-            f.flush()
+                # 写入所有 WAL 条目
+                f.write(all_bytes)
+                f.flush()
 
-            # 更新 header 中的 WAL 信息
-            new_wal_size = self._active_header.wal_size + len(all_bytes)
-            if self._active_header.wal_offset == 0:
-                self._active_header.wal_offset = wal_offset
+                # 更新 header 中的 WAL 信息
+                new_wal_size = self._active_header.wal_size + len(all_bytes)
+                if self._active_header.wal_offset == 0:
+                    self._active_header.wal_offset = wal_offset
 
-            self._active_header.wal_size = new_wal_size
-            self._active_header.checkpoint_lsn = self._current_lsn
+                self._active_header.wal_size = new_wal_size
+                self._active_header.checkpoint_lsn = self._current_lsn
 
-            # 更新 header（写入当前活跃槽）
-            header_bytes = self._active_header.pack()
-            f.seek(self._active_slot * self.HEADER_SIZE_V4)
-            f.write(header_bytes)
-            f.flush()
+                # 更新 header（写入当前活跃槽）
+                header_bytes = self._active_header.pack()
+                f.seek(self._active_slot * self.HEADER_SIZE_V4)
+                f.write(header_bytes)
+                f.flush()
 
         # 清空缓冲区
         self._wal_buffer.clear()
@@ -947,8 +984,14 @@ class BinaryBackend(StorageBackend):
         Yields:
             WALEntry 对象
         """
-        # 首先读取磁盘上的 WAL
-        if self.exists():
+        # 优先读取 sidecar WAL；若不存在，再兼容读取主文件内嵌 WAL
+        if self._has_sidecar_wal():
+            wal_path = self._get_wal_sidecar_path()
+            with open(wal_path, 'rb') as f:
+                wal_data = f.read()
+            for entry in self._iter_packed_wal_entries(wal_data):
+                yield entry
+        elif self.exists():
             with open(self.file_path, 'rb') as f:
                 # 读取 header
                 header_data = f.read(self.HEADER_SIZE_V4)
@@ -960,16 +1003,8 @@ class BinaryBackend(StorageBackend):
                         f.seek(header.wal_offset)
                         wal_data = f.read(header.wal_size)
 
-                        # 解析 WAL 条目
-                        offset = 0
-                        while offset < len(wal_data):
-                            try:
-                                entry, consumed = WALEntry.unpack(wal_data[offset:])
-                                yield entry
-                                offset += consumed
-                            except SerializationError:
-                                # CRC 错误或数据损坏，停止读取
-                                break
+                        for entry in self._iter_packed_wal_entries(wal_data):
+                            yield entry
 
         # 然后返回缓冲区中的条目
         for entry in self._wal_buffer:
@@ -1085,6 +1120,9 @@ class BinaryBackend(StorageBackend):
         """检查是否有未 checkpoint 的 WAL（包括缓冲区）"""
         # 先检查内存缓冲区
         if self._wal_buffer:
+            return True
+
+        if self._has_sidecar_wal():
             return True
 
         if not self.exists():
