@@ -1,9 +1,10 @@
 """
 Pytuck - 所有存储引擎综合测试
 
-测试所有7种存储引擎的功能：
+测试所有8种存储引擎的功能：
 - binary: 二进制引擎（默认）
 - json: JSON引擎
+- jsonl: JSONL引擎（ZIP压缩）
 - csv: CSV引擎（ZIP压缩）
 - sqlite: SQLite引擎
 - duckdb: DuckDB引擎
@@ -31,6 +32,7 @@ from pytuck.backends import BackendRegistry
 ALL_ENGINES = [
     ('binary', 'db'),
     ('json', 'json'),
+    ('jsonl', 'zip'),
     ('csv', 'zip'),
     ('sqlite', 'sqlite'),
     ('duckdb', 'duckdb'),

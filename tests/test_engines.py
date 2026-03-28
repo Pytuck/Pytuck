@@ -1,9 +1,10 @@
 """
 Pytuck 多存储引擎测试
 
-测试所有7种存储引擎的功能：
+测试所有8种存储引擎的功能：
 - binary: 二进制引擎（默认）
 - json: JSON引擎
+- jsonl: JSONL引擎（ZIP压缩）
 - csv: CSV引擎（ZIP压缩）
 - sqlite: SQLite引擎
 - duckdb: DuckDB引擎
@@ -241,6 +242,13 @@ class TestJSONEngine(BaseEngineTest):
     file_extension = 'json'
 
 
+@unittest.skipUnless(is_engine_available('jsonl'), "JSONL engine not available")
+class TestJSONLEngine(BaseEngineTest):
+    """JSONL引擎测试"""
+    engine_name = 'jsonl'
+    file_extension = 'zip'
+
+
 @unittest.skipUnless(is_engine_available('csv'), "CSV engine not available")
 class TestCSVEngine(BaseEngineTest):
     """CSV引擎测试"""
@@ -291,6 +299,10 @@ class TestEngineAvailability(unittest.TestCase):
         """测试 CSV 引擎总是可用（标准库）"""
         self.assertTrue(is_engine_available('csv'))
 
+    def test_jsonl_engine_always_available(self) -> None:
+        """测试 JSONL 引擎总是可用（标准库）"""
+        self.assertTrue(is_engine_available('jsonl'))
+
     def test_sqlite_engine_always_available(self) -> None:
         """测试 SQLite 引擎总是可用（标准库）"""
         self.assertTrue(is_engine_available('sqlite'))
@@ -298,12 +310,14 @@ class TestEngineAvailability(unittest.TestCase):
     def test_optional_engines(self) -> None:
         """测试可选引擎"""
         # DuckDB、Excel 和 XML 引擎可能不可用
+        jsonl_available = is_engine_available('jsonl')
         duckdb_available = is_engine_available('duckdb')
         excel_available = is_engine_available('excel')
         xml_available = is_engine_available('xml')
 
         # 只是检查，不断言
-        print(f"\nDuckDB engine available: {duckdb_available}")
+        print(f"\nJSONL engine available: {jsonl_available}")
+        print(f"DuckDB engine available: {duckdb_available}")
         print(f"Excel engine available: {excel_available}")
         print(f"XML engine available: {xml_available}")
 
@@ -314,7 +328,7 @@ if __name__ == '__main__':
     print("Pytuck 多存储引擎测试")
     print("="*60)
     print("\n可用引擎:")
-    for engine in ['binary', 'json', 'csv', 'sqlite', 'duckdb', 'excel', 'xml']:
+    for engine in ['binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml']:
         available = is_engine_available(engine)
         status = "✓ 可用" if available else "✗ 不可用"
         print(f"  {engine:10} : {status}")

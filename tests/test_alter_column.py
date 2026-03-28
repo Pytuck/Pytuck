@@ -443,12 +443,12 @@ class TestMigrateEngineDataIntegrity:
 class TestFlushLoadDefaultValueIntegrity:
     """Bug 2: flush/load 循环不应篡改数据"""
 
-    @pytest.mark.parametrize("engine", ['binary', 'json', 'csv'])
+    @pytest.mark.parametrize("engine", ['binary', 'json', 'jsonl', 'csv'])
     def test_add_column_then_set_null_preserves_on_reload(
         self, temp_dir: Path, engine: str
     ) -> None:
         """add_column 带默认值后，手动设为 null，flush/load 后 null 应保持"""
-        ext_map = {'binary': '.db', 'json': '.json', 'csv': '.csv'}
+        ext_map = {'binary': '.db', 'json': '.json', 'jsonl': '.zip', 'csv': '.csv'}
         file_path = temp_dir / f'test{ext_map[engine]}'
 
         # 创建数据库并插入数据
@@ -482,12 +482,12 @@ class TestFlushLoadDefaultValueIntegrity:
         assert table2.data[2]['score'] == 0
         db2.close()
 
-    @pytest.mark.parametrize("engine", ['binary', 'json', 'csv'])
+    @pytest.mark.parametrize("engine", ['binary', 'json', 'jsonl', 'csv'])
     def test_column_default_preserved_after_flush_load(
         self, temp_dir: Path, engine: str
     ) -> None:
         """Column 的 default 字段应在 flush/load 后保留"""
-        ext_map = {'binary': '.db', 'json': '.json', 'csv': '.csv'}
+        ext_map = {'binary': '.db', 'json': '.json', 'jsonl': '.zip', 'csv': '.csv'}
         file_path = temp_dir / f'test{ext_map[engine]}'
 
         db = Storage(file_path=file_path, engine=engine)

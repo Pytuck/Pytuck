@@ -43,6 +43,7 @@ DEFAULT_RECORD_COUNT = 10000
 ENGINES = [
     ('binary', 'Binary', []),
     ('json', 'JSON', []),
+    ('jsonl', 'JSONL', []),
     ('csv', 'CSV', []),
     ('sqlite', 'SQLite', []),
     ('duckdb', 'DuckDB', ['duckdb']),
@@ -229,6 +230,7 @@ class EngineBenchmark:
         extensions = {
             'binary': '.db',
             'json': '.json',
+            'jsonl': '.zip',
             'csv': '.zip',
             'sqlite': '.sqlite',
             'duckdb': '.duckdb',
