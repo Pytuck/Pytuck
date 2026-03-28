@@ -22,10 +22,9 @@ jobs:
           cache-suffix: ubuntu-latest-3.12-benchmark
           cache-dependency-glob: |
             pyproject.toml
-            uv.lock
 
       - name: Install dependencies
-        run: uv sync --locked --extra dev
+        run: uv sync --extra dev
 
       - name: Run benchmark
         run: uv run python tests/benchmark/benchmark.py -n 5000 --output-json benchmark_results.json

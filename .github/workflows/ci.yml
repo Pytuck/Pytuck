@@ -27,10 +27,9 @@ jobs:
           cache-suffix: ${{ runner.os }}-${{ matrix.python-version }}
           cache-dependency-glob: |
             pyproject.toml
-            uv.lock
 
       - name: Install dependencies
-        run: uv sync --locked --extra dev
+        run: uv sync --extra dev
 
       - name: Run tests
         run: uv run pytest tests/ -v
@@ -50,10 +49,9 @@ jobs:
           cache-suffix: ubuntu-latest-3.12-type-check
           cache-dependency-glob: |
             pyproject.toml
-            uv.lock
 
       - name: Install dependencies
-        run: uv sync --locked --extra dev
+        run: uv sync --extra dev
 
       - name: Run mypy
         run: uv run mypy pytuck/ --ignore-missing-imports
