@@ -62,7 +62,7 @@ class BackendRegistry:
 
         示例:
             {
-                'binary': True,
+                'pytuck': True,
                 'json': True,
                 'csv': True,
                 'sqlite': True,
@@ -91,7 +91,7 @@ def get_backend(engine: str, file_path: Union[str, Path], options: BackendOption
     获取后端实例（工厂函数）
 
     Args:
-        engine: 引擎名称（'binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml'）
+        engine: 引擎名称（'pytuck', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml'）
         file_path: 文件路径（字符串或 Path 对象）
         options: 强类型的后端配置选项对象
 
@@ -150,8 +150,8 @@ def is_valid_pytuck_database(file_path: Union[str, Path]) -> Tuple[bool, Optiona
         Tuple[bool, Optional[str]]: (是否有效, 引擎名称或None)
 
     示例:
-        >>> is_valid_pytuck_database('data.db')
-        (True, 'binary')
+        >>> is_valid_pytuck_database('data.pytuck')
+        (True, 'pytuck')
         >>> is_valid_pytuck_database('invalid.txt')
         (False, None)
     """
@@ -204,7 +204,7 @@ def get_database_info(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
         }
 
     示例:
-        >>> info = get_database_info('data.db')
+        >>> info = get_database_info('data.pytuck')
         >>> if info:
         ...     print(f"引擎：{info['engine']}")
         ...     print(f"表数量：{info.get('table_count', 'unknown')}")
@@ -245,7 +245,7 @@ def is_valid_pytuck_database_engine(file_path: Union[str, Path], engine_name: st
 
     Args:
         file_path: 数据库文件路径
-        engine_name: 引擎名称（`binary`, `json`, `jsonl`, `csv`, `sqlite`, `duckdb`, `excel`, `xml`）
+        engine_name: 引擎名称（`pytuck`, `json`, `jsonl`, `csv`, `sqlite`, `duckdb`, `excel`, `xml`）
 
     Returns:
         bool: 是否为指定引擎的有效数据库
@@ -256,7 +256,7 @@ def is_valid_pytuck_database_engine(file_path: Union[str, Path], engine_name: st
     示例:
         >>> is_valid_pytuck_database_engine('data.json', 'json')
         True
-        >>> is_valid_pytuck_database_engine('data.json', 'binary')
+        >>> is_valid_pytuck_database_engine('data.json', 'pytuck')
         False
     """
     backend_class = BackendRegistry.get(engine_name)
@@ -293,12 +293,12 @@ def get_available_engines() -> Dict[str, Dict[str, Any]]:
 
     返回结构:
         {
-            'binary': {
-                'name': 'binary',
+            'pytuck': {
+                'name': 'pytuck',
                 'available': True,
                 'dependencies': [],
-                'description': 'Binary storage engine',
-                'format_version': '1'
+                'description': 'Pytuck storage engine',
+                'format_version': '5'
             },
             'json': {
                 'name': 'json',
@@ -354,8 +354,8 @@ def print_available_engines() -> None:
     输出格式：
         Available Pytuck Storage Engines:
         ========================================
-        ✅ BINARY
-           Format version: 1
+        ✅ PYTUCK
+           Format version: 5
 
         ❌ EXCEL
            Missing dependencies: openpyxl

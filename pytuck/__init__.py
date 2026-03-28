@@ -4,7 +4,7 @@ Pytuck - 轻量级 Python 文档数据库
 基于对象模型的数据库系统，无需编写SQL，支持：
 - SQLAlchemy 2.0 风格 API
 - Pythonic 查询表达式
-- 多存储引擎（Binary, JSON, CSV, SQLite, Excel, XML）
+- 多存储引擎（Pytuck, JSON, CSV, SQLite, DuckDB, Excel, XML）
 - 索引优化
 - 事务支持
 - 类型安全
@@ -16,7 +16,7 @@ Pytuck - 轻量级 Python 文档数据库
     from pytuck import Storage, declarative_base, Session, Column
     from pytuck import PureBaseModel, select, insert, update, delete
 
-    db = Storage(file_path='mydb.db')
+    db = Storage(file_path='mydb.pytuck')
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class User(Base):
@@ -42,7 +42,7 @@ Pytuck - 轻量级 Python 文档数据库
     from pytuck import Storage, declarative_base, Column
     from pytuck import CRUDBaseModel
 
-    db = Storage(file_path='mydb.db')
+    db = Storage(file_path='mydb.pytuck')
     Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
     class User(Base):
@@ -93,7 +93,7 @@ from .common.exceptions import (
 )
 from .common.options import SyncOptions, SyncResult
 
-__version__ = '0.9.0'
+__version__ = '1.0.0'
 __all__ = [
     # ==================== 推荐 API ====================
 

@@ -51,7 +51,7 @@ class StorageBackend(ABC):
 
         Args:
             file_path: 数据文件路径，接受字符串或 Path 对象（不同引擎解释不同）
-                - binary: 单个 .db 文件
+                - pytuck: 单个 .pytuck 文件
                 - json: 单个 .json 文件
                 - csv: ZIP 文件路径
                 - sqlite: 单个 .sqlite 文件
@@ -200,7 +200,7 @@ class StorageBackend(ABC):
             例如 SQLite 后端在 use_native_sql=True 时返回 True。
 
         后端实现说明：
-            - BinaryBackend (lazy_load=True): 通过 _pk_offsets 遍历主键，逐条读取文件
+            - BinaryBackend（ENGINE_NAME='pytuck', lazy_load=True）: 通过 _pk_offsets 遍历主键，逐条读取文件
             - SQLiteBackend (use_native_sql=True): 通过 SQL 查询获取全部数据
             - 其他数据库后端: 根据具体实现决定
         """
@@ -293,7 +293,7 @@ class StorageBackend(ABC):
 
         返回元数据示例：
             {
-                'engine': 'binary',
+                'engine': 'pytuck',
                 'format_version': '1',
                 'confidence': 'high',    # 'high', 'medium', 'low'
                 'file_size': 12345,
@@ -307,7 +307,7 @@ class StorageBackend(ABC):
             2. 必须捕获所有异常，不得抛出到调用方
             3. 基于内容特征判断，不依赖文件扩展名
             4. 返回高置信度的识别结果或明确的拒绝
-            5. 轻量级：Binary读64字节头，JSON读32KB，XML读8KB等
+            5. 轻量级：Pytuck 读 64 字节头，JSON 读 32KB，XML 读 8KB 等
 
         注意：
             - 默认实现返回 False（不匹配），各引擎需要覆盖
@@ -320,7 +320,7 @@ class StorageBackend(ABC):
                 return False, {'error': 'file_not_found'}
 
             # 默认实现：基于 ENGINE_NAME 和文件扩展名的简单匹配
-            if cls.ENGINE_NAME and file_path.suffix.lower() in ['.db', '.json', '.xml', '.xlsx', '.zip', '.sqlite']:
+            if cls.ENGINE_NAME and file_path.suffix.lower() in ['.pytuck', '.db', '.json', '.xml', '.xlsx', '.zip', '.sqlite']:
                 return False, {'error': 'default_probe_not_implemented'}
 
             return False, None

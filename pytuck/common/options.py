@@ -113,11 +113,11 @@ class XmlBackendOptions:
 
 @dataclass
 class BinaryBackendOptions:
-    """Binary 后端配置选项"""
+    """Pytuck 引擎后端配置选项"""
     lazy_load: bool = False  # 是否懒加载（只加载 schema 和索引，按需读取数据）
-    sidecar_wal: bool = False  # 是否将 WAL 写入独立 sidecar 文件（.<db>.wal）
+    sidecar_wal: bool = False  # 是否将 WAL 写入独立 sidecar 文件（.<文件名>.wal）
 
-    # 加密选项（v4 新增）
+    # 加密选项
     encryption: Optional[Literal['low', 'medium', 'high']] = None  # 加密等级: 'low' | 'medium' | 'high' | None
     password: Optional[str] = None    # 加密密码（仅 encryption 非 None 时生效）
 
@@ -146,7 +146,7 @@ def get_default_backend_options(engine: str) -> BackendOptions:
         'duckdb': DuckdbBackendOptions(),
         'excel': ExcelBackendOptions(),
         'xml': XmlBackendOptions(),
-        'binary': BinaryBackendOptions()
+        'pytuck': BinaryBackendOptions()
     }
     return defaults.get(engine, BinaryBackendOptions())
 

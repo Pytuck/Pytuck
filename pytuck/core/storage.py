@@ -490,7 +490,7 @@ class Table:
 
         offset: int = self._pk_offsets[pk]  # type: ignore
 
-        return self._backend.read_lazy_record(self._data_file, offset, self.columns)
+        return self._backend.read_lazy_record(self._data_file, offset, self.columns, pk)
 
     def scan(self) -> Iterator[Tuple[Any, Dict[str, Any]]]:
         """
@@ -902,7 +902,7 @@ class Storage:
         self,
         file_path: Optional[Union[str, Path]] = None,
         in_memory: bool = False,
-        engine: str = 'binary',
+        engine: str = 'pytuck',
         auto_flush: bool = False,
         backend_options: Optional[BackendOptions] = None,
     ):
@@ -912,7 +912,7 @@ class Storage:
         Args:
             file_path: 数据文件路径，支持字符串或 Path 对象（None表示纯内存）
             in_memory: 是否纯内存模式
-            engine: 后端引擎名称（'binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml'）
+            engine: 后端引擎名称（'pytuck', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml'）
             auto_flush: 是否自动刷新到磁盘
             backend_options: 强类型的后端配置选项对象（JsonBackendOptions, CsvBackendOptions等）
         """
@@ -960,8 +960,8 @@ class Storage:
                 self.tables = self.backend.load()
                 self._dirty = False
 
-                # 对于 binary 引擎，检查是否为 v4 格式并回放 WAL
-                if engine == 'binary':
+                # 对于 pytuck 引擎，初始化 WAL 模式并回放未提交的日志
+                if engine == 'pytuck':
                     self._init_wal_mode()
 
             # 检测并初始化原生 SQL 模式
@@ -2313,8 +2313,8 @@ class Storage:
                             'value': f['value']
                         })
 
-        # 尝试使用后端分页（如果支持）
-        if self.backend and self.backend.supports_server_side_pagination():
+        # 尝试使用后端分页（仅在当前内存状态干净时）
+        if self.backend and not self._dirty and self.backend.supports_server_side_pagination():
 
             try:
                 # 使用后端分页
@@ -2431,7 +2431,7 @@ class Storage:
         """
         初始化 WAL 模式
 
-        检查是否为 v4 格式的 binary 文件，如果是则启用 WAL 模式并回放未提交的 WAL。
+        对 pytuck 引擎启用 WAL 模式，并回放未提交的 sidecar WAL。
         """
         from ..backends.backend_binary import BinaryBackend
 
@@ -2440,7 +2440,7 @@ class Storage:
 
         backend: 'BinaryBackend' = self.backend
 
-        # 检查是否有活跃的 v4 header
+        # 检查是否有活跃的 checkpoint header
         if backend._active_header is not None:
             self._use_wal = True
 
@@ -2471,8 +2471,8 @@ class Storage:
         """是否启用原生 SQL 模式"""
         return self._native_sql_mode
 
-    def _get_binary_backend(self) -> Optional['BinaryBackend']:
-        """获取 binary 后端（如果是的话）"""
+    def _get_pytuck_backend(self) -> Optional['BinaryBackend']:
+        """获取 pytuck 后端（如果是的话）"""
         from ..backends.backend_binary import BinaryBackend
 
         if isinstance(self.backend, BinaryBackend):
@@ -2503,7 +2503,7 @@ class Storage:
         if not self._use_wal:
             return False
 
-        backend = self._get_binary_backend()
+        backend = self._get_pytuck_backend()
         if backend is None:
             return False
 
@@ -2549,8 +2549,8 @@ class Storage:
             for table in self.tables.values():
                 table.reset_dirty()
 
-            # 首次保存 binary 引擎后，启用 WAL 模式
-            if self.engine_name == 'binary' and not self._use_wal:
+            # 首次保存 pytuck 引擎后，启用 WAL 模式
+            if self.engine_name == 'pytuck' and not self._use_wal:
                 self._init_wal_mode()
             event.dispatch_storage(self, 'after_flush')
 

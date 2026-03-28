@@ -29,11 +29,11 @@ def migrate_engine(
     在不同存储引擎之间迁移数据
 
     将数据从一个存储引擎迁移到另一个存储引擎。
-    支持的引擎: binary, json, jsonl, csv, sqlite, duckdb, excel, xml
+    支持的引擎: pytuck, json, jsonl, csv, sqlite, duckdb, excel, xml
 
     Args:
         source_path: 源数据文件路径
-        source_engine: 源引擎名称 ('binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
+        source_engine: 源引擎名称 ('pytuck', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
         target_path: 目标数据文件路径
         target_engine: 目标引擎名称
         overwrite: 是否覆盖已存在的目标文件（默认 False）
@@ -57,10 +57,10 @@ def migrate_engine(
     Example:
         from pytuck.tools.migrate import migrate_engine
 
-        # 从二进制迁移到 JSON
+        # 从 Pytuck 迁移到 JSON
         result = migrate_engine(
-            source_path='data.db',
-            source_engine='binary',
+            source_path='data.pytuck',
+            source_engine='pytuck',
             target_path='data.json',
             target_engine='json'
         )
@@ -156,7 +156,7 @@ def get_available_engines() -> Dict[str, bool]:
     Returns:
         引擎名称到可用状态的字典
         {
-            'binary': True,   # 始终可用
+            'pytuck': True,   # 始终可用
             'json': True,     # 始终可用
             'jsonl': True,    # 始终可用
             'csv': True,      # 始终可用
@@ -185,7 +185,7 @@ def get_available_engines() -> Dict[str, bool]:
 def import_from_database(
     source_path: Union[str, Path],
     target_path: Union[str, Path],
-    target_engine: str = 'binary',
+    target_engine: str = 'pytuck',
     *,
     source_type: str = 'sqlite',
     tables: Optional[List[str]] = None,
@@ -205,7 +205,7 @@ def import_from_database(
     Args:
         source_path: 源数据库文件路径
         target_path: 目标 Pytuck 数据文件路径
-        target_engine: 目标引擎名称 ('binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
+        target_engine: 目标引擎名称 ('pytuck', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
         source_type: 源数据库类型 ('sqlite', 'duckdb')
         tables: 要导入的表名列表，None 表示导入全部
         primary_key_map: 表名到主键列名的映射，用于指定没有主键的表的主键
@@ -249,8 +249,8 @@ def import_from_database(
         # 指定主键和排除表
         result = import_from_database(
             source_path='external.db',
-            target_path='data.db',
-            target_engine='binary',
+            target_path='data.pytuck',
+            target_engine='pytuck',
             primary_key_map={'users': 'user_id'},
             exclude_tables=['sqlite_sequence'],
             overwrite=True
