@@ -20,6 +20,7 @@ from .registry import (
 # 所以这些导入不会因缺少依赖而失败
 from . import backend_binary   # noqa: F401
 from . import backend_json     # noqa: F401
+from . import backend_jsonl    # noqa: F401
 from . import backend_csv      # noqa: F401
 from . import backend_sqlite   # noqa: F401
 from . import backend_duckdb   # noqa: F401

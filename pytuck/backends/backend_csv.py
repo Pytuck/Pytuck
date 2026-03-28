@@ -91,6 +91,7 @@ class CSVBackend(StorageBackend):
         """构建 metadata JSON bytes"""
         tables_schema = self._build_tables_schema(tables)
         metadata = {
+            'engine': self.ENGINE_NAME,
             'format_version': self.FORMAT_VERSION,
             'timestamp': datetime.now().isoformat(),
             'table_count': len(tables),
@@ -544,6 +545,10 @@ class CSVBackend(StorageBackend):
 
                         # 检查必要的字段
                         if 'tables' not in metadata:
+                            return False, None
+
+                        # 如果 metadata 显式声明了其他引擎，则不是 CSV
+                        if metadata.get('engine') not in (None, 'csv'):
                             return False, None
 
                         # 获取元数据信息

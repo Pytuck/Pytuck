@@ -912,7 +912,7 @@ class Storage:
         Args:
             file_path: 数据文件路径，支持字符串或 Path 对象（None表示纯内存）
             in_memory: 是否纯内存模式
-            engine: 后端引擎名称（'binary', 'json', 'csv', 'sqlite', 'excel', 'xml'）
+            engine: 后端引擎名称（'binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml'）
             auto_flush: 是否自动刷新到磁盘
             backend_options: 强类型的后端配置选项对象（JsonBackendOptions, CsvBackendOptions等）
         """

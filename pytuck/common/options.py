@@ -60,6 +60,13 @@ class JsonBackendOptions:
 
 
 @dataclass
+class JsonlBackendOptions:
+    """JSONL 后端配置选项"""
+    ensure_ascii: bool = False  # 是否强制 ASCII 编码
+    impl: Optional[str] = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
+
+
+@dataclass
 class CsvBackendOptions:
     """CSV 后端配置选项"""
     encoding: str = 'utf-8-sig'  # 字符编码（默认带 BOM，兼容 Excel）
@@ -117,6 +124,7 @@ class BinaryBackendOptions:
 # Backend 选项联合类型
 BackendOptions = Union[
     JsonBackendOptions,
+    JsonlBackendOptions,
     CsvBackendOptions,
     SqliteBackendOptions,
     DuckdbBackendOptions,
@@ -131,6 +139,7 @@ def get_default_backend_options(engine: str) -> BackendOptions:
     """根据引擎类型返回默认选项"""
     defaults: Dict[str, BackendOptions] = {
         'json': JsonBackendOptions(),
+        'jsonl': JsonlBackendOptions(),
         'csv': CsvBackendOptions(),
         'sqlite': SqliteBackendOptions(),
         'duckdb': DuckdbBackendOptions(),

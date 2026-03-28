@@ -29,11 +29,11 @@ def migrate_engine(
     在不同存储引擎之间迁移数据
 
     将数据从一个存储引擎迁移到另一个存储引擎。
-    支持的引擎: binary, json, csv, sqlite, duckdb, excel, xml
+    支持的引擎: binary, json, jsonl, csv, sqlite, duckdb, excel, xml
 
     Args:
         source_path: 源数据文件路径
-        source_engine: 源引擎名称 ('binary', 'json', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
+        source_engine: 源引擎名称 ('binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
         target_path: 目标数据文件路径
         target_engine: 目标引擎名称
         overwrite: 是否覆盖已存在的目标文件（默认 False）
@@ -158,6 +158,7 @@ def get_available_engines() -> Dict[str, bool]:
         {
             'binary': True,   # 始终可用
             'json': True,     # 始终可用
+            'jsonl': True,    # 始终可用
             'csv': True,      # 始终可用
             'sqlite': True,   # 始终可用
             'duckdb': False,  # 需要 duckdb
@@ -204,7 +205,7 @@ def import_from_database(
     Args:
         source_path: 源数据库文件路径
         target_path: 目标 Pytuck 数据文件路径
-        target_engine: 目标引擎名称 ('binary', 'json', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
+        target_engine: 目标引擎名称 ('binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
         source_type: 源数据库类型 ('sqlite', 'duckdb')
         tables: 要导入的表名列表，None 表示导入全部
         primary_key_map: 表名到主键列名的映射，用于指定没有主键的表的主键

@@ -91,7 +91,7 @@ def get_backend(engine: str, file_path: Union[str, Path], options: BackendOption
     获取后端实例（工厂函数）
 
     Args:
-        engine: 引擎名称（'binary', 'json', 'csv', 'sqlite', 'excel', 'xml'）
+        engine: 引擎名称（'binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml'）
         file_path: 文件路径（字符串或 Path 对象）
         options: 强类型的后端配置选项对象
 
@@ -245,7 +245,7 @@ def is_valid_pytuck_database_engine(file_path: Union[str, Path], engine_name: st
 
     Args:
         file_path: 数据库文件路径
-        engine_name: 引擎名称（`binary`, `json`, `csv`, `excel`, `xml`, `sqlite`）
+        engine_name: 引擎名称（`binary`, `json`, `jsonl`, `csv`, `sqlite`, `duckdb`, `excel`, `xml`）
 
     Returns:
         bool: 是否为指定引擎的有效数据库
