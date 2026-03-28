@@ -11,88 +11,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.9.0] - 2026-03-15
+## [1.0.0] - 2026-03-29
 
 ### Added
 
-- **to_dict() Enhancement & to_json()**
-  - `to_dict()` supports `include` / `exclude` field filtering
-  - `depth` parameter controls relationship serialization depth (`depth=1` expands one level of Relationships)
-  - New `to_json()` method with `indent`, `include`, `exclude`, `depth` parameters
-  - Example:
-    ```python
-    user.to_dict(exclude={'password'})         # Exclude sensitive fields
-    user.to_json(include={'id', 'name'})       # Keep only specified fields
-    user.to_dict(depth=1)                      # Expand one level of relationships
-    ```
+- **Native DuckDB Backend**
+  - Added the optional `duckdb` dependency and a native DuckDB backend implementation
+  - Supports multi-schema workflows, native SQL, table/column comments, and server-side pagination
+  - Keeps the existing `Storage` / `Session` / ORM API shape; switching engine and options is enough to use it
 
-- **Column-level Validators**
-  - `Column` now accepts a `validator` parameter: a single function or list of functions
-  - Validators execute after type conversion; `None` values skip validation
-  - Returning `False` or raising an exception triggers `ValidationError`
-  - Example:
-    ```python
-    name = Column(str, validator=lambda x: len(x) <= 100)
-    age = Column(int, validator=[lambda x: x >= 0, lambda x: x <= 150])
-    ```
+- **JSONL ZIP Backend**
+  - Added the `jsonl` engine with a ZIP container layout
+  - Stores each table as its own `.jsonl` file with a unified `_metadata.json`
+  - Integrated into migration tools, benchmark scripts, and engine documentation
 
-- **Model Inheritance (Mixin Support)**
-  - Use `__abstract__ = True` to mark abstract base classes for column reuse via Mixins
-  - Supports multi-level inheritance (A -> B -> C) and multiple inheritance (multiple Mixins)
-  - Subclasses can override parent columns (change defaults, add validators, etc.)
-  - Example:
-    ```python
-    class TimestampMixin(Base):
-        __abstract__ = True
-        created_at = Column(datetime, default_factory=datetime.now)
+### Changed
 
-    class User(TimestampMixin):
-        __tablename__ = 'users'
-        name = Column(str)
-    ```
+- **Pytuck Single-File Engine Finalized**
+  - The public engine name `binary` has been renamed to `pytuck`
+  - The default single-file extension has changed from `.db` to `.pytuck`
+  - PTK5 is now the only supported single-file format; v4/PTK4 compatibility has been dropped
+  - The sidecar WAL filename now uses the hidden form `.<name>.wal`
 
-- **Column default_factory Support**
-  - `Column` now accepts a `default_factory` parameter: a zero-argument callable invoked on each instance creation
-  - Mutually exclusive with `default` (static value); cannot set both
-  - Similar to Python `dataclass` `field(default_factory=...)` design
-  - Example:
-    ```python
-    created_at = Column(datetime, default_factory=datetime.now)
-    tags = Column(list, default_factory=list)
-    ```
-
-- **Incremental Save for Non-Binary Backends**
-  - Added Table-level dirty flags (`_data_dirty` / `_schema_dirty`)
-  - `Storage.flush()` automatically tracks changed tables and passes only changed table names to the backend
-  - CSV engine implements incremental ZIP writing: unchanged tables are copied directly from the old ZIP (binary copy), only changed tables are rewritten
-  - Other backends (JSON/Excel/XML) have extended signatures but behavior is unchanged (full rewrite)
-  - Incremental strategy is not used when ZIP password protection is enabled (falls back to full rewrite)
-
-- **Binary Encryption + Lazy Loading Compatibility**
-  - All three ciphers (XOR/LCG/ChaCha20) now have a `decrypt_at()` method for random-access decryption
-  - Encrypted files now support lazy loading: only the index region is decrypted on load to obtain `pk_offsets`; individual records are decrypted on demand
-  - File format and write path are completely unchanged; this is a read-path optimization
-  - Random-access decryption principles:
-    - XOR: 256-byte periodic keystream, offset modulo
-    - LCG: O(log N) fast-forward algorithm to jump to any offset
-    - ChaCha20: Native random access via block counter
+- **Public Entry Points Synchronized for 1.0.0**
+  - `Storage` default engine, migration-tool defaults, README, docs/api, TODO, and benchmark docs now consistently use `pytuck`
+  - Public documentation for the single-file engine is now aligned on Pytuck / `.pytuck` / PTK5 terminology
 
 ### Improved
 
-- **Temporary File Security**
-  - All backend engines now use `tempfile.mkstemp` instead of manually constructed temp file paths
-  - Temp files are created in the target file's directory, ensuring atomic `replace()` on the same filesystem
-  - Removed unnecessary `unlink()` + `replace()` patterns; uses `replace()` for atomic replacement
+- **Dependencies and Tooling**
+  - Default installation remains zero external dependencies; DuckDB / Excel / XML / JSON acceleration are all exposed through extras
+  - GitHub Actions and benchmark workflows have been updated to use uv-based commands
 
-### Fixed
-
-- Fixed database connection not properly closed in string matching query tests
+- **Documentation and Benchmarks**
+  - README and API docs now include DuckDB, JSONL, CSV footprint guidance, PyPy rerun results, and engine-selection notes
+  - Clarified that the "~10K / 100K+" guidance mainly refers to a single hot table, and documented DuckDB handling of `None` vs `''`
 
 ### Tests
 
-- Added to_dict/to_json enhancement tests
-- Added Column validator tests
-- Added model inheritance and Mixin tests
-- Added Column default_factory tests
-- Added Table-level dirty flags and incremental save tests
-- Added encrypted lazy loading tests (three encryption levels + decrypt_at consistency verification)
+- Expanded test coverage for DuckDB, JSONL, and the Pytuck engine rename
+- Updated benchmark scripts to include DuckDB, JSONL, and PyPy rerun results
+- Synchronized the engine matrix, migration examples, and documentation samples

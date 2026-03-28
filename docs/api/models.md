@@ -227,7 +227,7 @@ def declarative_base(
 from typing import Type
 from pytuck import Storage, declarative_base, PureBaseModel, CRUDBaseModel
 
-db = Storage(file_path='mydb.db')
+db = Storage(file_path='mydb.pytuck')
 
 # 纯模型模式（默认）
 Base: Type[PureBaseModel] = declarative_base(db)

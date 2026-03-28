@@ -40,10 +40,10 @@ def migrate_engine(
 ```python
 from pytuck.tools.migrate import migrate_engine
 
-# 从 Binary 迁移到 JSON
+# 从 Pytuck 迁移到 JSON
 result = migrate_engine(
-    source_path='data.db',
-    source_engine='binary',
+    source_path='data.pytuck',
+    source_engine='pytuck',
     target_path='data.json',
     target_engine='json',
 )
@@ -60,8 +60,8 @@ migrate_engine(
 
 # 迁移到 JSONL ZIP 容器
 migrate_engine(
-    source_path='data.db',
-    source_engine='binary',
+    source_path='data.pytuck',
+    source_engine='pytuck',
     target_path='archive.zip',
     target_engine='jsonl',
 )
@@ -75,7 +75,7 @@ migrate_engine(
 def import_from_database(
     source_path: Union[str, Path],
     target_path: Union[str, Path],
-    target_engine: str = 'binary',
+    target_engine: str = 'pytuck',
     *,
     source_type: str = 'sqlite',
     tables: Optional[List[str]] = None,
@@ -92,7 +92,7 @@ def import_from_database(
 |------|------|
 | `source_path` | 源数据库文件路径 |
 | `target_path` | 目标 Pytuck 文件路径 |
-| `target_engine` | 目标引擎名称（默认 `'binary'`） |
+| `target_engine` | 目标引擎名称（默认 `'pytuck'`） |
 | `source_type` | 源数据库类型（目前仅 `'sqlite'`） |
 | `tables` | 要导入的表名列表（`None` = 全部） |
 | `primary_key_map` | 表名到主键列名的映射 |
@@ -114,7 +114,7 @@ result = import_from_database(
 # 指定主键和排除表
 result = import_from_database(
     source_path='external.db',
-    target_path='data.db',
+    target_path='data.pytuck',
     primary_key_map={'users': 'user_id'},
     exclude_tables=['sqlite_sequence'],
     overwrite=True,
@@ -141,7 +141,7 @@ def get_available_engines() -> Dict[str, bool]
 from pytuck.tools.migrate import get_available_engines
 
 engines = get_available_engines()
-# {'binary': True, 'json': True, 'jsonl': True, 'csv': True, 'sqlite': True, 'duckdb': True, 'excel': False, 'xml': False}
+# {'pytuck': True, 'json': True, 'jsonl': True, 'csv': True, 'sqlite': True, 'duckdb': True, 'excel': False, 'xml': False}
 ```
 
 ### benchmark 脚本
@@ -153,9 +153,9 @@ engines = get_available_engines()
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
 
 # 指定引擎（包含 JSONL）
-uv run python tests/benchmark/benchmark.py -n 100000 -e binary json jsonl csv sqlite duckdb excel xml --extended
+uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite duckdb excel xml --extended
 
-# 加密专项 benchmark（仅 Binary / CSV）
+# 加密专项 benchmark（仅 Pytuck / CSV）
 uv run python tests/benchmark/benchmark_encryption.py
 ```
 
@@ -278,7 +278,7 @@ Pytuck 内置类型编解码器，支持以下 Python 类型的自动序列化�
 | `float` | ✅ | 原值 |
 | `str` | ✅ | 原值 |
 | `bool` | ✅ | 原值（SQLite 中为 0/1） |
-| `bytes` | ✅ | Base64（文本引擎）/ 原值（Binary） |
+| `bytes` | ✅ | Base64（文本引擎）/ 原值（Pytuck） |
 | `datetime` | ✅ | ISO 8601 字符串 |
 | `date` | ✅ | ISO 8601 字符串 |
 | `timedelta` | ✅ | 秒数（浮点数） |

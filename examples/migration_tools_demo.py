@@ -31,14 +31,14 @@ from pytuck.common.options import (
 def create_sample_database():
     """创建示例 Pytuck 数据库"""
     temp_dir = get_project_temp_dir()
-    source_file = os.path.join(temp_dir, 'source_data.db')
+    source_file = os.path.join(temp_dir, 'source_data.pytuck')
 
     # 清理旧文件
     if os.path.exists(source_file):
         os.remove(source_file)
 
-    # 创建源数据库（使用 binary 引擎）
-    db = Storage(file_path=source_file, engine='binary')
+    # 创建源数据库（使用 pytuck 引擎）
+    db = Storage(file_path=source_file, engine='pytuck')
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class Employee(Base):
@@ -108,7 +108,7 @@ def demo_engine_migration():
         if os.path.exists(file):
             os.remove(file)
 
-    print(f"\n1️⃣  从 Binary 迁移到 JSON")
+    print(f"\n1️⃣  从 Pytuck 迁移到 JSON")
 
     # 配置 JSON 选项：美化输出，支持中文
     json_opts = JsonBackendOptions(
@@ -119,7 +119,7 @@ def demo_engine_migration():
     # 执行迁移
     result = migrate_engine(
         source_path=source_file,
-        source_engine='binary',
+        source_engine='pytuck',
         target_path=json_target,
         target_engine='json',
         overwrite=True,

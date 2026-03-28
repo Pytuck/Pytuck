@@ -4,9 +4,9 @@ Pytuck 支持 8 种存储引擎，每种引擎有不同的特性、限制和适�
 
 ## 引擎总览
 
-| 特性 | Binary | JSON | JSONL | CSV | SQLite | DuckDB | Excel | XML |
+| 特性 | Pytuck | JSON | JSONL | CSV | SQLite | DuckDB | Excel | XML |
 |------|--------|------|-------|-----|--------|--------|-------|-----|
-| 文件扩展名 | `.db` | `.json` | `.zip` | `.zip` | `.sqlite` / `.db` | `.duckdb` | `.xlsx` | `.xml` |
+| 文件扩展名 | `.pytuck` | `.json` | `.zip` | `.zip` | `.sqlite` / `.db` | `.duckdb` | `.xlsx` | `.xml` |
 | 外部依赖 | 无 | 无 | 无 | 无 | 无 | `duckdb` | `openpyxl` | `lxml` |
 | 懒加载 | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | 加密支持 | ✅ | ❌ | ❌ | ✅（ZIP 密码） | ❌ | ❌ | ❌ | ❌ |
@@ -19,13 +19,13 @@ Pytuck 支持 8 种存储引擎，每种引擎有不同的特性、限制和适�
 
 ---
 
-## Binary 引擎（默认）
+## Pytuck 引擎（默认）
 
-Pytuck 自定义的二进制格式，性能最优。
+Pytuck 自定义的 `.pytuck` 单文件格式，性能最优。
 
 ### 特性
 - **懒加载**：只加载 schema 和索引，按需读取数据记录
-- **WAL（Write-Ahead Log）**：v4 格式支持追加写入，减少全量重写
+- **WAL（Write-Ahead Log）**：PTK5 使用隐藏的 sidecar WAL 文件，兼顾崩溃恢复与 checkpoint
 - **加密**：支持三级加密（low / medium / high）
 - **类型精确保留**：所有 Python 类型完整往返
 
@@ -35,8 +35,8 @@ Pytuck 自定义的二进制格式，性能最优。
 from pytuck.common.options import BinaryBackendOptions
 
 db = Storage(
-    file_path='data.db',
-    engine='binary',
+    file_path='data.pytuck',
+    engine='pytuck',
     backend_options=BinaryBackendOptions(
         lazy_load=True,             # 启用懒加载
         encryption='medium',        # 加密等级
@@ -51,8 +51,8 @@ db = Storage(
 
 ```python
 db = Storage(
-    file_path='large_secure.db',
-    engine='binary',
+    file_path='large_secure.pytuck',
+    engine='pytuck',
     backend_options=BinaryBackendOptions(
         lazy_load=True,
         encryption='medium',
@@ -68,7 +68,7 @@ db = Storage(
 - **LCG**：O(log N) 快进算法跳到任意偏移
 - **ChaCha20**：天然支持随机访问（基于块计数器）
 
-> **注意**：WAL（预写日志）区域目前仍为明文。加密仅覆盖数据区和索引区。
+> **注意**：sidecar WAL 文件当前仍为明文。加密仅覆盖主文件中的数据区和索引区。
 
 ### 限制
 - 文件格式不可人工阅读或编辑
@@ -349,15 +349,15 @@ pip install lxml
 
 | 场景 | 推荐引擎 | 理由 |
 |------|----------|------|
-| 生产环境（通用） | Binary | 性能最优，支持懒加载和加密 |
+| 生产环境（通用） | Pytuck | 性能最优，支持懒加载和加密 |
 | 需要 SQL 查询能力 | SQLite / DuckDB | 都支持原生 SQL；SQLite 更偏通用事务写入，DuckDB 更偏分析查询 |
 | 分析型查询 / 多 schema | DuckDB | 原生 DuckDB 后端，支持多 schema 与服务端分页 |
 | 需要人类可读 | JSON / JSONL | JSON 适合单文件直读；JSONL 适合多表归档后解压查看 |
 | 需要逐行文本交换 | JSONL | 每表一份 `.jsonl`，便于逐行处理 |
 | 需要 Excel 打开 | Excel / CSV | 兼容办公软件 |
 | 数据交换格式 | CSV / JSONL / JSON | 按体积、逐行文本、单文件可读性分别取舍 |
-| 数据需要加密 | Binary | 三级加密支持 |
+| 数据需要加密 | Pytuck | 三级加密支持 |
 | 数据需要密码保护 | CSV | ZIP 密码保护 |
-| 嵌入式场景（如 Ren'Py） | Binary | 无外部依赖，文件格式紧凑 |
+| 嵌入式场景（如 Ren'Py） | Pytuck | 无外部依赖，文件格式紧凑 |
 | 开发调试 | JSON | 直接查看和编辑最方便 |
 | 结构化数据交换 | XML | 标准 XML 格式 |

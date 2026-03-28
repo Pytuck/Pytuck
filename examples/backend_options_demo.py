@@ -319,25 +319,25 @@ def demo_sqlite_options():
     os.remove(sqlite_file)
 
 
-def demo_binary_default():
-    """演示 Binary 引擎（默认选项）"""
+def demo_pytuck_default():
+    """演示 Pytuck 引擎（默认选项）"""
     print("\n" + "="*50)
-    print("Binary 引擎演示（默认选项）")
+    print("Pytuck 引擎演示（默认选项）")
     print("="*50)
 
     # 创建临时文件
     temp_dir = get_project_temp_dir()
-    binary_file = os.path.join(temp_dir, 'demo_binary_default.db')
+    pytuck_file = os.path.join(temp_dir, 'demo_pytuck_default.pytuck')
 
     # 清理旧文件
-    if os.path.exists(binary_file):
-        os.remove(binary_file)
+    if os.path.exists(pytuck_file):
+        os.remove(pytuck_file)
 
-    # Binary 引擎目前没有配置选项，使用默认
-    binary_opts = BinaryBackendOptions()
+    # Pytuck 引擎目前没有额外配置选项，使用默认设置
+    pytuck_opts = BinaryBackendOptions()
 
     # 创建数据库
-    db = Storage(file_path=binary_file, engine='binary', backend_options=binary_opts)
+    db = Storage(file_path=pytuck_file, engine='pytuck', backend_options=pytuck_opts)
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class Settings(Base):
@@ -362,15 +362,15 @@ def demo_binary_default():
     session.commit()
     db.close()
 
-    print(f"✓ Binary 文件已创建: {binary_file}")
+    print(f"✓ Pytuck 文件已创建: {pytuck_file}")
     print("配置选项: 无（使用默认设置）")
 
     # 显示文件大小
-    file_size = os.path.getsize(binary_file)
+    file_size = os.path.getsize(pytuck_file)
     print(f"文件大小: {file_size} bytes")
 
     # 清理
-    os.remove(binary_file)
+    os.remove(pytuck_file)
 
 
 def demo_without_options():
@@ -425,7 +425,7 @@ def main():
     demo_json_options()
     demo_csv_options()
     demo_sqlite_options()
-    demo_binary_default()
+    demo_pytuck_default()
     demo_without_options()
 
     print("\n" + "="*60)

@@ -9,7 +9,8 @@
 ## 已完成
 
 - [x] 核心 ORM 和内存存储
-- [x] 插件化多引擎持久化（Binary、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
+- [x] 插件化多引擎持久化（Pytuck、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
+- [x] Pytuck 单文件引擎正式更名与格式切换（`binary` → `pytuck`、`.db` → `.pytuck`、仅支持 PTK5）
 - [x] DuckDB 原生后端（多 schema、原生 SQL、原生注释、服务端分页）
 - [x] JSONL 文件后端（ZIP 容器、每表 `.jsonl`、统一 `_metadata.json`）
 - [x] SQLAlchemy 2.0 风格 API（select、insert、update、delete）
@@ -42,19 +43,18 @@
 
 ## 近期计划
 
-- [ ] **Binary v5 里程碑格式**
-  - 固定稳定的 header / schema / data / index / wal 布局
-  - 紧凑记录编码，减少字段级元数据与主键重复存储
-  - sidecar WAL
-  - 面向 lazy load / on-demand query 设计
-  - 保持 v4 读取兼容
+- [ ] **Pytuck 单文件引擎按需查询优化**
+  - 以 PTK5 / `.pytuck` 作为稳定格式继续演进，不再维护 v4 兼容分支
+  - 在现有懒加载基础上继续强化按需查询 / 非全量加载能力
+  - 优先保证数据准确与安全，其次性能，最后才是体积
+  - 持续评估 data / index / WAL 的体积优化空间
 
 ---
 
 ## 中期计划
 
-- [ ] **binary-only 精简库**
-  - 复用同一 v5 文件格式
+- [ ] **Pytuck 单格式精简库**
+  - 复用同一 PTK5 / `.pytuck` 文件格式
   - 保留与 Pytuck ORM 兼容的核心 API 面
   - 舍弃多引擎、tools 等无关代码
   - 目标是尽量只改 import 即可切换
@@ -73,13 +73,13 @@
   - 允许模型类继承以复用列定义（当前每个模型必须独立定义所有列）
   - 应用场景：基类定义 `created_at` / `updated_at` 等公共字段，子类继承复用
 
-- [x] **非二进制后端增量保存**
+- [x] **非 Pytuck 后端增量保存**
   - Table 级别脏标记（`_data_dirty`、`_schema_dirty`）
   - Storage.flush() 传递 `changed_tables` 给后端
   - CSV 后端增量 ZIP 写入：未变更表直接从旧 ZIP 复制，仅重写变更表
   - 其他后端签名已扩展，行为不变（全量写入）
 
-- [x] **Binary 加密懒加载兼容**
+- [x] **Pytuck 加密懒加载兼容**
   - 三种 cipher（XOR/LCG/ChaCha20）均新增 `decrypt_at()` 方法，支持随机位置解密
   - 加密文件现在支持懒加载：加载时仅解密索引区获取 pk_offsets，读取记录时按需解密
   - 文件格式和写入流程完全不变，纯读路径优化
@@ -93,7 +93,7 @@
 
 ## 计划增加的引擎
 
-（暂无。当前文件后端矩阵已包含 Binary、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
+（暂无。当前文件后端矩阵已包含 Pytuck、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
 
 ---
 

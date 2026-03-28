@@ -28,7 +28,7 @@
 ## 核心特性
 
 - **无SQL设计** - 完全通过Python对象和方法操作数据，无需编写SQL
-- **多引擎支持** - 支持二进制、JSON、CSV、SQLite、DuckDB、Excel、XML 等多种存储格式
+- **多引擎支持** - 支持 Pytuck、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML 等多种存储格式
 - **插件化架构** - 默认零依赖，可选引擎按需安装
 - **SQLAlchemy 2.0 风格 API** - 现代化的查询构建器（`select()`, `insert()`, `update()`, `delete()`）
 - **泛型类型提示** - 完整的泛型支持，IDE智能提示精确到具体模型类型（`List[User]` 而非 `List[PureBaseModel]`）
@@ -44,7 +44,7 @@
 ### 安装
 
 ```bash
-# 基础安装（已包含 binary / json / jsonl / csv / sqlite，零外部依赖）
+# 基础安装（已包含 pytuck / json / jsonl / csv / sqlite，零外部依赖）
 pip install pytuck
 
 # 安装可选引擎 / 加速依赖
@@ -74,8 +74,8 @@ from typing import Type
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, select, insert, update, delete
 
-# 创建数据库（默认二进制引擎）
-db = Storage(file_path='mydb.db')
+# 创建数据库（默认 Pytuck 引擎）
+db = Storage(file_path='mydb.pytuck')
 Base: Type[PureBaseModel] = declarative_base(db)
 
 # 定义模型
@@ -153,7 +153,7 @@ from pytuck import Storage, declarative_base, Column
 from pytuck import CRUDBaseModel
 
 # 创建数据库
-db = Storage(file_path='mydb.db')
+db = Storage(file_path='mydb.pytuck')
 Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)  # 注意 crud=True
 
 # 定义模型
@@ -197,7 +197,7 @@ db.close()
 
 Pytuck 支持多种存储引擎，每种引擎适用于不同场景：
 
-### 二进制引擎（默认）
+### Pytuck 引擎（默认）
 
 **特点**: 无外部依赖、紧凑、高性能、支持加密
 
@@ -205,15 +205,15 @@ Pytuck 支持多种存储引擎，每种引擎适用于不同场景：
 from pytuck.common.options import BinaryBackendOptions
 
 # 基础使用
-db = Storage(file_path='data.db', engine='binary')
+db = Storage(file_path='data.pytuck', engine='pytuck')
 
 # 启用加密（三级可选：low/medium/high）
 opts = BinaryBackendOptions(encryption='high', password='mypassword')
-db = Storage(file_path='secure.db', engine='binary', backend_options=opts)
+db = Storage(file_path='secure.pytuck', engine='pytuck', backend_options=opts)
 
 # 打开加密数据库（自动检测加密等级）
 opts = BinaryBackendOptions(password='mypassword')
-db = Storage(file_path='secure.db', engine='binary', backend_options=opts)
+db = Storage(file_path='secure.pytuck', engine='pytuck', backend_options=opts)
 ```
 
 **加密等级说明**:
@@ -363,7 +363,7 @@ from typing import List, Optional
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import select, insert, update, delete
 
-db = Storage('mydb.db')
+db = Storage('mydb.pytuck')
 Base = declarative_base(db)
 
 class User(Base):
@@ -429,7 +429,7 @@ Pytuck 提供灵活的数据持久化机制。
 #### 纯模型模式（Session）
 
 ```python
-db = Storage(file_path='data.db')  # auto_flush=False（默认）
+db = Storage(file_path='data.pytuck')  # auto_flush=False（默认）
 
 # 数据修改只在内存中
 session.execute(insert(User).values(name='Alice'))
@@ -444,7 +444,7 @@ db.close()  # 方式2：关闭时自动刷新
 启用自动持久化：
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 
 # 每次 commit 后自动写入磁盘
 session.execute(insert(User).values(name='Alice'))
@@ -456,7 +456,7 @@ session.commit()  # 自动写入磁盘，无需手动 flush
 CRUDBaseModel 没有 Session，直接操作 Storage：
 
 ```python
-db = Storage(file_path='data.db')  # auto_flush=False（默认）
+db = Storage(file_path='data.pytuck')  # auto_flush=False（默认）
 Base = declarative_base(db, crud=True)
 
 class User(Base):
@@ -478,7 +478,7 @@ db.close()  # 方式2：关闭时自动刷新
 启用自动持久化：
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 Base = declarative_base(db, crud=True)
 
 # 每次 create/save/delete 后自动写入磁盘
@@ -563,7 +563,7 @@ session.rollback()
 启用 `auto_flush` 后，每次写操作自动持久化到磁盘：
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 
 # 插入自动写入磁盘
 stmt = insert(Student).values(name='Bob', age=21)
@@ -661,7 +661,7 @@ Pytuck 的模型实例是完全独立的 Python 对象，查询后立即物化�
 ```python
 from pytuck import Storage, declarative_base, Session, Column, select
 
-db = Storage(file_path='data.db')
+db = Storage(file_path='data.pytuck')
 Base = declarative_base(db)
 
 class User(Base):
@@ -835,21 +835,21 @@ user.to_dict(depth=1)  # 展开一层 Relationship（如 orders 列表）
 
 | 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |
 |------|------|----------|------------|----------|----------|------|------|--------|----------|
-| Binary | 829.25ms | 1.79ms | 4.66s | 2607x | 396.86ms | 776.86ms | 1.03s | 327.86ms | 11.73MB |
-| JSON | 914.12ms | 1.75ms | 4.79s | 2741x | 385.80ms | 289.49ms | 370.47ms | - | 10.70MB |
-| JSONL | 814.13ms | 2.02ms | 4.68s | 2315x | 398.39ms | 585.12ms | 559.74ms | - | 827.5KB |
-| CSV | 871.90ms | 2.40ms | 4.69s | 1951x | 392.43ms | 450.32ms | 512.40ms | - | 731.9KB |
-| SQLite | 1.97s | 4.35ms | 484.05ms | 111x | 506.23ms | 11.44ms | 343.6μs | - | 6.97MB |
-| DuckDB | 279.19s | 56.64ms | 193.83ms | 3x | 478.79ms | 19.49ms | 27.56ms | - | 4.76MB |
-| Excel | 813.44ms | 1.73ms | 4.72s | 2730x | 391.43ms | 5.55s | 7.48s | - | 2.84MB |
-| XML | 766.44ms | 1.94ms | 4.55s | 2342x | 386.67ms | 2.31s | 1.92s | - | 34.54MB |
+| Pytuck | 893.36ms | 1.72ms | 4.59s | 2668x | 393.30ms | 534.11ms | 864.94ms | 317.35ms | 6.09MB |
+| JSON | 889.64ms | 1.64ms | 4.55s | 2767x | 388.95ms | 287.45ms | 369.13ms | - | 10.70MB |
+| JSONL | 825.68ms | 2.19ms | 4.61s | 2107x | 398.19ms | 592.01ms | 562.36ms | - | 827.5KB |
+| CSV | 859.33ms | 1.71ms | 4.56s | 2669x | 391.67ms | 436.29ms | 502.32ms | - | 731.9KB |
+| SQLite | 2.20s | 4.32ms | 476.03ms | 110x | 510.05ms | 9.96ms | 341.3μs | - | 6.97MB |
+| DuckDB | 272.98s | 57.70ms | 179.81ms | 3x | 465.90ms | 17.75ms | 26.12ms | - | 4.76MB |
+| Excel | 731.59ms | 1.63ms | 4.40s | 2691x | 370.73ms | 5.20s | 7.10s | - | 2.84MB |
+| XML | 711.97ms | 1.94ms | 4.34s | 2237x | 374.44ms | 2.24s | 1.84s | - | 34.54MB |
 
 **说明**:
 - **索引查询**: 100 次索引字段等值查询（毫秒级）
 - **非索引查询**: 100 次非索引字段全表扫描（秒级 / 亚秒级）
 - **索引加速**: 索引查询 vs 非索引查询的加速比
 - **范围查询**: 范围条件查询（如 `age >= 20 AND age < 62`）
-- **懒加载**: 仅 Binary 引擎支持，只加载索引不加载数据
+- **懒加载**: 仅 Pytuck 引擎支持，只加载索引不加载数据
 - 这组数据走的是 Pytuck 当前 ORM / Session 写路径；DuckDB 的写入、更新、删除数字主要反映当前逐条 DML 路径，而不是 DuckDB 原生 bulk load 的上限
 
 ### 如何复现
@@ -858,7 +858,7 @@ user.to_dict(depth=1)  # 展开一层 Relationship（如 orders 列表）
 # 通用性能 benchmark
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark-final.json
 
-# 加密专项 benchmark（仅 Binary / CSV）
+# 加密专项 benchmark（仅 Pytuck / CSV）
 uv run python tests/benchmark/benchmark_encryption.py
 ```
 
@@ -867,11 +867,11 @@ uv run python tests/benchmark/benchmark_encryption.py
 - **Python**: PyPy 3.9.18 (PyPy 7.3.15)
 - **测试数据量**: 100,000 条记录
 - **模式**: 扩展测试（包含索引对比、范围查询、批量读取、懒加载查询）
-- **命令**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+- **命令**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
 
 | 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |
 |------|------|----------|------------|----------|----------|------|------|--------|----------|
-| Binary | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
+| Pytuck | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
 | JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
 | JSONL | 586.37ms | 9.51ms | 1.53s | 161x | 99.36ms | 270.48ms | 256.08ms | - | 827.5KB |
 | CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
@@ -879,7 +879,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 | Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
 
 **说明**:
-- 这组数据主要反映 PyPy 对纯 Python 路径的加速潜力；Binary / JSON / JSONL / CSV / Excel 的插入、扫描和序列化普遍快于当前 CPython 结果
+- 这组数据主要反映 PyPy 对纯 Python 路径的加速潜力；Pytuck / JSON / JSONL / CSV / Excel 的插入、扫描和序列化普遍快于当前 CPython 结果
 - 当前机器未将 DuckDB / XML 纳入 PyPy 结果：`duckdb` 在 PyPy 下构建缺少 `Development.Module`（PyPy 头文件 / 开发包），`lxml` 构建需要 `libxml2` / `libxslt` 开发包
 - SQLite 仍保持很快的保存 / 加载路径，但整体插入与查询收益不如纯 Python 引擎明显
 
@@ -887,7 +887,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 
 | 引擎 | 查询性能 | I/O性能 | 存储效率 | 人类可读 | 外部依赖 | 推荐场景 |
 |------|---------|---------|---------|---------|---------|----------|
-| Binary | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | 无 | **生产环境首选** |
+| Pytuck | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | 无 | **生产环境首选** |
 | JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | 无 | 开发调试、配置存储 |
 | JSONL | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ✅（解压后） | 无 | 多表文本归档、逐行交换 |
 | CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | 无 | 数据交换、最小体积 |
@@ -897,7 +897,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 | XML | ⭐⭐⭐ | ⭐⭐ | ⭐ | ✅ | lxml | 企业集成、标准化交换 |
 
 **结论**:
-- **Binary** 仍是综合最均衡的默认引擎，索引查询和懒加载表现最好，适合生产环境首选
+- **Pytuck** 仍是综合最均衡的默认引擎，索引查询和懒加载表现最好，适合生产环境首选
 - **JSON** 仍是最直观的单文件可读格式；**JSONL** 则补上了多表归档和逐行文本交换的空位
 - **CSV** 依旧是当前体积最小的交换格式；若更看重逐行 JSON 文本而非最小体积，可考虑 **JSONL**
 - **SQLite** 在当前 benchmark 中是原生 SQL 写路径最稳妥的通用数据库后端，保存 / 加载开销最低
@@ -915,10 +915,10 @@ from pytuck.common.options import JsonBackendOptions
 # 配置目标引擎选项
 json_opts = JsonBackendOptions(indent=2, ensure_ascii=False)
 
-# 从二进制迁移到JSON
+# 从 Pytuck 迁移到 JSON
 migrate_engine(
-    source_path='data.db',
-    source_engine='binary',
+    source_path='data.pytuck',
+    source_engine='pytuck',
     target_path='data.json',
     target_engine='json',
     target_options=json_opts  # 使用强类型选项
@@ -945,7 +945,7 @@ migrate_engine(
                ↓
 ┌─────────────────────────────────────┐
 │     后端插件层 (backends/)           │
-│  BinaryBackend | JSONBackend | ...  │
+│ BinaryBackend (pytuck) | JSONBackend | ... │
 └─────────────────────────────────────┘
                ↓
 ┌─────────────────────────────────────┐
@@ -1023,10 +1023,10 @@ session.rollback()  # 清除 pending，但 id=1 的记录仍存在
   - [x] 新增 `datetime`, `date`, `timedelta`, `list`, `dict` 五种类型
   - [x] 统一 TypeRegistry 编解码，所有后端使用一致的序列化接口
   - [x] JSON 后端格式优化，移除冗余的 `_type`/`_value` 包装
-- [x] **Binary 引擎 v4 格式** ✨NEW✨
-  - [x] WAL（预写日志）支持 O(1) 写入延迟
-  - [x] 双 Header 机制实现原子切换和崩溃恢复
-  - [x] 索引区 zlib 压缩（节省约 81% 空间）
+- [x] **Pytuck 单文件引擎（PTK5）** ✨NEW✨
+  - [x] 公开命名正式切换：`binary` → `pytuck`、`.db` → `.pytuck`
+  - [x] PTK5 成为唯一支持的单文件格式
+  - [x] 隐藏 sidecar WAL + 双 Header 崩溃恢复
   - [x] 批量 I/O 和编解码器缓存优化
   - [x] 三级加密支持（low/medium/high），纯 Python 实现
 - [x] **主键查询优化**（影响所有存储引擎）✨NEW✨
@@ -1095,19 +1095,19 @@ session.rollback()  # 清除 pending，但 id=1 的记录仍存在
 
 ### 计划增加的引擎
 
-- [ ] LMDB - 高性能嵌入式键值数据库
+- 暂无。当前文件后端矩阵已包含 Pytuck、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML。
 
 ### 计划中的优化
 
-- [x] **非二进制后端增量保存** - Table 级别脏标记，CSV 引擎增量 ZIP 写入（未变更表直接复制）
-- [x] **Binary 加密懒加载兼容** - 三种加密算法支持随机位置解密（`decrypt_at`），加密文件可按需读取
+- [x] **非 Pytuck 后端增量保存** - Table 级别脏标记，CSV 引擎增量 ZIP 写入（未变更表直接复制）
+- [x] **Pytuck 加密懒加载兼容** - 三种加密算法支持随机位置解密（`decrypt_at`），加密文件可按需读取
 
 ## 安装方式
 
 ### 从 PyPI 安装
 
 ```bash
-# 基础安装（已包含 binary / json / jsonl / csv / sqlite）
+# 基础安装（已包含 pytuck / json / jsonl / csv / sqlite）
 pip install pytuck
 
 # 安装特定功能
@@ -1125,7 +1125,7 @@ pip install pytuck[dev]      # 开发工具
 [uv](https://github.com/astral-sh/uv) 是一个极快的 Python 项目与包管理器。如果你的应用本身使用 uv 管理，推荐直接把 pytuck 添加到当前项目依赖中：
 
 ```bash
-# 基础安装（已包含 binary / json / jsonl / csv / sqlite）
+# 基础安装（已包含 pytuck / json / jsonl / csv / sqlite）
 uv add pytuck
 
 # 安装特定功能

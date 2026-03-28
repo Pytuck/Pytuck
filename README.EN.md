@@ -28,7 +28,7 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 ## Key Features
 
 - **No SQL Required** - Work entirely with Python objects and methods
-- **Multi-Engine Support** - Binary, JSON, CSV, SQLite, DuckDB, Excel, XML storage formats
+- **Multi-Engine Support** - Pytuck, JSON, JSONL, CSV, SQLite, DuckDB, Excel, XML storage formats
 - **Pluggable Architecture** - Zero dependencies by default, optional engines on demand
 - **SQLAlchemy 2.0 Style API** - Modern query builders (`select()`, `insert()`, `update()`, `delete()`)
 - **Generic Type Hints** - Complete generic support with precise IDE type inference (`List[User]` instead of `List[PureBaseModel]`)
@@ -44,7 +44,7 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 ### Installation
 
 ```bash
-# Basic installation (includes binary / json / jsonl / csv / sqlite, zero external deps)
+# Basic installation (includes pytuck / json / jsonl / csv / sqlite, zero external deps)
 pip install pytuck
 
 # Install optional engines / accelerators
@@ -74,8 +74,8 @@ from typing import Type
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, select, insert, update, delete
 
-# Create database (default: binary engine)
-db = Storage(file_path='mydb.db')
+# Create database (default: pytuck engine)
+db = Storage(file_path='mydb.pytuck')
 Base: Type[PureBaseModel] = declarative_base(db)
 
 # Define model
@@ -153,7 +153,7 @@ from pytuck import Storage, declarative_base, Column
 from pytuck import CRUDBaseModel
 
 # Create database
-db = Storage(file_path='mydb.db')
+db = Storage(file_path='mydb.pytuck')
 Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)  # Note: crud=True
 
 # Define model
@@ -197,7 +197,7 @@ db.close()
 
 Pytuck supports multiple storage engines, each suited for different scenarios:
 
-### Binary Engine (Default)
+### Pytuck Engine (Default)
 
 **Features**: Zero dependencies, compact, high performance, encryption support
 
@@ -205,15 +205,15 @@ Pytuck supports multiple storage engines, each suited for different scenarios:
 from pytuck.common.options import BinaryBackendOptions
 
 # Basic usage
-db = Storage(file_path='data.db', engine='binary')
+db = Storage(file_path='data.pytuck', engine='pytuck')
 
 # Enable encryption (three levels: low/medium/high)
 opts = BinaryBackendOptions(encryption='high', password='mypassword')
-db = Storage(file_path='secure.db', engine='binary', backend_options=opts)
+db = Storage(file_path='secure.pytuck', engine='pytuck', backend_options=opts)
 
 # Open encrypted database (auto-detects encryption level)
 opts = BinaryBackendOptions(password='mypassword')
-db = Storage(file_path='secure.db', engine='binary', backend_options=opts)
+db = Storage(file_path='secure.pytuck', engine='pytuck', backend_options=opts)
 ```
 
 **Encryption Levels**:
@@ -364,7 +364,7 @@ from typing import List, Optional
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import select, insert, update, delete
 
-db = Storage('mydb.db')
+db = Storage('mydb.pytuck')
 Base = declarative_base(db)
 
 class User(Base):
@@ -430,7 +430,7 @@ Pytuck provides flexible data persistence mechanisms.
 #### Pure Model Mode (Session)
 
 ```python
-db = Storage(file_path='data.db')  # auto_flush=False (default)
+db = Storage(file_path='data.pytuck')  # auto_flush=False (default)
 
 # Data changes only in memory
 session.execute(insert(User).values(name='Alice'))
@@ -445,7 +445,7 @@ db.close()  # Method 2: Auto-flush on close
 Enable auto persistence:
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 
 # Each commit automatically writes to disk
 session.execute(insert(User).values(name='Alice'))
@@ -457,7 +457,7 @@ session.commit()  # Automatically writes to disk, no manual flush needed
 CRUDBaseModel has no Session, operates directly on Storage:
 
 ```python
-db = Storage(file_path='data.db')  # auto_flush=False (default)
+db = Storage(file_path='data.pytuck')  # auto_flush=False (default)
 Base = declarative_base(db, crud=True)
 
 class User(Base):
@@ -479,7 +479,7 @@ db.close()  # Method 2: Auto-flush on close
 Enable auto persistence:
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 Base = declarative_base(db, crud=True)
 
 # Each create/save/delete automatically writes to disk
@@ -564,7 +564,7 @@ session.rollback()
 Enable `auto_flush` for automatic disk persistence on each write:
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 
 # Insert automatically writes to disk
 stmt = insert(Student).values(name='Bob', age=21)
@@ -662,7 +662,7 @@ Pytuck model instances are completely independent Python objects that are immedi
 ```python
 from pytuck import Storage, declarative_base, Session, Column, select
 
-db = Storage(file_path='data.db')
+db = Storage(file_path='data.pytuck')
 Base = declarative_base(db)
 
 class User(Base):
@@ -822,7 +822,7 @@ user.to_dict(depth=1)  # Expand one level of Relationships (e.g., orders list)
 
 ## Performance Benchmark
 
-The following numbers come from the benchmark scripts in this repository, not from an old static v4 table.
+The following numbers come from the benchmark scripts in this repository, not from an older static table.
 
 ### Test Environment
 
@@ -836,21 +836,21 @@ The following numbers come from the benchmark scripts in this repository, not fr
 
 | Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
 |--------|--------|---------|-------------|---------|-------|------|------|------|------|
-| Binary | 829.25ms | 1.79ms | 4.66s | 2607x | 396.86ms | 776.86ms | 1.03s | 327.86ms | 11.73MB |
-| JSON | 914.12ms | 1.75ms | 4.79s | 2741x | 385.80ms | 289.49ms | 370.47ms | - | 10.70MB |
-| JSONL | 814.13ms | 2.02ms | 4.68s | 2315x | 398.39ms | 585.12ms | 559.74ms | - | 827.5KB |
-| CSV | 871.90ms | 2.40ms | 4.69s | 1951x | 392.43ms | 450.32ms | 512.40ms | - | 731.9KB |
-| SQLite | 1.97s | 4.35ms | 484.05ms | 111x | 506.23ms | 11.44ms | 343.6μs | - | 6.97MB |
-| DuckDB | 279.19s | 56.64ms | 193.83ms | 3x | 478.79ms | 19.49ms | 27.56ms | - | 4.76MB |
-| Excel | 813.44ms | 1.73ms | 4.72s | 2730x | 391.43ms | 5.55s | 7.48s | - | 2.84MB |
-| XML | 766.44ms | 1.94ms | 4.55s | 2342x | 386.67ms | 2.31s | 1.92s | - | 34.54MB |
+| Pytuck | 893.36ms | 1.72ms | 4.59s | 2668x | 393.30ms | 534.11ms | 864.94ms | 317.35ms | 6.09MB |
+| JSON | 889.64ms | 1.64ms | 4.55s | 2767x | 388.95ms | 287.45ms | 369.13ms | - | 10.70MB |
+| JSONL | 825.68ms | 2.19ms | 4.61s | 2107x | 398.19ms | 592.01ms | 562.36ms | - | 827.5KB |
+| CSV | 859.33ms | 1.71ms | 4.56s | 2669x | 391.67ms | 436.29ms | 502.32ms | - | 731.9KB |
+| SQLite | 2.20s | 4.32ms | 476.03ms | 110x | 510.05ms | 9.96ms | 341.3μs | - | 6.97MB |
+| DuckDB | 272.98s | 57.70ms | 179.81ms | 3x | 465.90ms | 17.75ms | 26.12ms | - | 4.76MB |
+| Excel | 731.59ms | 1.63ms | 4.40s | 2691x | 370.73ms | 5.20s | 7.10s | - | 2.84MB |
+| XML | 711.97ms | 1.94ms | 4.34s | 2237x | 374.44ms | 2.24s | 1.84s | - | 34.54MB |
 
 **Notes**:
 - **Indexed**: 100 indexed equality lookups
 - **Non-Indexed**: 100 non-indexed full scans
 - **Speedup**: Indexed query vs non-indexed query speedup ratio
 - **Range**: Range-condition queries such as `age >= 20 AND age < 62`
-- **Lazy**: Only Binary supports lazy loading (load index first, records on demand)
+- **Lazy**: Only Pytuck supports lazy loading (load index first, records on demand)
 - These numbers go through Pytuck's current ORM / Session write path; the DuckDB write / update / delete numbers mainly reflect the current row-by-row DML path rather than DuckDB's native bulk-load ceiling
 
 ### How to Reproduce
@@ -859,7 +859,7 @@ The following numbers come from the benchmark scripts in this repository, not fr
 # General performance benchmark
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark-final.json
 
-# Encryption-specific benchmark (Binary / CSV only)
+# Encryption-specific benchmark (Pytuck / CSV only)
 uv run python tests/benchmark/benchmark_encryption.py
 ```
 
@@ -868,11 +868,11 @@ uv run python tests/benchmark/benchmark_encryption.py
 - **Python**: PyPy 3.9.18 (PyPy 7.3.15)
 - **Test Data**: 100,000 records
 - **Mode**: Extended benchmark (index comparison, range queries, batch reads, lazy loading)
-- **Command**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+- **Command**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
 
 | Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
 |--------|--------|---------|-------------|---------|-------|------|------|------|------|
-| Binary | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
+| Pytuck | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
 | JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
 | JSONL | 586.37ms | 9.51ms | 1.53s | 161x | 99.36ms | 270.48ms | 256.08ms | - | 827.5KB |
 | CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
@@ -880,7 +880,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 | Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
 
 **Notes**:
-- These numbers mainly show PyPy's upside on pure-Python paths; Binary / JSON / JSONL / CSV / Excel are generally faster than the current CPython run for inserts, scans, and serialization-heavy work
+- These numbers mainly show PyPy's upside on pure-Python paths; Pytuck / JSON / JSONL / CSV / Excel are generally faster than the current CPython run for inserts, scans, and serialization-heavy work
 - DuckDB and XML are not included in this PyPy table on the current machine: `duckdb` failed to build without PyPy `Development.Module` support (headers / dev package), and `lxml` requires `libxml2` / `libxslt` development packages
 - SQLite still keeps very fast save / load behavior, but its overall insert/query gains are less dramatic than the pure-Python engines here
 
@@ -888,7 +888,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 
 | Engine | Query Perf | I/O Perf | Storage Eff | Human Readable | Dependencies | Recommended Use |
 |--------|-----------|----------|-------------|----------------|--------------|-----------------|
-| Binary | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | None | **Production default** |
+| Pytuck | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | None | **Production default** |
 | JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | None | Development, config storage |
 | JSONL | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ✅ (after unzip) | None | Multi-table text archives, line-oriented exchange |
 | CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | None | Data exchange, smallest footprint |
@@ -898,7 +898,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 | XML | ⭐⭐⭐ | ⭐⭐ | ⭐ | ✅ | lxml | Enterprise integration, standardized exchange |
 
 **Conclusions**:
-- **Binary** remains the most balanced default engine overall, with the best indexed-query and lazy-loading behavior
+- **Pytuck** remains the most balanced default engine overall, with the best indexed-query and lazy-loading behavior
 - **JSON** is still the most straightforward single-file readable format, while **JSONL** fills the gap for multi-table archives and line-oriented text exchange
 - **CSV** remains the smallest exchange format on disk; if line-oriented JSON matters more than minimum size, **JSONL** is a strong alternative
 - **SQLite** is the most practical general-purpose SQL backend in the current benchmark, with the lowest save/load overhead
@@ -910,7 +910,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 ### Install from PyPI
 
 ```bash
-# Basic installation (includes binary / json / jsonl / csv / sqlite)
+# Basic installation (includes pytuck / json / jsonl / csv / sqlite)
 pip install pytuck
 
 # With specific extras
@@ -928,7 +928,7 @@ pip install pytuck[dev]      # Development tools
 [uv](https://github.com/astral-sh/uv) is an extremely fast Python project and package manager. If your application already uses uv, add pytuck directly to your project dependencies:
 
 ```bash
-# Basic installation (includes binary / json / jsonl / csv / sqlite)
+# Basic installation (includes pytuck / json / jsonl / csv / sqlite)
 uv add pytuck
 
 # With specific extras
@@ -984,10 +984,10 @@ from pytuck.common.options import JsonBackendOptions
 # Configure target engine options
 json_opts = JsonBackendOptions(indent=2, ensure_ascii=False)
 
-# Migrate from binary to JSON
+# Migrate from pytuck to JSON
 migrate_engine(
-    source_path='data.db',
-    source_engine='binary',
+    source_path='data.pytuck',
+    source_engine='pytuck',
     target_path='data.json',
     target_engine='json',
     target_options=json_opts  # Use strongly-typed options
@@ -1016,7 +1016,7 @@ migrate_engine(
                ↓
 ┌─────────────────────────────────────┐
 │    Backend Layer (backends/)        │
-│  BinaryBackend | JSONBackend | ...  │
+│ BinaryBackend (pytuck) | JSONBackend | ... │
 └─────────────────────────────────────┘
                ↓
 ┌─────────────────────────────────────┐
@@ -1095,10 +1095,10 @@ session.rollback()  # Clears pending, but id=1 record still exists
   - [x] Added `datetime`, `date`, `timedelta`, `list`, `dict` five new types
   - [x] Unified TypeRegistry codec, all backends use consistent serialization interface
   - [x] JSON backend format optimization, removed redundant `_type`/`_value` wrapper
-- [x] **Binary Engine v4 Format** ✨NEW✨
-  - [x] WAL (Write-Ahead Log) for O(1) write latency
-  - [x] Dual Header mechanism for atomic switching and crash recovery
-  - [x] Index region zlib compression (saves ~81% space)
+- [x] **Pytuck Single-File Engine (PTK5)** ✨NEW✨
+  - [x] Public rename: `binary` → `pytuck`, `.db` → `.pytuck`
+  - [x] PTK5 is now the only supported single-file format
+  - [x] Hidden sidecar WAL + dual-header crash recovery
   - [x] Batch I/O and codec caching optimizations
   - [x] Three-tier encryption support (low/medium/high), pure Python implementation
 - [x] **Primary Key Query Optimization** (affects ALL storage engines) ✨NEW✨
@@ -1167,12 +1167,12 @@ session.rollback()  # Clears pending, but id=1 record still exists
 
 ### Planned Engines
 
-- [ ] LMDB - High-performance embedded key-value database
+- None for now. The current file backend matrix already includes Pytuck, JSON, JSONL, CSV, SQLite, DuckDB, Excel, and XML.
 
 ### Planned Optimizations
 
-- [x] **Incremental save for non-binary backends** - Table-level dirty tracking, CSV engine incremental ZIP writing (unchanged tables copied directly)
-- [x] **Binary encryption + lazy loading compatibility** - All three ciphers support random-access decryption (`decrypt_at`), encrypted files can be lazily loaded
+- [x] **Incremental save for non-pytuck backends** - Table-level dirty tracking, CSV engine incremental ZIP writing (unchanged tables copied directly)
+- [x] **Pytuck encryption + lazy loading compatibility** - All three ciphers support random-access decryption (`decrypt_at`), encrypted files can be lazily loaded
 
 ## Examples
 

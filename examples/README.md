@@ -17,7 +17,7 @@
 
 **运行方式：**
 ```bash
-python3 examples/new_api_demo.py
+uv run python examples/new_api_demo.py
 ```
 
 **适合对象：**
@@ -36,7 +36,7 @@ python3 examples/new_api_demo.py
 
 **运行方式：**
 ```bash
-python3 examples/transaction_demo.py
+uv run python examples/transaction_demo.py
 ```
 
 **适合对象：**
@@ -47,16 +47,18 @@ python3 examples/transaction_demo.py
 
 测试所有存储引擎的功能：
 
-- binary: 二进制引擎（默认，最快）
+- pytuck: Pytuck 单文件引擎（默认）
 - json: JSON 引擎（人类可读）
+- jsonl: JSONL 引擎（ZIP 容器）
 - csv: CSV 引擎（ZIP 压缩）
 - sqlite: SQLite 引擎
+- duckdb: DuckDB 引擎（需要 duckdb）
 - excel: Excel 引擎（需要 openpyxl）
 - xml: XML 引擎（需要 lxml）
 
 **运行方式：**
 ```bash
-python3 examples/all_engines_test.py
+uv run python examples/all_engines_test.py
 ```
 
 **适合对象：**
@@ -77,7 +79,7 @@ python3 examples/all_engines_test.py
 ```python
 from pytuck import Storage, declarative_base, Session, Column
 
-db = Storage('mydb.db')
+db = Storage('mydb.pytuck')
 Base = declarative_base(db)
 
 class User(Base):
@@ -115,7 +117,7 @@ pip install lxml
 
 2. 运行新 API 示例：
 ```bash
-python3 examples/new_api_demo.py
+uv run python examples/new_api_demo.py
 ```
 
 3. 查看输出，理解新 API 的工作方式

@@ -8,88 +8,44 @@
 
 ---
 
-## [0.9.0] - 2026-03-15
+## [1.0.0] - 2026-03-29
 
 ### 新增
 
-- **to_dict() 增强与 to_json()**
-  - `to_dict()` 支持 `include` / `exclude` 字段筛选
-  - `depth` 参数控制关联数据的序列化深度（`depth=1` 只展开一层 Relationship）
-  - 新增 `to_json()` 方法，支持 `indent`、`include`、`exclude`、`depth` 参数
-  - 示例：
-    ```python
-    user.to_dict(exclude={'password'})         # 排除敏感字段
-    user.to_json(include={'id', 'name'})       # 仅保留指定字段
-    user.to_dict(depth=1)                      # 展开一层关联数据
-    ```
+- **DuckDB 原生后端**
+  - 新增 `duckdb` 可选依赖与原生后端实现
+  - 支持多 schema、原生 SQL、表备注/列备注与服务端分页
+  - 保持与现有 `Storage` / `Session` / ORM API 一致，只需切换引擎与选项即可使用
 
-- **Column 级数据校验器（validator）**
-  - `Column` 新增 `validator` 参数，支持自定义校验函数或函数列表
-  - 校验在类型转换之后执行，`None` 值跳过校验
-  - 返回 `False` 或抛出异常时触发 `ValidationError`
-  - 示例：
-    ```python
-    name = Column(str, validator=lambda x: len(x) <= 100)
-    age = Column(int, validator=[lambda x: x >= 0, lambda x: x <= 150])
-    ```
+- **JSONL ZIP 后端**
+  - 新增 `jsonl` 引擎，外层使用 ZIP 容器
+  - 每张表单独存储为 `.jsonl` 文件，统一 `_metadata.json`
+  - 已接入迁移工具、benchmark 与引擎文档矩阵
 
-- **模型继承支持（Mixin）**
-  - 支持使用 `__abstract__ = True` 标记抽象基类，将公共列抽取到 Mixin 中复用
-  - 支持多层继承（A → B → C）和多重继承（同时继承多个 Mixin）
-  - 子类可覆盖父类同名列（修改默认值、添加校验等）
-  - 示例：
-    ```python
-    class TimestampMixin(Base):
-        __abstract__ = True
-        created_at = Column(datetime, default_factory=datetime.now)
+### 变更
 
-    class User(TimestampMixin):
-        __tablename__ = 'users'
-        name = Column(str)
-    ```
+- **Pytuck 单文件引擎正式定版**
+  - 公开引擎名 `binary` 正式更名为 `pytuck`
+  - 默认单文件扩展名从 `.db` 改为 `.pytuck`
+  - 单文件格式仅保留 PTK5，停止维护 v4/PTK4 兼容
+  - sidecar WAL 文件名改为隐藏形式 `.<name>.wal`
 
-- **Column default_factory 支持**
-  - `Column` 新增 `default_factory` 参数，接受无参可调用对象，每次创建实例时调用
-  - 与 `default`（静态值）互斥，不可同时设置
-  - 类似 Python `dataclass` 的 `field(default_factory=...)` 设计
-  - 示例：
-    ```python
-    created_at = Column(datetime, default_factory=datetime.now)
-    tags = Column(list, default_factory=list)
-    ```
-
-- **非二进制后端增量保存**
-  - 新增 Table 级别脏标记（`_data_dirty` / `_schema_dirty`）
-  - `Storage.flush()` 自动跟踪变更表，仅传递变更表名给后端
-  - CSV 引擎实现增量 ZIP 写入：未变更表直接从旧 ZIP 复制（二进制拷贝），仅重写变更表
-  - 其他后端（JSON/Excel/XML）签名已扩展但行为不变（全量写入）
-  - 启用 ZIP 密码保护时不使用增量策略，此时仍为全量写入
-
-- **Binary 加密懒加载兼容**
-  - 三种加密算法（XOR/LCG/ChaCha20）均新增 `decrypt_at()` 方法，支持随机位置解密
-  - 加密文件现在支持懒加载：加载时仅解密索引区获取 `pk_offsets`，读取记录时按需解密
-  - 文件格式和写入流程完全不变，纯读路径优化
-  - 随机访问解密原理：
-    - XOR：256 字节周期循环密钥流，偏移取模
-    - LCG：O(log N) 快进算法跳到任意偏移
-    - ChaCha20：天然支持随机访问（基于块计数器）
+- **公开入口同步到 1.0.0 语义**
+  - `Storage` 默认引擎、迁移工具默认目标引擎、README、docs/api、TODO 与 benchmark 统一改为 `pytuck`
+  - 单文件引擎的对外说明统一改为 Pytuck / `.pytuck` / PTK5
 
 ### 改进
 
-- **临时文件安全改进**
-  - 所有后端引擎使用 `tempfile.mkstemp` 替代手动构造临时文件路径
-  - 临时文件创建在目标文件同目录下，确保原子 `replace()` 在同一文件系统
-  - 移除不必要的 `unlink()` + `replace()` 模式，直接用 `replace()` 原子替换
+- **依赖与工作流整理**
+  - 保持默认安装零外部依赖，DuckDB / Excel / XML / JSON 加速能力均通过 extras 提供
+  - GitHub Actions 与 benchmark 工作流切换为 uv 驱动
 
-### 修复
-
-- 修复字符串匹配查询测试中数据库连接未正确关闭的问题
+- **文档与基准同步**
+  - README 与 API 文档补充 DuckDB、JSONL、CSV 体积优势、PyPy 复测与引擎选型说明
+  - 明确“十万级”主要指单张热点表，并补充 DuckDB 对 `None` / `''` 的处理说明
 
 ### 测试
 
-- 添加 to_dict/to_json 增强功能测试
-- 添加 Column validator 校验器测试
-- 添加模型继承和 Mixin 测试
-- 添加 Column default_factory 测试
-- 添加 Table 级别脏标记和增量保存测试
-- 添加加密懒加载测试（三种加密等级 + decrypt_at 一致性验证）
+- 补齐 DuckDB / JSONL / Pytuck 改名后的测试覆盖
+- benchmark 脚本纳入 DuckDB、JSONL 与 PyPy 复测结果
+- 同步更新现有引擎矩阵、迁移工具与文档示例

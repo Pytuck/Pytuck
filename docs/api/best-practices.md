@@ -21,7 +21,7 @@
 > |---------|---------|
 > | 大数据量 + 复杂查询 | [SQLAlchemy](https://www.sqlalchemy.org/) + PostgreSQL/MySQL |
 > | 轻量嵌入式 + SQL 支持 | [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite |
-> | 高性能键值存储 | Redis、LMDB |
+> | 高性能键值存储 | Redis |
 > | 复杂分析型查询（超出 Pytuck ORM 范围） | DuckDB、Pandas |
 > | 分布式/高并发 | PostgreSQL、MongoDB |
 >
@@ -31,7 +31,7 @@
 > - **桌面应用 / 小工具**的本地数据存储
 > - **原型开发 / 快速验证**（零配置、零 SQL）
 > - **配置管理 / 小规模数据持久化**
-> - **需要多种存储格式**（同一数据可在 Binary/JSON/CSV/SQLite/DuckDB/Excel/XML 间自由切换）
+> - **需要多种存储格式**（同一数据可在 Pytuck/JSON/CSV/SQLite/DuckDB/Excel/XML 间自由切换）
 
 ---
 
@@ -41,14 +41,14 @@
 
 | 场景 | 推荐 | 备选 |
 |------|------|------|
-| 通用生产环境 | Binary | SQLite |
-| 大数据量（单表 > 10 万条） | DuckDB / SQLite | Binary（懒加载） |
+| 通用生产环境 | Pytuck | SQLite |
+| 大数据量（单表 > 10 万条） | DuckDB / SQLite | Pytuck（懒加载） |
 | 分析型查询 / 多 schema | DuckDB | SQLite |
-| 需要加密保护 | Binary（加密） | CSV（ZIP 密码） |
+| 需要加密保护 | Pytuck（加密） | CSV（ZIP 密码） |
 | 开发调试 | JSON | JSONL |
 | 逐行文本归档 / 多表交换 | JSONL | JSON / CSV |
 | 与 Excel 互操作 | Excel | CSV |
-| 嵌入式应用（如 Ren'Py） | Binary | JSON / JSONL |
+| 嵌入式应用（如 Ren'Py） | Pytuck | JSON / JSONL |
 | 跨系统数据交换 | CSV / JSONL | JSON / XML |
 | 需要最小文件体积 | CSV | — |
 
@@ -59,8 +59,8 @@
 ```python
 from pytuck.tools.migrate import migrate_engine
 
-# 开发阶段用 JSON，上线切换为 Binary
-migrate_engine('data.json', 'json', 'data.db', 'binary')
+# 开发阶段用 JSON，上线切换为 Pytuck
+migrate_engine('data.json', 'json', 'data.pytuck', 'pytuck')
 ```
 
 ---
@@ -82,7 +82,7 @@ Session 待处理队列 → Storage 内存 → 磁盘文件
 **生产环境**：使用 `auto_flush=True`
 
 ```python
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 
 # commit() 自动写入磁盘
 session.commit()
@@ -94,7 +94,7 @@ User.create(name='Alice')
 **批量操作**：先关闭 `auto_flush`，操作完成后统一刷新
 
 ```python
-db = Storage(file_path='data.db', auto_flush=False)
+db = Storage(file_path='data.pytuck', auto_flush=False)
 
 # 批量操作
 for i in range(10000):
@@ -108,16 +108,16 @@ db.flush()
 
 ```python
 # ❌ 忘记持久化
-db = Storage(file_path='data.db')  # auto_flush 默认 False
+db = Storage(file_path='data.pytuck')  # auto_flush 默认 False
 User.create(name='Alice')
 # 程序崩溃 → 数据丢失！
 
 # ✅ 确保持久化
-db = Storage(file_path='data.db', auto_flush=True)
+db = Storage(file_path='data.pytuck', auto_flush=True)
 User.create(name='Alice')  # 自动写入磁盘
 
 # ✅ 或显式关闭
-db = Storage(file_path='data.db')
+db = Storage(file_path='data.pytuck')
 User.create(name='Alice')
 db.close()  # 关闭时自动 flush
 ```
@@ -279,7 +279,7 @@ class MyMixin(Base):
 
 | 引擎 | `None` 保留 | `''` 保留 | 备注 |
 |------|------------|----------|------|
-| Binary | ✅ | ✅ | 完整类型保留 |
+| Pytuck | ✅ | ✅ | 完整类型保留 |
 | JSON | ✅ | ✅ | `null` vs `""` |
 | JSONL | ✅ | ✅ | 逐行 JSON 文本，`null` vs `""` |
 | SQLite | ✅ | ✅ | `NULL` vs `''` |
@@ -291,7 +291,7 @@ class MyMixin(Base):
 ### 建议
 
 - 如果业务逻辑依赖 `None` 和 `''` 的区分，避免使用 CSV、Excel、XML 引擎
-- Binary、JSON、JSONL、SQLite 和 DuckDB 都能稳定区分 `None` 与 `''`；其中 Binary 的类型保留最完整
+- Pytuck、JSON、JSONL、SQLite 和 DuckDB 都能稳定区分 `None` 与 `''`；其中 Pytuck 的类型保留最完整
 
 ---
 
@@ -434,13 +434,13 @@ for user in users:
     print(user.orders)  # 从缓存读取，无查询
 ```
 
-### 懒加载（Binary）
+### 懒加载（Pytuck）
 
 ```python
 # 大数据量场景
 db = Storage(
-    file_path='large_data.db',
-    engine='binary',
+    file_path='large_data.pytuck',
+    engine='pytuck',
     backend_options=BinaryBackendOptions(lazy_load=True),
 )
 # 只加载 schema 和索引，按需读取数据
@@ -451,8 +451,8 @@ db = Storage(
 ```python
 # 加密 + 懒加载
 db = Storage(
-    file_path='large_secure.db',
-    engine='binary',
+    file_path='large_secure.pytuck',
+    engine='pytuck',
     backend_options=BinaryBackendOptions(
         lazy_load=True,
         encryption='medium',
