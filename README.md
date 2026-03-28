@@ -876,11 +876,12 @@ uv run python tests/benchmark/benchmark_encryption.py
 - **Python**: PyPy 3.9.18 (PyPy 7.3.15)
 - **测试数据量**: 100,000 条记录
 - **模式**: 扩展测试（包含索引对比、范围查询、批量读取、懒加载查询）
-- **命令**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+- **命令**: `uv run --python pypy3 python tests/benchmark/benchmark.py -n 100000 -e pytuck --extended --output-json /tmp/pytuck-benchmark-pypy-pytuck-v5.json`
+- **说明**: 本次仅重新复测 `Pytuck`（PTK5 / v5）一行，其余引擎沿用同机上一轮 PyPy 数据
 
 | 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |
 |------|------|----------|------------|----------|----------|------|------|--------|----------|
-| Pytuck | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
+| Pytuck | 533.32ms | 19.99ms | 1.52s | 76x | 141.41ms | 284.51ms | 307.59ms | 66.98ms | 6.09MB |
 | JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
 | JSONL | 586.37ms | 9.51ms | 1.53s | 161x | 99.36ms | 270.48ms | 256.08ms | - | 827.5KB |
 | CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
@@ -899,7 +900,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 | Pytuck | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | 无 | **生产环境首选** |
 | JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | 无 | 开发调试、配置存储 |
 | JSONL | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ✅（解压后） | 无 | 多表文本归档、逐行交换 |
-| CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | 无 | 数据交换、最小体积 |
+| CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅（解压后） | 无 | 数据交换、最小体积 |
 | SQLite | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | 无 | 需要稳定 SQL 写路径、事务和快速加载 |
 | DuckDB | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | duckdb | 分析查询、DuckDB 生态集成、多 schema 场景 |
 | Excel | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ | ✅ | openpyxl | 可视化编辑、报表 |
