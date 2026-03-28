@@ -861,37 +861,36 @@ pip install pytuck[xml]      # XML support only
 pip install pytuck[dev]      # Development tools
 ```
 
-### Install with uv (Recommended)
+### Add to a uv-managed Project (Recommended)
 
-[uv](https://github.com/astral-sh/uv) is an extremely fast Python package manager, 10-100x faster than pip.
+[uv](https://github.com/astral-sh/uv) is an extremely fast Python project and package manager. If your application already uses uv, add pytuck directly to your project dependencies:
 
 ```bash
 # Basic installation
-uv pip install pytuck
+uv add pytuck
 
 # With specific extras
-uv pip install pytuck[all]      # All optional engines
-uv pip install pytuck[excel]    # Excel support only
-uv pip install pytuck[xml]      # XML support only
-uv pip install pytuck[dev]      # Development tools
+uv add "pytuck[all]"       # All optional engines
+uv add "pytuck[duckdb]"    # DuckDB support only
+uv add "pytuck[excel]"     # Excel support only
+uv add "pytuck[xml]"       # XML support only
 ```
 
-### Install from Source
+### Contributors: Sync the Development Environment
+
+If you cloned this repository to contribute, do not manually install the project into the current environment with an editable install. Sync the project's development environment directly instead:
 
 ```bash
 # Clone repository
 git clone https://github.com/Pytuck/Pytuck.git
 cd pytuck
 
-# Editable install with pip
-pip install -e .
-pip install -e .[all]    # With all extras
-pip install -e .[dev]    # Development mode
+# Sync development environment (includes test tools and optional engines)
+uv sync --extra dev
 
-# Editable install with uv (faster)
-uv pip install -e .
-uv pip install -e .[all]    # With all extras
-uv pip install -e .[dev]    # Development mode
+# Run tests or examples
+uv run pytest tests/ -v
+uv run python examples/sqlalchemy20_api_demo.py
 ```
 
 ### Build and Publish
