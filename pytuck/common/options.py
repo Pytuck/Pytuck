@@ -39,8 +39,16 @@ class SqliteConnectorOptions:
     isolation_level: Optional[str] = None  # 事务隔离级别
 
 
+@dataclass
+class DuckdbConnectorOptions:
+    """DuckDB 连接器配置选项"""
+    read_only: bool = False  # 只读模式
+    threads: Optional[int] = None  # 线程数（None 表示自动）
+    schema: str = 'main'  # 默认 schema 名称
+
+
 # Connector 选项联合类型
-ConnectorOptions = Union[SqliteConnectorOptions]
+ConnectorOptions = Union[SqliteConnectorOptions, DuckdbConnectorOptions]
 
 
 @dataclass
@@ -77,6 +85,12 @@ class SqliteBackendOptions(SqliteConnectorOptions):
 
 
 @dataclass
+class DuckdbBackendOptions(DuckdbConnectorOptions):
+    """DuckDB 后端配置选项"""
+    use_native_sql: bool = True  # 使用原生 SQL 模式，直接执行 SQL 而非全量加载/保存
+
+
+@dataclass
 class ExcelBackendOptions:
     """Excel 后端配置选项"""
     read_only: bool = False  # 只读，只读情况下显著提升读取性能，但不可修改数据
@@ -105,6 +119,7 @@ BackendOptions = Union[
     JsonBackendOptions,
     CsvBackendOptions,
     SqliteBackendOptions,
+    DuckdbBackendOptions,
     ExcelBackendOptions,
     XmlBackendOptions,
     BinaryBackendOptions
@@ -118,6 +133,7 @@ def get_default_backend_options(engine: str) -> BackendOptions:
         'json': JsonBackendOptions(),
         'csv': CsvBackendOptions(),
         'sqlite': SqliteBackendOptions(),
+        'duckdb': DuckdbBackendOptions(),
         'excel': ExcelBackendOptions(),
         'xml': XmlBackendOptions(),
         'binary': BinaryBackendOptions()
@@ -128,7 +144,8 @@ def get_default_backend_options(engine: str) -> BackendOptions:
 def get_default_connector_options(db_type: str) -> ConnectorOptions:
     """根据连接器类型返回默认选项"""
     defaults: Dict[str, ConnectorOptions] = {
-        'sqlite': SqliteConnectorOptions()
+        'sqlite': SqliteConnectorOptions(),
+        'duckdb': DuckdbConnectorOptions()
     }
     return defaults.get(db_type, SqliteConnectorOptions())
 

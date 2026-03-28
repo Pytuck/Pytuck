@@ -93,6 +93,7 @@ class SQLiteConnector(DatabaseConnector):
             options: SQLite 连接器配置选项
         """
         super().__init__(db_path, options)
+        self.options: SqliteConnectorOptions = options
         self.conn: Optional[sqlite3.Connection] = None
 
     def connect(self) -> None:

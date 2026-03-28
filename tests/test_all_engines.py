@@ -1,11 +1,12 @@
 """
 Pytuck - 所有存储引擎综合测试
 
-测试所有6种存储引擎的功能：
+测试所有7种存储引擎的功能：
 - binary: 二进制引擎（默认）
 - json: JSON引擎
 - csv: CSV引擎（ZIP压缩）
 - sqlite: SQLite引擎
+- duckdb: DuckDB引擎
 - excel: Excel引擎（需要 openpyxl）
 - xml: XML引擎（需要 lxml）
 """
@@ -32,6 +33,7 @@ ALL_ENGINES = [
     ('json', 'json'),
     ('csv', 'zip'),
     ('sqlite', 'sqlite'),
+    ('duckdb', 'duckdb'),
     ('excel', 'xlsx'),
     ('xml', 'xml'),
 ]

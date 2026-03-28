@@ -12,6 +12,7 @@ from typing import List, Optional
 from ..connectors import (
     DatabaseConnector,
     SQLiteConnector,
+    DuckDBConnector,
     get_connector,
     CONNECTORS,
 )
@@ -24,6 +25,9 @@ DatabaseSourceAdapter = DatabaseConnector
 
 SQLiteSourceAdapter = SQLiteConnector
 """SQLite 数据库源适配器（SQLiteConnector 的别名）"""
+
+DuckDBSourceAdapter = DuckDBConnector
+"""DuckDB 数据库源适配器（DuckDBConnector 的别名）"""
 
 # 适配器注册表（指向 CONNECTORS）
 ADAPTERS = CONNECTORS

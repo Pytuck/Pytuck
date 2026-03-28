@@ -6,7 +6,6 @@ Pytuck 存储引擎
 
 import copy
 import json
-import sqlite3
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Iterator, Tuple, Optional, Generator, Type, Union, TYPE_CHECKING, Sequence
@@ -14,7 +13,6 @@ from contextlib import contextmanager
 
 from ..common.options import BackendOptions, SyncOptions, SyncResult
 from ..common.typing import ColumnTypes
-from ..common.utils import validate_sql_identifier
 from .orm import Column, PSEUDO_PK_NAME
 from .index import BaseIndex, HashIndex, SortedIndex
 from .event import event
@@ -1068,13 +1066,18 @@ class Storage:
             # 创建索引
             for col_name, col in table.columns.items():
                 if col.index and not col.primary_key:
-                    # 验证标识符安全性
-                    validate_sql_identifier(table_name)
-                    validate_sql_identifier(col_name)
                     index_name = f'idx_{table_name}_{col_name}'
                     connector.execute(
-                        f'CREATE INDEX IF NOT EXISTS `{index_name}` ON `{table_name}`(`{col_name}`)'
+                        f'CREATE INDEX {self._quote_sql_identifier(index_name)} '
+                        f'ON {self._quote_sql_identifier(table_name)}'
+                        f'({self._quote_sql_identifier(col_name)})'
                     )
+
+            if hasattr(connector, 'set_table_comment'):
+                connector.set_table_comment(table_name, table.comment)
+            if hasattr(connector, 'set_column_comment'):
+                for col_name, col in table.columns.items():
+                    connector.set_column_comment(table_name, col_name, col.comment)
 
             connector.commit()
 
@@ -1144,6 +1147,8 @@ class Storage:
 
         # 1. 同步表备注
         if opts.sync_table_comment and table.comment != comment:
+            if self._native_sql_mode and self._connector and hasattr(self._connector, 'set_table_comment'):
+                self._connector.set_table_comment(table_name, comment)
             table.update_comment(comment)
             result.table_comment_updated = True
 
@@ -1174,6 +1179,11 @@ class Storage:
                 old_col = table.columns[col_name]
                 new_col = new_columns_map[col_name]
                 if old_col.comment != new_col.comment:
+                    if (
+                        self._native_sql_mode and self._connector
+                        and hasattr(self._connector, 'set_column_comment')
+                    ):
+                        self._connector.set_column_comment(table_name, col_name, new_col.comment)
                     table.update_column_comment(col_name, new_col.comment)
                     result.column_comments_updated.append(col_name)
 
@@ -1249,6 +1259,8 @@ class Storage:
             TableNotFoundError: 表不存在
         """
         table = self.get_table(table_name)
+        if self._native_sql_mode and self._connector and hasattr(self._connector, 'set_table_comment'):
+            self._connector.set_table_comment(table_name, comment)
         table.update_comment(comment)
         self._dirty = True
 
@@ -1335,6 +1347,8 @@ class Storage:
         table = self.get_table(table_name)
 
         if comment is not ...:
+            if self._native_sql_mode and self._connector and hasattr(self._connector, 'set_column_comment'):
+                self._connector.set_column_comment(table_name, column_name, comment)
             table.update_column_comment(column_name, comment)
             self._dirty = True
 
@@ -1428,13 +1442,12 @@ class Storage:
         if not self._connector:
             return
 
-        # 验证标识符安全性
-        validate_sql_identifier(table_name)
-        if column.name:
-            validate_sql_identifier(column.name)
-
+        assert column.name is not None, 'Column name must be set'
         sql_type = self._get_sql_type(column.col_type)
-        sql = f'ALTER TABLE "{table_name}" ADD COLUMN "{column.name}" {sql_type}'
+        sql = (
+            f'ALTER TABLE {self._quote_sql_identifier(table_name)} '
+            f'ADD COLUMN {self._quote_sql_identifier(column.name)} {sql_type}'
+        )
 
         if not column.nullable:
             sql += ' NOT NULL'
@@ -1444,6 +1457,8 @@ class Storage:
             sql += f' DEFAULT {self._format_sql_value(fill_value)}'
 
         self._connector.execute(sql)
+        if hasattr(self._connector, 'set_column_comment'):
+            self._connector.set_column_comment(table_name, column.name, column.comment)
         self._connector.commit()
 
     def _drop_column_native_sql(self, table_name: str, column_name: str) -> None:
@@ -1451,11 +1466,10 @@ class Storage:
         if not self._connector:
             return
 
-        # 验证标识符安全性
-        validate_sql_identifier(table_name)
-        validate_sql_identifier(column_name)
-
-        sql = f'ALTER TABLE "{table_name}" DROP COLUMN "{column_name}"'
+        sql = (
+            f'ALTER TABLE {self._quote_sql_identifier(table_name)} '
+            f'DROP COLUMN {self._quote_sql_identifier(column_name)}'
+        )
         self._connector.execute(sql)
         self._connector.commit()
 
@@ -1464,10 +1478,7 @@ class Storage:
         if not self._connector:
             return
 
-        # 验证标识符安全性
-        validate_sql_identifier(table_name)
-
-        sql = f'DROP TABLE IF EXISTS "{table_name}"'
+        sql = f'DROP TABLE IF EXISTS {self._quote_sql_identifier(table_name)}'
         self._connector.execute(sql)
         self._connector.commit()
 
@@ -1476,22 +1487,34 @@ class Storage:
         if not self._connector:
             return
 
-        # 验证标识符安全性
-        validate_sql_identifier(old_name)
-        validate_sql_identifier(new_name)
-
-        sql = f'ALTER TABLE "{old_name}" RENAME TO "{new_name}"'
+        sql = (
+            f'ALTER TABLE {self._quote_sql_identifier(old_name)} '
+            f'RENAME TO {self._quote_sql_identifier(new_name)}'
+        )
         self._connector.execute(sql)
         self._connector.commit()
 
     @staticmethod
-    def _get_sql_type(col_type: ColumnTypes) -> str:
-        """获取 Python 类型对应的 SQLite 类型"""
+    def _quote_sql_identifier(identifier: str) -> str:
+        """使用标准 SQL 双引号安全引用标识符"""
+        if not identifier:
+            raise ValidationError('SQL identifier cannot be empty')
+        escaped = identifier.replace('"', '""')
+        return f'"{escaped}"'
+
+    def _get_sql_type(self, col_type: ColumnTypes) -> str:
+        """获取 Python 类型对应的当前连接器 SQL 类型"""
+        if self._connector is not None:
+            type_mapping = getattr(self._connector, 'TYPE_TO_SQL', {})
+            sql_type = type_mapping.get(col_type)
+            if sql_type:
+                return sql_type
+
         type_mapping = {
             int: 'INTEGER',
             float: 'REAL',
             str: 'TEXT',
-            bool: 'INTEGER',
+            bool: 'BOOLEAN',
             bytes: 'BLOB',
             datetime: 'TEXT',
             date: 'TEXT',
@@ -1507,7 +1530,7 @@ class Storage:
         if value is None:
             return 'NULL'
         elif isinstance(value, bool):
-            return '1' if value else '0'
+            return 'TRUE' if value else 'FALSE'
         elif isinstance(value, (int, float)):
             return str(value)
         elif isinstance(value, str):
@@ -1516,6 +1539,17 @@ class Storage:
         else:
             escaped = str(value).replace("'", "''")
             return f"'{escaped}'"
+
+    @staticmethod
+    def _is_duplicate_key_error(error: Exception) -> bool:
+        """判断异常是否表示主键或唯一键冲突"""
+        error_msg = str(error).lower()
+        return (
+            'duplicate key' in error_msg
+            or 'unique constraint failed' in error_msg
+            or 'violates unique constraint' in error_msg
+            or ('primary key' in error_msg and ('duplicate' in error_msg or 'violate' in error_msg))
+        )
 
     def insert(self, table_name: str, data: Dict[str, Any]) -> Any:
         """
@@ -1571,12 +1605,16 @@ class Storage:
             validated_value = column.validate(value)
             validated_record[col_name] = validated_value
 
+        if table.primary_key:
+            pk_column = table.columns[table.primary_key]
+            if pk_column.col_type == int and validated_record.get(table.primary_key) is None:
+                validated_record[table.primary_key] = pk_column.validate(table.next_id)
+
         # 使用连接器插入，捕获主键冲突异常
         try:
             pk = connector.insert_row(table_name, validated_record, table.primary_key)
-        except sqlite3.IntegrityError as e:
-            error_msg = str(e).lower()
-            if 'unique constraint' in error_msg or 'primary key' in error_msg:
+        except Exception as e:
+            if self._is_duplicate_key_error(e):
                 pk_value = validated_record.get(table.primary_key) if table.primary_key else None
                 raise DuplicateKeyError(table_name, pk_value) from e
             raise
@@ -1804,7 +1842,7 @@ class Storage:
         # 原生 SQL 模式：直接执行 COUNT 查询
         if self._native_sql_mode and self._connector:
             cursor = self._connector.execute(
-                f'SELECT COUNT(*) FROM `{table_name}`'
+                f'SELECT COUNT(*) FROM {self._quote_sql_identifier(table_name)}'
             )
             result = cursor.fetchone()
             return int(result[0]) if result else 0
@@ -1834,7 +1872,7 @@ class Storage:
 
                 if col_type == bool and isinstance(value, int):
                     value = bool(value)
-                elif col_type in (datetime, date, timedelta):
+                elif col_type in (datetime, date, timedelta) and isinstance(value, str):
                     value = TypeRegistry.deserialize_from_text(value, col_type)
                 elif col_type in (list, dict) and isinstance(value, str):
                     value = json.loads(value)
@@ -2096,17 +2134,17 @@ class Storage:
                 params.extend(cond_params)
             else:
                 # 简单条件
-                sql_part, param = self._compile_simple_condition(condition)
+                sql_part, cond_params = self._compile_simple_condition(condition)
                 where_parts.append(sql_part)
-                params.append(param)
+                params.extend(cond_params)
 
         where_clause = ' AND '.join(where_parts) if where_parts else None
 
         # 构建 ORDER BY 子句
         order_by_clause = None
-        if order_by:
+        if order_by and order_by in table.columns:
             direction = 'DESC' if order_desc else 'ASC'
-            order_by_clause = f'`{order_by}` {direction}'
+            order_by_clause = f'{self._quote_sql_identifier(order_by)} {direction}'
 
         # 执行查询
         rows = connector.query_rows(
@@ -2146,9 +2184,9 @@ class Storage:
                 parts.append(f'NOT ({child_sql})')
                 params.extend(child_params)
             else:
-                sql_part, param = self._compile_simple_condition(child)
+                sql_part, child_params = self._compile_simple_condition(child)
                 parts.append(f'NOT ({sql_part})')
-                params.append(param)
+                params.extend(child_params)
         else:
             # AND 或 OR
             for child in condition.conditions:
@@ -2157,9 +2195,9 @@ class Storage:
                     parts.append(f'({child_sql})')
                     params.extend(child_params)
                 else:
-                    sql_part, param = self._compile_simple_condition(child)
+                    sql_part, child_params = self._compile_simple_condition(child)
                     parts.append(sql_part)
-                    params.append(param)
+                    params.extend(child_params)
 
         if condition.operator == 'NOT':
             return parts[0], params
@@ -2168,27 +2206,41 @@ class Storage:
             return connector_str.join(parts), params
 
     @staticmethod
-    def _compile_simple_condition(child: Condition) -> Tuple[str, Any]:
+    def _compile_simple_condition(child: Condition) -> Tuple[str, List[Any]]:
         """
         编译单个 Condition 为 SQL 片段和参数
 
-        对 LIKE/STARTSWITH/ENDSWITH 操作符做特殊的通配符处理。
+        对 NULL、IN、LIKE/STARTSWITH/ENDSWITH 操作符做特殊处理。
 
         Args:
             child: Condition 对象
 
         Returns:
-            (SQL 片段, 参数值)
+            (SQL 片段, 参数列表)
         """
+        quoted_field = Storage._quote_sql_identifier(child.field)
+        op = Storage._convert_operator(child.operator)
+
+        if child.operator == 'IN':
+            if not isinstance(child.value, (list, tuple)) or len(child.value) == 0:
+                return '1 = 0', []
+            placeholders = ', '.join('?' for _ in child.value)
+            return f'{quoted_field} IN ({placeholders})', list(child.value)
+
+        if child.value is None:
+            if op in ('=', '=='):
+                return f'{quoted_field} IS NULL', []
+            if op in ('!=', '<>'):
+                return f'{quoted_field} IS NOT NULL', []
+            return '1 = 0', []
+
         if child.operator == 'LIKE':
-            return f'`{child.field}` LIKE ?', f'%{child.value}%'
-        elif child.operator == 'STARTSWITH':
-            return f'`{child.field}` LIKE ?', f'{child.value}%'
-        elif child.operator == 'ENDSWITH':
-            return f'`{child.field}` LIKE ?', f'%{child.value}'
-        else:
-            op = Storage._convert_operator(child.operator)
-            return f'`{child.field}` {op} ?', child.value
+            return f'{quoted_field} LIKE ?', [f'%{child.value}%']
+        if child.operator == 'STARTSWITH':
+            return f'{quoted_field} LIKE ?', [f'{child.value}%']
+        if child.operator == 'ENDSWITH':
+            return f'{quoted_field} LIKE ?', [f'%{child.value}']
+        return f'{quoted_field} {op} ?', [child.value]
 
     @staticmethod
     def _convert_operator(op: str) -> str:

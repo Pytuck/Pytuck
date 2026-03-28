@@ -13,6 +13,7 @@ ENGINE_FORMAT_VERSIONS: Dict[str, int] = {
     'excel': 2,    # v2: 统一元数据结构 + 添加表和列 comment 支持
     'json': 2,     # v2: 添加表和列 comment 支持
     'sqlite': 2,   # v2: 添加表和列 comment 支持
+    'duckdb': 1,   # v1: DuckDB 引擎初始格式版本
     'xml': 2,      # v2: 添加表和列 comment 支持
 }
 

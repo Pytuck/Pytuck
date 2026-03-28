@@ -29,11 +29,11 @@ def migrate_engine(
     在不同存储引擎之间迁移数据
 
     将数据从一个存储引擎迁移到另一个存储引擎。
-    支持的引擎: binary, json, csv, sqlite, excel, xml
+    支持的引擎: binary, json, csv, sqlite, duckdb, excel, xml
 
     Args:
         source_path: 源数据文件路径
-        source_engine: 源引擎名称 ('binary', 'json', 'csv', 'sqlite', 'excel', 'xml')
+        source_engine: 源引擎名称 ('binary', 'json', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
         target_path: 目标数据文件路径
         target_engine: 目标引擎名称
         overwrite: 是否覆盖已存在的目标文件（默认 False）
@@ -160,6 +160,7 @@ def get_available_engines() -> Dict[str, bool]:
             'json': True,     # 始终可用
             'csv': True,      # 始终可用
             'sqlite': True,   # 始终可用
+            'duckdb': False,  # 需要 duckdb
             'excel': False,   # 需要 openpyxl
             'xml': False      # 需要 lxml
         }
@@ -172,20 +173,11 @@ def get_available_engines() -> Dict[str, bool]:
             status = "✓" if available else "✗"
             print(f"{status} {name}")
     """
-    from ..backends.backend_binary import BinaryBackend
-    from ..backends.backend_json import JSONBackend
-    from ..backends.backend_csv import CSVBackend
-    from ..backends.backend_sqlite import SQLiteBackend
-    from ..backends.backend_excel import ExcelBackend
-    from ..backends.backend_xml import XMLBackend
+    from ..backends import get_available_engines as get_backend_engines
 
     return {
-        'binary': BinaryBackend.is_available(),
-        'json': JSONBackend.is_available(),
-        'csv': CSVBackend.is_available(),
-        'sqlite': SQLiteBackend.is_available(),
-        'excel': ExcelBackend.is_available(),
-        'xml': XMLBackend.is_available()
+        name: info['available']
+        for name, info in get_backend_engines().items()
     }
 
 
@@ -206,14 +198,14 @@ def import_from_database(
     """
     从外部关系型数据库导入数据到 Pytuck 格式
 
-    支持从普通的 SQLite 数据库（非 Pytuck 格式）导入数据，
+    支持从普通的 SQLite 或 DuckDB 数据库（非 Pytuck 格式）导入数据，
     自动分析表结构并转换为 Pytuck 兼容格式。
 
     Args:
         source_path: 源数据库文件路径
         target_path: 目标 Pytuck 数据文件路径
-        target_engine: 目标引擎名称 ('binary', 'json', 'csv', 'sqlite', 'excel', 'xml')
-        source_type: 源数据库类型 ('sqlite')，可扩展支持其他数据库
+        target_engine: 目标引擎名称 ('binary', 'json', 'csv', 'sqlite', 'duckdb', 'excel', 'xml')
+        source_type: 源数据库类型 ('sqlite', 'duckdb')
         tables: 要导入的表名列表，None 表示导入全部
         primary_key_map: 表名到主键列名的映射，用于指定没有主键的表的主键
         exclude_tables: 要排除的表名列表

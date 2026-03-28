@@ -416,24 +416,8 @@ class Session:
 
         try:
             # 原生 SQL 模式：直接从数据库查询
-            if self.storage._native_sql_mode and self.storage._connector:
-                pk_attr_name = model_class.__primary_key__
-                # 获取主键的 Column.name
-                pk_col_name = pk_attr_name
-                if pk_attr_name in model_class.__columns__:
-                    pk_column = model_class.__columns__[pk_attr_name]
-                    pk_col_name = pk_column.name if pk_column.name else pk_attr_name
-
-                # 使用 query_rows 获取单条记录
-                rows = self.storage._connector.query_rows(
-                    table_name,
-                    where_clause=f'`{pk_col_name}` = ?',
-                    params=(pk,),
-                    limit=1
-                )
-                if not rows:
-                    return None
-                record = rows[0]
+            if self.storage._native_sql_mode:
+                record = self.storage.select(table_name, pk)
             else:
                 # 内存模式：从 Table.data 获取
                 record = self.storage.get_table(table_name).get(pk)
@@ -595,36 +579,12 @@ class Session:
         if isinstance(statement, Select):
             # 编译并执行 SELECT
             if compiler.can_compile(statement):
-
-                # 从编译后的 SQL 中提取 WHERE 部分
-                # 使用 connector 的 query_rows 方法
                 table = self.storage.get_table(statement.model_class.__tablename__)
-
-                # 构建 order by 字符串
-                order_by_str = None
-                if statement._order_by_fields:
-                    order_parts = []
-                    for field, desc in statement._order_by_fields:
-                        if desc:
-                            order_parts.append(f'`{field}` DESC')
-                        else:
-                            order_parts.append(f'`{field}` ASC')
-                    order_by_str = ', '.join(order_parts)
-
-                # 构建 where 子句（使用编译器处理，支持 LogicalExpression）
-                where_sql, params_list = compiler._compile_where(statement)
-                where_clause = where_sql if where_sql else None
-                params = params_list
-
-                # 执行查询
-                rows = connector.query_rows(
-                    statement.model_class.__tablename__,
-                    where_clause=where_clause,
-                    params=tuple(params),
-                    order_by=order_by_str,
-                    limit=statement._limit_value,
-                    offset=statement._offset_value if statement._offset_value > 0 else None
-                )
+                compiled = compiler.compile(statement)
+                cursor = connector.execute(compiled.sql, compiled.params)
+                rows_raw = cursor.fetchall()
+                col_names = [desc[0] for desc in cursor.description] if cursor.description else []
+                rows = [dict(zip(col_names, row)) for row in rows_raw]
 
                 # 反序列化记录
                 records = [self._deserialize_record(row, table.columns) for row in rows]
@@ -652,23 +612,10 @@ class Session:
                         column = table.columns[db_col_name]
                         validated_data[db_col_name] = column.validate(value)
 
-            # 获取主键的 Column.name
-            pk_attr_name = statement.model_class.__primary_key__
-            pk_col_name = pk_attr_name
-            if pk_attr_name and pk_attr_name in statement.model_class.__columns__:
-                pk_column = statement.model_class.__columns__[pk_attr_name]
-                pk_col_name = pk_column.name if pk_column.name else pk_attr_name
-
-            pk = connector.insert_row(
+            pk = self.storage.insert(
                 statement.model_class.__tablename__,
-                validated_data,
-                pk_col_name
+                validated_data
             )
-
-            # 更新 next_id
-            if pk is not None and isinstance(pk, int) and pk >= table.next_id:
-                table.next_id = pk + 1
-                self.storage._dirty = True
 
             return CursorResult(1, statement.model_class, 'insert', inserted_pk=pk)
 
@@ -781,7 +728,7 @@ class Session:
 
                 if col_type == bool and isinstance(value, int):
                     value = bool(value)
-                elif col_type in (datetime, date, timedelta):
+                elif col_type in (datetime, date, timedelta) and isinstance(value, str):
                     value = TypeRegistry.deserialize_from_text(value, col_type)
                 elif col_type in (list, dict) and isinstance(value, str):
                     value = json.loads(value)

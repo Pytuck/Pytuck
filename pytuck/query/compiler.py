@@ -40,16 +40,16 @@ class SQLDialect:
     可扩展支持不同数据库（SQLite, DuckDB 等）。
     """
 
-    # 参数占位符（SQLite 使用 ?）
+    # 参数占位符（SQLite / DuckDB 使用 ?）
     param_style: str = '?'
 
-    # 标识符引号（SQLite 使用 ` 或 "，这里使用 `）
-    identifier_quote: str = '`'
+    # 标识符引号：使用标准 SQL 双引号，SQLite 与 DuckDB 都支持
+    identifier_quote: str = '"'
 
-    @classmethod
-    def quote_identifier(cls, name: str) -> str:
+    def quote_identifier(self, name: str) -> str:
         """引用标识符（表名、列名）"""
-        return f'{cls.identifier_quote}{name}{cls.identifier_quote}'
+        escaped = name.replace(self.identifier_quote, self.identifier_quote * 2)
+        return f'{self.identifier_quote}{escaped}{self.identifier_quote}'
 
 
 class QueryCompiler:
@@ -63,7 +63,7 @@ class QueryCompiler:
         compiler = QueryCompiler()
         if compiler.can_compile(statement):
             result = compiler.compile(statement)
-            # result.sql = 'SELECT * FROM `users` WHERE `age` > ?'
+            # result.sql = 'SELECT * FROM "users" WHERE "age" > ?'
             # result.params = (18,)
     """
 

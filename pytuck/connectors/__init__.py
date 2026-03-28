@@ -7,13 +7,14 @@ Pytuck 数据库连接器模块
 
 支持的数据库类型：
 - sqlite: SQLite 数据库（内置，无需额外依赖）
-- duckdb: DuckDB 数据库（未来扩展）
+- duckdb: DuckDB 数据库（需要 duckdb 包）
 """
 
 from typing import Dict, Type, Optional
 
 from .base import DatabaseConnector
 from .connector_sqlite import SQLiteConnector
+from .connector_duckdb import DuckDBConnector
 from ..common.options import ConnectorOptions, get_default_connector_options
 from ..common.exceptions import ConfigurationError
 
@@ -21,8 +22,8 @@ from ..common.exceptions import ConfigurationError
 # 连接器注册表
 CONNECTORS: Dict[str, Type[DatabaseConnector]] = {
     'sqlite': SQLiteConnector,
+    'duckdb': DuckDBConnector,
     # 未来扩展：
-    # 'duckdb': DuckDBConnector,
     # 'mysql': MySQLConnector,
 }
 
@@ -32,7 +33,7 @@ def get_connector(db_type: str, db_path: str, options: Optional[ConnectorOptions
     获取数据库连接器实例
 
     Args:
-        db_type: 数据库类型（'sqlite' 等）
+        db_type: 数据库类型（'sqlite'、'duckdb' 等）
         db_path: 数据库路径或连接字符串
         options: 强类型的连接器配置选项
 
@@ -93,6 +94,7 @@ def get_available_connectors() -> Dict[str, bool]:
 __all__ = [
     'DatabaseConnector',
     'SQLiteConnector',
+    'DuckDBConnector',
     'get_connector',
     'get_available_connectors',
     'CONNECTORS',

@@ -22,6 +22,7 @@ from . import backend_binary   # noqa: F401
 from . import backend_json     # noqa: F401
 from . import backend_csv      # noqa: F401
 from . import backend_sqlite   # noqa: F401
+from . import backend_duckdb   # noqa: F401
 from . import backend_excel    # noqa: F401
 from . import backend_xml      # noqa: F401
 

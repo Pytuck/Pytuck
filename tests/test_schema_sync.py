@@ -672,6 +672,94 @@ class TestPytuckViewAPI:
             db.close()
 
 
+class TestDuckdbNativeCommentSync:
+    """测试 DuckDB 原生 catalog 备注同步"""
+
+    def test_sync_table_schema_updates_duckdb_catalog(self, tmp_path: Path) -> None:
+        """DuckDB sync_table_schema 会把新增列备注和更新备注写入原生 catalog"""
+        duckdb = pytest.importorskip('duckdb')
+        db_file = tmp_path / 'duckdb_sync_comments.duckdb'
+        db = Storage(file_path=str(db_file), engine='duckdb')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            __table_comment__ = '旧表备注'
+            id = Column(int, primary_key=True)
+            name = Column(str, comment='旧名称备注')
+
+        new_columns = [
+            Column(int, primary_key=True, name='id'),
+            Column(str, comment='新名称备注', name='name'),
+            Column(str, nullable=True, comment='邮箱备注', name='email')
+        ]
+        result = db.sync_table_schema('users', new_columns, comment='新表备注')
+
+        assert result.table_comment_updated is True
+        assert 'name' in result.column_comments_updated
+        assert 'email' in result.columns_added
+
+        db.close()
+
+        conn = duckdb.connect(str(db_file), read_only=True)
+        try:
+            table_comment = conn.execute(
+                "SELECT comment FROM duckdb_tables() "
+                "WHERE schema_name = 'main' AND table_name = 'users'"
+            ).fetchone()
+            name_comment = conn.execute(
+                "SELECT comment FROM duckdb_columns() "
+                "WHERE schema_name = 'main' AND table_name = 'users' AND column_name = 'name'"
+            ).fetchone()
+            email_comment = conn.execute(
+                "SELECT comment FROM duckdb_columns() "
+                "WHERE schema_name = 'main' AND table_name = 'users' AND column_name = 'email'"
+            ).fetchone()
+        finally:
+            conn.close()
+
+        assert table_comment is not None
+        assert table_comment[0] == '新表备注'
+        assert name_comment is not None
+        assert name_comment[0] == '新名称备注'
+        assert email_comment is not None
+        assert email_comment[0] == '邮箱备注'
+
+    def test_update_comment_methods_write_duckdb_catalog(self, tmp_path: Path) -> None:
+        """DuckDB update_table_comment/update_column(comment=...) 会直接写入原生 catalog"""
+        duckdb = pytest.importorskip('duckdb')
+        db_file = tmp_path / 'duckdb_update_comments.duckdb'
+        db = Storage(file_path=str(db_file), engine='duckdb')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        db.update_table_comment('users', '用户信息表')
+        db.update_column('users', 'name', comment='用户名')
+        db.close()
+
+        conn = duckdb.connect(str(db_file), read_only=True)
+        try:
+            table_comment = conn.execute(
+                "SELECT comment FROM duckdb_tables() "
+                "WHERE schema_name = 'main' AND table_name = 'users'"
+            ).fetchone()
+            column_comment = conn.execute(
+                "SELECT comment FROM duckdb_columns() "
+                "WHERE schema_name = 'main' AND table_name = 'users' AND column_name = 'name'"
+            ).fetchone()
+        finally:
+            conn.close()
+
+        assert table_comment is not None
+        assert table_comment[0] == '用户信息表'
+        assert column_comment is not None
+        assert column_comment[0] == '用户名'
+
+
 class TestColumnNameInSchemaOperations:
     """测试 Schema 操作方法对自定义 Column.name 的支持"""
 
