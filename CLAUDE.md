@@ -5,6 +5,7 @@
 ### 运行环境
 
 - **Windows/Linux/macOS**：都使用默认 shell（bash/zsh），命令无法执行时再尝试 PowerShell/cmd 等
+- 项目使用**uv**管理依赖和运行，虚拟环境位于 `.venv` 目录下，请使用uv或虚拟环境的python运行项目
 
 ---
 
