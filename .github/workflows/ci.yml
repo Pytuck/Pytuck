@@ -19,16 +19,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Set up uv and Python ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-suffix: ${{ runner.os }}-${{ matrix.python-version }}
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --locked --extra dev
 
       - name: Run tests
-        run: pytest tests/ -v
+        run: uv run pytest tests/ -v
 
   type-check:
     name: Type Check (mypy)
@@ -37,13 +42,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
+          enable-cache: true
+          cache-suffix: ubuntu-latest-3.12-type-check
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --locked --extra dev
 
       - name: Run mypy
-        run: mypy pytuck/ --ignore-missing-imports
+        run: uv run mypy pytuck/ --ignore-missing-imports

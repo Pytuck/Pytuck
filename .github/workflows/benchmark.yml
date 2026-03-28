@@ -14,16 +14,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.12"
+          enable-cache: true
+          cache-suffix: ubuntu-latest-3.12-benchmark
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: uv sync --locked --extra dev
 
       - name: Run benchmark
-        run: python tests/benchmark/benchmark.py -n 5000 --output-json benchmark_results.json
+        run: uv run python tests/benchmark/benchmark.py -n 5000 --output-json benchmark_results.json
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
