@@ -27,7 +27,7 @@ class TestOffsetLimit:
 
     def test_limit_only(self, tmp_path):
         """只使用 limit"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -52,7 +52,7 @@ class TestOffsetLimit:
 
     def test_offset_only(self, tmp_path):
         """只使用 offset"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -77,7 +77,7 @@ class TestOffsetLimit:
 
     def test_offset_with_limit(self, tmp_path):
         """offset 和 limit 组合"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -102,7 +102,7 @@ class TestOffsetLimit:
 
     def test_offset_exceeds_total(self, tmp_path):
         """offset 超过总数"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -127,7 +127,7 @@ class TestOffsetLimit:
 
     def test_limit_zero(self, tmp_path):
         """limit 为 0"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -151,7 +151,7 @@ class TestOffsetLimit:
 
     def test_limit_larger_than_total(self, tmp_path):
         """limit 大于总数"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -180,7 +180,7 @@ class TestOrderBy:
 
     def test_order_by_single_column_asc(self, tmp_path):
         """单列升序排序"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -209,7 +209,7 @@ class TestOrderBy:
 
     def test_order_by_single_column_desc(self, tmp_path):
         """单列降序排序"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -238,7 +238,7 @@ class TestOrderBy:
 
     def test_order_by_two_columns(self, tmp_path):
         """多列排序"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -276,7 +276,7 @@ class TestOrderBy:
 
     def test_order_by_mixed_asc_desc(self, tmp_path):
         """混合升降序排序"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -313,7 +313,7 @@ class TestOrderBy:
 
     def test_order_by_with_filter(self, tmp_path):
         """排序与过滤组合"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -351,7 +351,7 @@ class TestQueryChaining:
 
     def test_filter_filter_chaining(self, tmp_path):
         """多个 filter 链式调用（AND 语义）"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -386,7 +386,7 @@ class TestQueryChaining:
 
     def test_filter_order_limit_offset(self, tmp_path):
         """filter + order + limit + offset 组合"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -426,7 +426,7 @@ class TestQueryChaining:
 
     def test_method_order_independence(self, tmp_path):
         """方法调用顺序应该不影响结果"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -468,7 +468,7 @@ class TestComplexQueries:
 
     def test_in_operator(self, tmp_path):
         """IN 操作符"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -501,7 +501,7 @@ class TestComplexQueries:
 
     def test_not_equal_operator(self, tmp_path):
         """不等于操作符"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -532,7 +532,7 @@ class TestComplexQueries:
 
     def test_greater_less_operators(self, tmp_path):
         """大于小于操作符"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -566,7 +566,7 @@ class TestComplexQueries:
 
     def test_first_on_ordered_query(self, tmp_path):
         """排序后取第一个"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)

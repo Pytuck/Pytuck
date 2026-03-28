@@ -80,7 +80,7 @@ class TestDeclarativeBase(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
     def tearDown(self):
@@ -208,7 +208,7 @@ class TestPureBaseModel(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
         # 创建纯模型基类
@@ -285,7 +285,7 @@ class TestCRUDBaseModel(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
         # 创建 CRUD 基类
@@ -478,9 +478,9 @@ class TestMultipleEngines(unittest.TestCase):
             if os.path.exists(temp_dir):
                 os.rmdir(temp_dir)
 
-    def test_binary_engine(self):
-        """测试 Binary 引擎"""
-        self._test_engine('binary', 'db')
+    def test_pytuck_engine(self):
+        """测试 Pytuck 引擎"""
+        self._test_engine('pytuck', 'pytuck')
 
     def test_json_engine(self):
         """测试 JSON 引擎"""
@@ -506,7 +506,7 @@ class TestTypeAnnotations(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
     def tearDown(self):
@@ -597,7 +597,7 @@ class TestColumnNameMapping(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
     def tearDown(self):
@@ -839,7 +839,7 @@ class TestToDictEnhanced(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
         Base: Type[CRUDBaseModel] = declarative_base(self.db, crud=True)
@@ -1088,7 +1088,7 @@ class TestColumnValidator(unittest.TestCase):
     def setUp(self):
         """设置测试环境"""
         self.temp_dir = mktemp_dir_project()
-        self.db_path = os.path.join(self.temp_dir, 'test.db')
+        self.db_path = os.path.join(self.temp_dir, 'test.pytuck')
         self.db = Storage(file_path=self.db_path)
 
     def tearDown(self):

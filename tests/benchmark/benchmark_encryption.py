@@ -3,7 +3,7 @@ Pytuck 加密性能测试脚本
 
 测试所有支持加密的引擎的加密性能：
 
-Binary 引擎:
+Pytuck 引擎:
 - 无加密
 - 低级加密 (low) - XOR
 - 中级加密 (medium) - LCG
@@ -21,7 +21,7 @@ CSV 引擎:
 用法:
     python tests/benchmark/benchmark_encryption.py                          # 默认测试
     python tests/benchmark/benchmark_encryption.py -n 1000 5000             # 自定义记录数
-    python tests/benchmark/benchmark_encryption.py -e binary                # 只测试 Binary
+    python tests/benchmark/benchmark_encryption.py -e pytuck                # 只测试 Pytuck
     python tests/benchmark/benchmark_encryption.py -e csv                   # 只测试 CSV
     python tests/benchmark/benchmark_encryption.py --output-json result.json  # JSON 输出
 """
@@ -57,8 +57,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         '-e', '--engines', nargs='+',
-        choices=['binary', 'csv'], default=['binary', 'csv'],
-        help='测试引擎（默认: binary csv）'
+        choices=['pytuck', 'csv'], default=['pytuck', 'csv'],
+        help='测试引擎（默认: pytuck csv）'
     )
     parser.add_argument(
         '--output-json', type=str, default=None,
@@ -78,8 +78,8 @@ def benchmark_one(
     对单个引擎+加密配置运行写入/读取性能测试
 
     Args:
-        engine: 'binary' 或 'csv'
-        level: binary 加密等级 'low'/'medium'/'high'/None；
+        engine: 'pytuck' 或 'csv'
+        level: pytuck 加密等级 'low'/'medium'/'high'/None；
                csv 时 'password' 或 None
         record_count: 测试记录数
         tmpdir: 临时目录
@@ -90,8 +90,8 @@ def benchmark_one(
     level_name = level if level else "none"
 
     # 根据引擎确定文件扩展名和选项
-    if engine == 'binary':
-        ext = '.db'
+    if engine == 'pytuck':
+        ext = '.pytuck'
         if level:
             write_opts: Any = BinaryBackendOptions(encryption=level, password='benchmark123')
             read_opts: Any = BinaryBackendOptions(encryption=level, password='benchmark123')
@@ -249,13 +249,13 @@ def main() -> None:
 
             count_results: List[Dict[str, Any]] = []
 
-            # Binary 引擎：测试 none/low/medium/high
-            if 'binary' in args.engines:
+            # Pytuck 引擎：测试 none/low/medium/high
+            if 'pytuck' in args.engines:
                 for level in [None, 'low', 'medium', 'high']:
                     level_name = level if level else "none"
-                    print(f"\n  测试 Binary 加密等级: {level_name}...")
+                    print(f"\n  测试 Pytuck 加密等级: {level_name}...")
 
-                    result = benchmark_one('binary', level, count, tmpdir)
+                    result = benchmark_one('pytuck', level, count, tmpdir)
                     count_results.append(result)
                     all_results.append(result)
 

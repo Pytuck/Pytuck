@@ -25,8 +25,8 @@ class TestNoPrimaryKey:
 
     def test_create_table_without_pk(self, tmp_path: Path) -> None:
         """无主键模型可以正常创建表"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -47,8 +47,8 @@ class TestNoPrimaryKey:
 
     def test_insert_and_query_no_pk(self, tmp_path: Path) -> None:
         """无主键表可以插入和查询"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -85,8 +85,8 @@ class TestNoPrimaryKey:
 
     def test_update_no_pk(self, tmp_path: Path) -> None:
         """无主键表可以更新"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -119,8 +119,8 @@ class TestNoPrimaryKey:
 
     def test_delete_no_pk(self, tmp_path: Path) -> None:
         """无主键表可以删除"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -154,8 +154,8 @@ class TestNoPrimaryKey:
 
     def test_identity_map_no_pk(self, tmp_path: Path) -> None:
         """无主键模型的 identity map 正常工作"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -183,8 +183,8 @@ class TestNoPrimaryKey:
 
     def test_get_raises_error_for_no_pk(self, tmp_path: Path) -> None:
         """Session.get() 对无主键模型抛出 QueryError"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -210,8 +210,8 @@ class TestMultiplePrimaryKeys:
 
     def test_multiple_pk_raises_error(self, tmp_path: Path) -> None:
         """定义多个主键列应抛出 SchemaError"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         with pytest.raises(SchemaError) as excinfo:
@@ -231,8 +231,8 @@ class TestRefreshAfterFlush:
 
     def test_refresh_after_insert(self, tmp_path: Path) -> None:
         """插入后实例属性应反映数据库值"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -259,8 +259,8 @@ class TestRefreshAfterFlush:
 
     def test_refresh_method(self, tmp_path: Path) -> None:
         """session.refresh() 应刷新实例属性"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -290,8 +290,8 @@ class TestRefreshAfterFlush:
 
     def test_refresh_no_pk_model(self, tmp_path: Path) -> None:
         """无主键模型也可以 refresh"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):
@@ -326,8 +326,8 @@ class TestPseudoPkNameConstant:
 
     def test_query_returns_pseudo_pk(self, tmp_path: Path) -> None:
         """无主键表查询结果中包含 PSEUDO_PK_NAME"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Log(Base):

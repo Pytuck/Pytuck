@@ -119,10 +119,10 @@ class TestMetadataStorageFormat:
 
         conn.close()
 
-    def test_binary_metadata_in_file(self, tmp_path):
-        """二进制引擎元数据在文件头"""
-        db_path = tmp_path / "test.db"
-        db = Storage(file_path=str(db_path), engine='binary')
+    def test_pytuck_metadata_in_file(self, tmp_path):
+        """Pytuck 引擎元数据在文件头"""
+        db_path = tmp_path / "test.pytuck"
+        db = Storage(file_path=str(db_path), engine='pytuck')
 
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -141,7 +141,7 @@ class TestMetadataStorageFormat:
         assert db_path.stat().st_size > 0
 
         # 重新打开验证元数据完整
-        db2 = Storage(file_path=str(db_path), engine='binary')
+        db2 = Storage(file_path=str(db_path), engine='pytuck')
         table = db2.get_table('users')
         assert table is not None
         assert table.primary_key == 'id'

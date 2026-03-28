@@ -69,7 +69,7 @@ class TestTableLayerMethods:
     def test_add_column_nullable(self) -> None:
         """测试添加可空列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -101,7 +101,7 @@ class TestTableLayerMethods:
     def test_add_column_with_default(self) -> None:
         """测试添加带默认值的列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -130,7 +130,7 @@ class TestTableLayerMethods:
     def test_add_column_non_nullable_no_default_raises(self) -> None:
         """测试添加非空列无默认值报错"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -157,7 +157,7 @@ class TestTableLayerMethods:
     def test_drop_column(self) -> None:
         """测试删除列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -189,7 +189,7 @@ class TestTableLayerMethods:
     def test_drop_primary_key_raises(self) -> None:
         """测试删除主键列报错"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -208,7 +208,7 @@ class TestTableLayerMethods:
     def test_update_comment(self) -> None:
         """测试更新表备注"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -227,7 +227,7 @@ class TestTableLayerMethods:
     def test_update_column_comment(self) -> None:
         """测试更新列备注"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -250,7 +250,7 @@ class TestStorageLayerMethods:
     def test_sync_table_schema_add_columns(self) -> None:
         """测试同步表结构 - 添加新列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -290,7 +290,7 @@ class TestStorageLayerMethods:
     def test_sync_table_schema_update_comments(self) -> None:
         """测试同步表结构 - 更新备注"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -320,7 +320,7 @@ class TestStorageLayerMethods:
     def test_sync_table_schema_drop_columns(self) -> None:
         """测试同步表结构 - 删除列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -359,7 +359,7 @@ class TestStorageLayerMethods:
     def test_drop_table(self) -> None:
         """测试删除表"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -379,7 +379,7 @@ class TestStorageLayerMethods:
     def test_rename_table(self) -> None:
         """测试重命名表"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -413,7 +413,7 @@ class TestSessionLayerMethods:
     def test_sync_schema_with_model(self) -> None:
         """测试 Session.sync_schema 方法"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -434,7 +434,7 @@ class TestSessionLayerMethods:
     def test_add_column_via_session(self) -> None:
         """测试通过 Session 添加列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -460,7 +460,7 @@ class TestSessionLayerMethods:
     def test_drop_column_via_session(self) -> None:
         """测试通过 Session 删除列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -485,7 +485,7 @@ class TestDeclarativeBaseSyncSchema:
     def test_sync_schema_on_existing_table(self) -> None:
         """测试对已存在表的自动同步"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
 
             # 第一次：创建表
             db = Storage(file_path=str(db_path))
@@ -529,7 +529,7 @@ class TestDeclarativeBaseSyncSchema:
     def test_sync_schema_with_options(self) -> None:
         """测试带选项的自动同步"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
 
             # 第一次：创建表
             db = Storage(file_path=str(db_path))
@@ -561,7 +561,7 @@ class TestDeclarativeBaseSyncSchema:
     def test_crud_base_with_sync_schema(self) -> None:
         """测试 CRUDBaseModel 的自动同步"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
 
             # 第一次：创建表
             db = Storage(file_path=str(db_path))
@@ -603,7 +603,7 @@ class TestPytuckViewAPI:
     def test_storage_add_column_by_table_name(self) -> None:
         """测试通过表名添加列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -623,7 +623,7 @@ class TestPytuckViewAPI:
     def test_storage_sync_table_schema_by_table_name(self) -> None:
         """测试通过表名同步表结构"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -654,7 +654,7 @@ class TestPytuckViewAPI:
     def test_storage_update_column_by_table_name(self) -> None:
         """测试通过表名更新列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -766,7 +766,7 @@ class TestColumnNameInSchemaOperations:
     def test_drop_column_with_custom_name(self) -> None:
         """测试删除具有自定义 name 的列 - 应使用字段名"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -795,7 +795,7 @@ class TestColumnNameInSchemaOperations:
     def test_update_column_comment_with_custom_name(self) -> None:
         """测试更新具有自定义 name 的列备注 - 应使用字段名"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -815,7 +815,7 @@ class TestColumnNameInSchemaOperations:
     def test_update_column_index_with_custom_name(self) -> None:
         """测试更新具有自定义 name 的列索引 - 应使用字段名"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -836,7 +836,7 @@ class TestColumnNameInSchemaOperations:
     def test_add_column_with_custom_name(self) -> None:
         """测试添加具有自定义 name 的列"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -856,7 +856,7 @@ class TestColumnNameInSchemaOperations:
     def test_sync_table_schema_with_custom_name(self) -> None:
         """测试同步具有自定义 name 的表结构"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            db_path = Path(tmpdir) / 'test.db'
+            db_path = Path(tmpdir) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             Base: Type[PureBaseModel] = declarative_base(db)
 

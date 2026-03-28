@@ -21,8 +21,8 @@ class TestStatementAPIColumnNameMapping:
 
     def test_insert_statement_with_column_name(self, tmp_path: Path) -> None:
         """insert(Model).values() 使用 Column.name 正确写入"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -46,8 +46,8 @@ class TestStatementAPIColumnNameMapping:
 
     def test_update_statement_with_column_name(self, tmp_path: Path) -> None:
         """update(Model).values() 使用 Column.name 正确更新"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -74,8 +74,8 @@ class TestStatementAPIColumnNameMapping:
 
     def test_update_statement_by_condition_with_column_name(self, tmp_path: Path) -> None:
         """update(Model).where(条件).values() 按条件更新时正确映射"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -110,8 +110,8 @@ class TestStatementAPIColumnNameMapping:
 
     def test_delete_statement_with_column_name(self, tmp_path: Path) -> None:
         """delete(Model).where() 使用 Column.name 正确匹配"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -142,8 +142,8 @@ class TestStatementAPIColumnNameMapping:
 
     def test_select_statement_with_column_name(self, tmp_path: Path) -> None:
         """select(Model).where() 使用 Column.name 正确查询"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -174,10 +174,10 @@ class TestColumnNamePersistenceRoundTrip:
 
     def test_write_close_reopen_read(self, tmp_path: Path) -> None:
         """写入 -> 关闭 -> 重新打开 -> 读取"""
-        db_file = tmp_path / 'test.db'
+        db_file = tmp_path / 'test.pytuck'
 
         # 第一次：写入数据
-        db = Storage(file_path=str(db_file), engine='binary')
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -192,7 +192,7 @@ class TestColumnNamePersistenceRoundTrip:
         db.close()
 
         # 第二次：重新打开并读取
-        db2 = Storage(file_path=str(db_file), engine='binary')
+        db2 = Storage(file_path=str(db_file), engine='pytuck')
         Base2: Type[PureBaseModel] = declarative_base(db2)
 
         class User2(Base2):
@@ -218,10 +218,10 @@ class TestColumnNamePersistenceRoundTrip:
 
     def test_cross_definition_compatibility(self, tmp_path: Path) -> None:
         """跨定义兼容：不同属性名，相同 Column.name"""
-        db_file = tmp_path / 'test.db'
+        db_file = tmp_path / 'test.pytuck'
 
         # 版本1：使用 user_name 作为属性名
-        db = Storage(file_path=str(db_file), engine='binary')
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class UserV1(Base):
@@ -236,7 +236,7 @@ class TestColumnNamePersistenceRoundTrip:
         db.close()
 
         # 版本2：使用 display_name 作为属性名（Column.name 相同）
-        db2 = Storage(file_path=str(db_file), engine='binary')
+        db2 = Storage(file_path=str(db_file), engine='pytuck')
         Base2: Type[PureBaseModel] = declarative_base(db2)
 
         class UserV2(Base2):
@@ -256,8 +256,8 @@ class TestColumnNamePersistenceRoundTrip:
 
     def test_multiple_columns_with_custom_names(self, tmp_path: Path) -> None:
         """多个列都有自定义 Column.name"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Product(Base):
@@ -303,8 +303,8 @@ class TestColumnNameEdgeCases:
 
     def test_column_name_with_spaces(self, tmp_path: Path) -> None:
         """Column.name 包含空格"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -328,8 +328,8 @@ class TestColumnNameEdgeCases:
 
     def test_column_name_with_special_chars(self, tmp_path: Path) -> None:
         """Column.name 包含特殊字符（中文、标点等）"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -359,8 +359,8 @@ class TestColumnNameEdgeCases:
 
     def test_column_name_none_uses_attr_name(self, tmp_path: Path) -> None:
         """Column.name 为 None 时使用属性名"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -387,8 +387,8 @@ class TestCRUDBaseModelColumnNameMapping:
 
     def test_create_with_column_name(self, tmp_path: Path) -> None:
         """CRUDBaseModel.create() 使用 Column.name 正确写入"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
         class User(Base):
@@ -406,8 +406,8 @@ class TestCRUDBaseModelColumnNameMapping:
 
     def test_save_with_column_name(self, tmp_path: Path) -> None:
         """CRUDBaseModel.save() 使用 Column.name 正确更新"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
         class User(Base):
@@ -427,8 +427,8 @@ class TestCRUDBaseModelColumnNameMapping:
 
     def test_get_with_column_name(self, tmp_path: Path) -> None:
         """CRUDBaseModel.get() 使用 Column.name 正确读取"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
         class User(Base):
@@ -446,8 +446,8 @@ class TestCRUDBaseModelColumnNameMapping:
 
     def test_filter_with_column_name(self, tmp_path: Path) -> None:
         """CRUDBaseModel.filter() 使用 Column.name 正确查询"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
         class User(Base):
@@ -466,8 +466,8 @@ class TestCRUDBaseModelColumnNameMapping:
 
     def test_filter_by_with_column_name(self, tmp_path: Path) -> None:
         """CRUDBaseModel.filter_by() 使用 Column.name 正确查询"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
         class User(Base):
@@ -490,8 +490,8 @@ class TestSessionAddColumnNameMapping:
 
     def test_session_add_with_column_name(self, tmp_path: Path) -> None:
         """Session.add() + flush 使用 Column.name 正确写入"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -514,8 +514,8 @@ class TestSessionAddColumnNameMapping:
 
     def test_session_add_update_with_column_name(self, tmp_path: Path) -> None:
         """Session.add() 后更新属性，再 flush"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -546,8 +546,8 @@ class TestPrimaryKeyColumnNameMapping:
 
     def test_pk_with_custom_column_name(self, tmp_path: Path) -> None:
         """主键列使用自定义 Column.name"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -576,8 +576,8 @@ class TestPrimaryKeyColumnNameMapping:
 
     def test_update_by_pk_with_custom_column_name(self, tmp_path: Path) -> None:
         """通过自定义 Column.name 的主键更新"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -604,8 +604,8 @@ class TestPrimaryKeyColumnNameMapping:
 
     def test_delete_by_pk_with_custom_column_name(self, tmp_path: Path) -> None:
         """通过自定义 Column.name 的主键删除"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):

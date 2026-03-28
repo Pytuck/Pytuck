@@ -62,10 +62,10 @@ class TestStorageConfiguration:
         except (ConfigurationError, ValueError, TypeError, AttributeError):
             pass  # 预期可能抛出这些异常
 
-    def test_valid_engine_binary(self, tmp_path):
-        """有效的 binary 引擎"""
-        db_path = tmp_path / "test.db"
-        db = Storage(file_path=str(db_path), engine='binary')
+    def test_valid_engine_pytuck(self, tmp_path):
+        """有效的 pytuck 引擎"""
+        db_path = tmp_path / "test.pytuck"
+        db = Storage(file_path=str(db_path), engine='pytuck')
         assert db is not None
         db.close()
 
@@ -92,14 +92,14 @@ class TestStorageConfiguration:
 
     def test_auto_flush_true(self, tmp_path):
         """auto_flush=True 配置"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path), auto_flush=True)
         assert db.auto_flush is True
         db.close()
 
     def test_auto_flush_false(self, tmp_path):
         """auto_flush=False 配置（默认）"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path), auto_flush=False)
         assert db.auto_flush is False
         db.close()
@@ -110,7 +110,7 @@ class TestSessionConfiguration:
 
     def test_session_with_valid_storage(self, tmp_path):
         """有效的 Storage 创建 Session"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         session = Session(db)
@@ -125,7 +125,7 @@ class TestSessionConfiguration:
         注意：当前实现中，Session 可以在 Storage 关闭后创建，
         但操作时会失败或返回空结果。
         """
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -149,7 +149,7 @@ class TestSessionConfiguration:
 
     def test_multiple_sessions_same_storage(self, tmp_path):
         """多个 Session 共享同一个 Storage"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -182,7 +182,7 @@ class TestColumnConfiguration:
 
     def test_column_with_type(self, tmp_path):
         """Column 指定类型"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -210,7 +210,7 @@ class TestColumnConfiguration:
 
     def test_column_with_default(self, tmp_path):
         """Column 默认值"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -237,7 +237,7 @@ class TestColumnConfiguration:
 
     def test_column_nullable(self, tmp_path):
         """Column 可空"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -261,7 +261,7 @@ class TestColumnConfiguration:
 
     def test_column_primary_key(self, tmp_path):
         """Column 主键"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -290,7 +290,7 @@ class TestModelDefinition:
 
     def test_model_with_tablename(self, tmp_path):
         """模型必须定义 __tablename__"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -309,7 +309,7 @@ class TestModelDefinition:
 
     def test_model_pure_vs_crud(self, tmp_path):
         """PureBaseModel vs CRUDBaseModel"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         # PureBaseModel - 不包含 CRUD 方法
@@ -327,7 +327,7 @@ class TestModelDefinition:
 
     def test_model_crud_mode(self, tmp_path):
         """CRUDBaseModel 模式"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         # CRUDBaseModel - 包含 CRUD 方法
@@ -350,7 +350,7 @@ class TestModelDefinition:
 
     def test_model_multiple_columns(self, tmp_path):
         """多列模型"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -389,7 +389,7 @@ class TestDeclarativeBase:
 
     def test_declarative_base_default(self, tmp_path):
         """默认返回 PureBaseModel"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base = declarative_base(db)
@@ -405,7 +405,7 @@ class TestDeclarativeBase:
 
     def test_declarative_base_crud_true(self, tmp_path):
         """crud=True 返回 CRUDBaseModel"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base = declarative_base(db, crud=True)
@@ -422,7 +422,7 @@ class TestDeclarativeBase:
 
     def test_declarative_base_crud_false(self, tmp_path):
         """crud=False 显式返回 PureBaseModel"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base = declarative_base(db, crud=False)
@@ -438,7 +438,7 @@ class TestDeclarativeBase:
 
     def test_multiple_models_same_base(self, tmp_path):
         """多个模型使用同一个 Base"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)

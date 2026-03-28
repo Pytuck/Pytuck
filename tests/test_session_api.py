@@ -471,7 +471,7 @@ class TestSessionGetColumnNameMapping(unittest.TestCase):
         import os
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            file_path = os.path.join(tmp_dir, 'test.db')
+            file_path = os.path.join(tmp_dir, 'test.pytuck')
 
             # 第一次：写入数据
             db1 = Storage(file_path=file_path)

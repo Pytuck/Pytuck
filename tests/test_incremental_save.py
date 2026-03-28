@@ -141,7 +141,7 @@ class TestTableDirtyFlag:
     def test_new_table_dirty_via_storage(self) -> None:
         """Storage.create_table 创建的表应为脏"""
         with tempfile.TemporaryDirectory() as tmp:
-            db_path = Path(tmp) / 'test.db'
+            db_path = Path(tmp) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
             db.create_table('users', [
                 ColumnClass(int, name='id', primary_key=True),
@@ -161,7 +161,7 @@ class TestStorageFlushChangedTables:
     def test_flush_resets_dirty_flags(self) -> None:
         """flush 后所有表的脏标记被重置"""
         with tempfile.TemporaryDirectory() as tmp:
-            db_path = Path(tmp) / 'test.db'
+            db_path = Path(tmp) / 'test.pytuck'
             db = Storage(file_path=str(db_path))
 
             Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)

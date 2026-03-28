@@ -1,5 +1,5 @@
 """
-Binary 引擎加密测试
+Pytuck 引擎加密测试
 
 覆盖 pytuck/backends/backend_binary.py 的三级加密功能：
 - low (XOR 混淆)
@@ -25,15 +25,15 @@ from pytuck.common.options import BinaryBackendOptions
 # ---------- 各加密等级测试 ----------
 
 
-class TestBinaryEncryptionLow:
+class TestPytuckEncryptionLow:
     """low 等级（XOR 混淆）加密测试"""
 
     def test_save_and_load_low(self, temp_dir: Path) -> None:
         """low 等级加密写入读取"""
-        db_path = temp_dir / 'enc_low.db'
+        db_path = temp_dir / 'enc_low.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='low', password='secret123'
             )
@@ -55,7 +55,7 @@ class TestBinaryEncryptionLow:
         # 重新打开并读取
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='low', password='secret123'
             )
@@ -68,10 +68,10 @@ class TestBinaryEncryptionLow:
 
     def test_wrong_password_low(self, temp_dir: Path) -> None:
         """low 等级错误密码报错"""
-        db_path = temp_dir / 'enc_low_wrong.db'
+        db_path = temp_dir / 'enc_low_wrong.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='low', password='correct'
             )
@@ -93,22 +93,22 @@ class TestBinaryEncryptionLow:
         with pytest.raises(EncryptionError, match="密码错误"):
             Storage(
                 file_path=str(db_path),
-                engine='binary',
+                engine='pytuck',
                 backend_options=BinaryBackendOptions(
                     encryption='low', password='wrong'
                 )
             )
 
 
-class TestBinaryEncryptionMedium:
+class TestPytuckEncryptionMedium:
     """medium 等级（LCG 流密码）加密测试"""
 
     def test_save_and_load_medium(self, temp_dir: Path) -> None:
         """medium 等级加密写入读取"""
-        db_path = temp_dir / 'enc_medium.db'
+        db_path = temp_dir / 'enc_medium.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='medium', password='mypass'
             )
@@ -129,7 +129,7 @@ class TestBinaryEncryptionMedium:
 
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='medium', password='mypass'
             )
@@ -143,10 +143,10 @@ class TestBinaryEncryptionMedium:
 
     def test_wrong_password_medium(self, temp_dir: Path) -> None:
         """medium 等级错误密码报错"""
-        db_path = temp_dir / 'enc_medium_wrong.db'
+        db_path = temp_dir / 'enc_medium_wrong.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='medium', password='correct'
             )
@@ -167,22 +167,22 @@ class TestBinaryEncryptionMedium:
         with pytest.raises(EncryptionError, match="密码错误"):
             Storage(
                 file_path=str(db_path),
-                engine='binary',
+                engine='pytuck',
                 backend_options=BinaryBackendOptions(
                     encryption='medium', password='wrong'
                 )
             )
 
 
-class TestBinaryEncryptionHigh:
+class TestPytuckEncryptionHigh:
     """high 等级（ChaCha20）加密测试"""
 
     def test_save_and_load_high(self, temp_dir: Path) -> None:
         """high 等级加密写入读取"""
-        db_path = temp_dir / 'enc_high.db'
+        db_path = temp_dir / 'enc_high.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='high', password='strongpass!@#'
             )
@@ -204,7 +204,7 @@ class TestBinaryEncryptionHigh:
 
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='high', password='strongpass!@#'
             )
@@ -217,10 +217,10 @@ class TestBinaryEncryptionHigh:
 
     def test_wrong_password_high(self, temp_dir: Path) -> None:
         """high 等级错误密码报错"""
-        db_path = temp_dir / 'enc_high_wrong.db'
+        db_path = temp_dir / 'enc_high_wrong.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='high', password='correct'
             )
@@ -241,7 +241,7 @@ class TestBinaryEncryptionHigh:
         with pytest.raises(EncryptionError, match="密码错误"):
             Storage(
                 file_path=str(db_path),
-                engine='binary',
+                engine='pytuck',
                 backend_options=BinaryBackendOptions(
                     encryption='high', password='wrong'
                 )
@@ -251,15 +251,15 @@ class TestBinaryEncryptionHigh:
 # ---------- 通用加密测试 ----------
 
 
-class TestBinaryEncryptionCommon:
+class TestPytuckEncryptionCommon:
     """通用加密行为测试"""
 
     def test_load_without_password_raises(self, temp_dir: Path) -> None:
         """加密文件无密码时报错"""
-        db_path = temp_dir / 'enc_nopass.db'
+        db_path = temp_dir / 'enc_nopass.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='low', password='secret'
             )
@@ -281,16 +281,16 @@ class TestBinaryEncryptionCommon:
         with pytest.raises(EncryptionError, match="密码"):
             Storage(
                 file_path=str(db_path),
-                engine='binary',
+                engine='pytuck',
                 backend_options=BinaryBackendOptions()
             )
 
     def test_unencrypted_no_password_ok(self, temp_dir: Path) -> None:
         """非加密文件无密码正常"""
-        db_path = temp_dir / 'no_enc.db'
+        db_path = temp_dir / 'no_enc.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -309,7 +309,7 @@ class TestBinaryEncryptionCommon:
         # 不提供密码正常打开
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         table = db2.get_table('users')
@@ -318,10 +318,10 @@ class TestBinaryEncryptionCommon:
 
     def test_encrypted_data_integrity(self, temp_dir: Path) -> None:
         """加密后数据完整性（多类型字段）"""
-        db_path = temp_dir / 'enc_integrity.db'
+        db_path = temp_dir / 'enc_integrity.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='high', password='test'
             )
@@ -353,7 +353,7 @@ class TestBinaryEncryptionCommon:
         # 重新加载并验证所有字段
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='high', password='test'
             )
@@ -383,10 +383,10 @@ class TestBinaryEncryptionCommon:
 
     def test_encrypted_multiple_tables(self, temp_dir: Path) -> None:
         """多表加密"""
-        db_path = temp_dir / 'enc_multi.db'
+        db_path = temp_dir / 'enc_multi.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='medium', password='multi'
             )
@@ -417,7 +417,7 @@ class TestBinaryEncryptionCommon:
         # 重新打开验证
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='medium', password='multi'
             )
@@ -438,10 +438,10 @@ class TestBinaryEncryptionCommon:
 
     def test_encrypted_with_index(self, temp_dir: Path) -> None:
         """加密文件的索引也能正确恢复"""
-        db_path = temp_dir / 'enc_index.db'
+        db_path = temp_dir / 'enc_index.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='low', password='idx'
             )
@@ -463,7 +463,7 @@ class TestBinaryEncryptionCommon:
 
         db2 = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption='low', password='idx'
             )
@@ -480,12 +480,12 @@ class TestBinaryEncryptionCommon:
 
     def test_encryption_no_password_save_raises(self, temp_dir: Path) -> None:
         """指定加密但不提供密码时保存报错"""
-        db_path = temp_dir / 'enc_nopass_save.db'
+        db_path = temp_dir / 'enc_nopass_save.pytuck'
 
         with pytest.raises(EncryptionError, match="密码"):
             db = Storage(
                 file_path=str(db_path),
-                engine='binary',
+                engine='pytuck',
                 backend_options=BinaryBackendOptions(
                     encryption='high', password=None
                 )

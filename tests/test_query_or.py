@@ -22,7 +22,7 @@ class TestOrFunction:
 
     def test_simple_or_query(self, tmp_path: Path) -> None:
         """测试简单的 OR 查询"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -53,7 +53,7 @@ class TestOrFunction:
 
     def test_or_with_multiple_conditions(self, tmp_path: Path) -> None:
         """测试多个条件的 OR"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -104,7 +104,7 @@ class TestAndFunction:
 
     def test_explicit_and_query(self, tmp_path: Path) -> None:
         """测试显式 AND 查询"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -143,7 +143,7 @@ class TestNotFunction:
 
     def test_simple_not_query(self, tmp_path: Path) -> None:
         """测试简单的 NOT 查询"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -171,7 +171,7 @@ class TestNotFunction:
 
     def test_not_with_or(self, tmp_path: Path) -> None:
         """测试 NOT 与 OR 组合"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -205,7 +205,7 @@ class TestNestedLogicalExpressions:
 
     def test_or_with_and(self, tmp_path: Path) -> None:
         """测试 OR 与 AND 嵌套"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -239,7 +239,7 @@ class TestNestedLogicalExpressions:
 
     def test_multiple_conditions_with_or(self, tmp_path: Path) -> None:
         """测试多参数 where 与 OR 组合"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -276,7 +276,7 @@ class TestUpdateDeleteWithOr:
 
     def test_update_with_or(self, tmp_path: Path) -> None:
         """测试 UPDATE 语句的 OR 条件"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -313,7 +313,7 @@ class TestUpdateDeleteWithOr:
 
     def test_delete_with_or(self, tmp_path: Path) -> None:
         """测试 DELETE 语句的 OR 条件"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -353,7 +353,7 @@ class TestActiveRecordModeOr:
 
     def test_filter_with_or(self, tmp_path: Path) -> None:
         """测试 Model.filter() 与 OR"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
         class User(Base):
@@ -383,7 +383,7 @@ class TestQueryBuilderOr:
 
     def test_query_filter_with_or(self, tmp_path: Path) -> None:
         """测试 Query.filter() 与 OR"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -415,7 +415,7 @@ class TestEdgeCases:
 
     def test_empty_result_with_or(self, tmp_path: Path) -> None:
         """测试 OR 查询返回空结果"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -440,7 +440,7 @@ class TestEdgeCases:
 
     def test_or_with_filter_by(self, tmp_path: Path) -> None:
         """测试 OR 与 filter_by 混合使用"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -469,7 +469,7 @@ class TestEdgeCases:
 
     def test_chained_or_expressions(self, tmp_path: Path) -> None:
         """测试链式 OR 表达式"""
-        db = Storage(file_path=str(tmp_path / 'test.db'), in_memory=True)
+        db = Storage(file_path=str(tmp_path / 'test.pytuck'), in_memory=True)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):

@@ -40,4 +40,4 @@ def temp_file(temp_dir: Path) -> Generator[Path, None, None]:
     Yields:
         临时文件的 Path 对象（文件本身不会被创建）
     """
-    yield temp_dir / "test_db.db"
+    yield temp_dir / "test_db.pytuck"

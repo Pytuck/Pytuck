@@ -325,6 +325,65 @@ class TestQueryTableDataFilters:
         result = db.query_table_data('users', filters=None)
         assert result['total_count'] == 5
 
+    def test_pytuck_backend_pagination_used_when_clean(self, temp_dir: Path, monkeypatch) -> None:
+        """Pytuck 干净状态下走 backend 分页路径"""
+        db_path = temp_dir / 'test_pytuck_clean.pytuck'
+        db = Storage(file_path=str(db_path), engine='pytuck')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+            email = Column(str)
+
+        session = Session(db)
+        session.execute(insert(User).values(name='Alice', email='alice@example.com'))
+        session.commit()
+        db.flush()
+
+        backend = db.backend
+        assert backend is not None
+
+        called = {'used': False}
+
+        def fake_query_with_pagination(**kwargs):
+            called['used'] = True
+            return {
+                'records': [{'id': 1, 'name': 'Alice', 'email': 'alice@example.com'}],
+                'total_count': 1,
+                'has_more': False
+            }
+
+        monkeypatch.setattr(backend, 'query_with_pagination', fake_query_with_pagination)
+        result = db.query_table_data('users', filters=[
+            {'field': 'name', 'operator': '=', 'value': 'Alice'}
+        ])
+
+        assert called['used'] is True
+        assert result['total_count'] == 1
+        assert result['records'][0]['name'] == 'Alice'
+
+        db.close()
+
+    def test_pytuck_dirty_state_skips_backend_pagination(self, db_with_users, monkeypatch) -> None:
+        """Pytuck 有未 flush 修改时回退到内存分页"""
+        db, User, session = db_with_users
+        backend = db.backend
+        assert backend is not None
+        assert db._dirty is True
+
+        def unexpected_query_with_pagination(**kwargs):
+            raise AssertionError('dirty 状态不应调用 backend.query_with_pagination')
+
+        monkeypatch.setattr(backend, 'query_with_pagination', unexpected_query_with_pagination)
+        result = db.query_table_data('users', filters=[
+            {'field': 'name', 'operator': '=', 'value': 'Alice'}
+        ])
+
+        assert result['total_count'] == 1
+        assert result['records'][0]['name'] == 'Alice'
+
 
 # ==================== SQLite 后端原生 SQL 测试 ====================
 

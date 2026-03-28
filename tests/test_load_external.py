@@ -527,8 +527,8 @@ class TestLoadTableImport:
 
         db.close()
 
-    def test_import_csv_to_binary_backend(self, tmp_path: Path) -> None:
-        """测试将 CSV 数据导入到 Binary 后端"""
+    def test_import_csv_to_pytuck_backend(self, tmp_path: Path) -> None:
+        """测试将 CSV 数据导入到 Pytuck 后端"""
         from pytuck import Session, select
 
         # 创建 CSV 文件
@@ -538,9 +538,9 @@ class TestLoadTableImport:
             encoding='utf-8'
         )
 
-        # 创建 Binary 后端数据库
-        db_file = tmp_path / "orders.db"
-        db = Storage(str(db_file), engine='binary')
+        # 创建 Pytuck 后端数据库
+        db_file = tmp_path / "orders.pytuck"
+        db = Storage(str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Order(Base):
@@ -678,8 +678,8 @@ class TestLoadTableImport:
         )
 
         # 创建数据库
-        db_file = tmp_path / "data.db"
-        db = Storage(str(db_file), engine='binary')
+        db_file = tmp_path / "data.pytuck"
+        db = Storage(str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Data(Base):
@@ -699,7 +699,7 @@ class TestLoadTableImport:
         db.close()
 
         # 重新打开数据库验证持久化
-        db2 = Storage(str(db_file), engine='binary')
+        db2 = Storage(str(db_file), engine='pytuck')
         Base2: Type[PureBaseModel] = declarative_base(db2)
 
         class Data2(Base2):

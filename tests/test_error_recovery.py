@@ -48,12 +48,12 @@ class TestFileCorruption:
         with pytest.raises(SerializationError):
             Storage(file_path=str(db_path), engine='json')
 
-    def test_truncated_binary_file(self, tmp_path):
-        """截断的二进制文件"""
-        db_path = tmp_path / "test.db"
+    def test_truncated_pytuck_file(self, tmp_path):
+        """截断的 Pytuck 文件"""
+        db_path = tmp_path / "test.pytuck"
 
         # 先创建正常数据库
-        db = Storage(file_path=str(db_path), engine='binary')
+        db = Storage(file_path=str(db_path), engine='pytuck')
 
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -77,7 +77,7 @@ class TestFileCorruption:
 
         # 尝试打开截断的文件应该失败
         with pytest.raises(Exception):
-            Storage(file_path=str(db_path), engine='binary')
+            Storage(file_path=str(db_path), engine='pytuck')
 
 
 class TestTransactionRecovery:
@@ -90,7 +90,7 @@ class TestTransactionRecovery:
 
     def test_rollback_clears_pending(self, tmp_path):
         """回滚清除 pending 对象"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -121,7 +121,7 @@ class TestTransactionRecovery:
 
     def test_context_manager_exception_clears_pending(self, tmp_path):
         """上下文管理器中异常清除 pending"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -153,7 +153,7 @@ class TestTransactionRecovery:
 
     def test_commit_persists_data(self, tmp_path):
         """commit() 将数据持久化"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -181,7 +181,7 @@ class TestTransactionRecovery:
 
     def test_execute_affects_storage_immediately(self, tmp_path):
         """execute() 立即影响 Storage 内存"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -212,7 +212,7 @@ class TestStorageRecovery:
 
     def test_close_without_flush(self, tmp_path):
         """关闭 Storage 自动 flush"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -249,7 +249,7 @@ class TestStorageRecovery:
 
     def test_reopen_after_crash_simulation(self, tmp_path):
         """模拟崩溃后重新打开（未 flush）"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path), auto_flush=True)
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -290,7 +290,7 @@ class TestSessionRecovery:
 
     def test_session_after_storage_close(self, tmp_path):
         """Storage 关闭后 Session 操作"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -313,7 +313,7 @@ class TestSessionRecovery:
 
     def test_new_session_after_commit(self, tmp_path):
         """提交后创建新 Session 可以看到数据"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)

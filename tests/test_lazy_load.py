@@ -29,10 +29,10 @@ class TestLazyLoadBasic:
 
     def _create_and_populate(self, temp_dir: Path) -> Path:
         """创建并填充数据库文件，返回路径"""
-        db_path = temp_dir / 'lazy.db'
+        db_path = temp_dir / 'lazy.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -101,10 +101,10 @@ class TestLazyLoadBasic:
 
     def test_lazy_load_with_index(self, temp_dir: Path) -> None:
         """索引字段在懒加载下被恢复"""
-        db_path = temp_dir / 'lazy_idx.db'
+        db_path = temp_dir / 'lazy_idx.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -134,10 +134,10 @@ class TestLazyLoadBasic:
 
     def test_lazy_load_supports_flag(self, temp_dir: Path) -> None:
         """supports_lazy_loading 返回正确值"""
-        backend_lazy = BinaryBackend('test.db', BinaryBackendOptions(lazy_load=True))
+        backend_lazy = BinaryBackend('test.pytuck', BinaryBackendOptions(lazy_load=True))
         assert backend_lazy.supports_lazy_loading() is True
 
-        backend_normal = BinaryBackend('test.db', BinaryBackendOptions(lazy_load=False))
+        backend_normal = BinaryBackend('test.pytuck', BinaryBackendOptions(lazy_load=False))
         assert backend_normal.supports_lazy_loading() is False
 
 
@@ -149,10 +149,10 @@ class TestPopulateTablesWithData:
 
     def test_populate_fills_all_records(self, temp_dir: Path) -> None:
         """populate 后 table.data 包含所有记录"""
-        db_path = temp_dir / 'lazy_populate.db'
+        db_path = temp_dir / 'lazy_populate.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -186,10 +186,10 @@ class TestPopulateTablesWithData:
 
     def test_populate_idempotent(self, temp_dir: Path) -> None:
         """多次 populate 幂等"""
-        db_path = temp_dir / 'lazy_idem.db'
+        db_path = temp_dir / 'lazy_idem.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -217,10 +217,10 @@ class TestPopulateTablesWithData:
 
     def test_populate_non_lazy_noop(self, temp_dir: Path) -> None:
         """非懒加载模式下 populate 是 no-op"""
-        db_path = temp_dir / 'non_lazy.db'
+        db_path = temp_dir / 'non_lazy.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -256,7 +256,7 @@ class TestLazyLoadWithEncryption:
         """创建加密数据库并填充数据"""
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(
                 encryption=level, password=password
             )
@@ -279,7 +279,7 @@ class TestLazyLoadWithEncryption:
 
     def test_encrypted_lazy_load_low(self, temp_dir: Path) -> None:
         """low 级别加密 + 懒加载正常工作"""
-        db_path = temp_dir / 'enc_lazy_low.db'
+        db_path = temp_dir / 'enc_lazy_low.pytuck'
         self._create_encrypted_db(db_path, level='low')
 
         backend = BinaryBackend(
@@ -301,7 +301,7 @@ class TestLazyLoadWithEncryption:
 
     def test_encrypted_lazy_load_medium(self, temp_dir: Path) -> None:
         """medium 级别加密 + 懒加载正常工作"""
-        db_path = temp_dir / 'enc_lazy_medium.db'
+        db_path = temp_dir / 'enc_lazy_medium.pytuck'
         self._create_encrypted_db(db_path, level='medium')
 
         backend = BinaryBackend(
@@ -318,7 +318,7 @@ class TestLazyLoadWithEncryption:
 
     def test_encrypted_lazy_load_high(self, temp_dir: Path) -> None:
         """high 级别加密 + 懒加载正常工作"""
-        db_path = temp_dir / 'enc_lazy_high.db'
+        db_path = temp_dir / 'enc_lazy_high.pytuck'
         self._create_encrypted_db(db_path, level='high')
 
         backend = BinaryBackend(
@@ -335,7 +335,7 @@ class TestLazyLoadWithEncryption:
 
     def test_encrypted_lazy_load_all_records_match(self, temp_dir: Path) -> None:
         """加密懒加载读取所有记录，与全量加载结果一致"""
-        db_path = temp_dir / 'enc_lazy_match.db'
+        db_path = temp_dir / 'enc_lazy_match.pytuck'
         self._create_encrypted_db(db_path)
 
         # 全量加载
@@ -361,7 +361,7 @@ class TestLazyLoadWithEncryption:
 
     def test_encrypted_lazy_load_populate(self, temp_dir: Path) -> None:
         """加密懒加载后 populate_tables_with_data 正确填充"""
-        db_path = temp_dir / 'enc_lazy_populate.db'
+        db_path = temp_dir / 'enc_lazy_populate.pytuck'
         self._create_encrypted_db(db_path)
 
         backend = BinaryBackend(
@@ -383,10 +383,10 @@ class TestLazyLoadWithEncryption:
 
     def test_encrypted_lazy_load_multi_table(self, temp_dir: Path) -> None:
         """多表加密懒加载"""
-        db_path = temp_dir / 'enc_lazy_multi.db'
+        db_path = temp_dir / 'enc_lazy_multi.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions(encryption='medium', password='secret')
         )
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -523,10 +523,10 @@ class TestLazyLoadMultipleTables:
 
     def test_multiple_tables_lazy(self, temp_dir: Path) -> None:
         """多表都能独立懒加载"""
-        db_path = temp_dir / 'lazy_multi.db'
+        db_path = temp_dir / 'lazy_multi.pytuck'
         db = Storage(
             file_path=str(db_path),
-            engine='binary',
+            engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)

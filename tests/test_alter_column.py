@@ -151,7 +151,7 @@ class TestAlterColumnStorage:
 
     def test_alter_column_via_storage(self, temp_dir: Path) -> None:
         """通过 Storage 修改列"""
-        db = Storage(file_path=temp_dir / 'test.db')
+        db = Storage(file_path=temp_dir / 'test.pytuck')
         db.create_table('users', [
             Column(int, name='id', primary_key=True),
             Column(int, name='age', nullable=True),
@@ -169,7 +169,7 @@ class TestAlterColumnSession:
 
     def test_alter_column_via_session(self, temp_dir: Path) -> None:
         """通过 Session 修改列"""
-        db = Storage(file_path=temp_dir / 'test.db')
+        db = Storage(file_path=temp_dir / 'test.pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -279,7 +279,7 @@ class TestSetPrimaryKey:
 
     def test_set_primary_key_via_storage(self, temp_dir: Path) -> None:
         """通过 Storage 修改主键"""
-        db = Storage(file_path=temp_dir / 'test.db')
+        db = Storage(file_path=temp_dir / 'test.pytuck')
         db.create_table('users', [
             Column(int, name='id', primary_key=True),
             Column(str, name='email'),
@@ -352,7 +352,7 @@ class TestReorderColumns:
 
     def test_reorder_via_storage(self, temp_dir: Path) -> None:
         """通过 Storage 重排列"""
-        db = Storage(file_path=temp_dir / 'test.db')
+        db = Storage(file_path=temp_dir / 'test.pytuck')
         db.create_table('users', [
             Column(int, name='id', primary_key=True),
             Column(str, name='name'),
@@ -369,8 +369,8 @@ class TestReorderColumns:
 class TestMigrateEngineDataIntegrity:
     """Bug 1: 引擎转换后数据丢失"""
 
-    def test_csv_to_binary_preserves_data(self, temp_dir: Path) -> None:
-        """CSV → Binary 迁移应保留所有数据"""
+    def test_csv_to_pytuck_preserves_data(self, temp_dir: Path) -> None:
+        """CSV → Pytuck 迁移应保留所有数据"""
         from pytuck.tools.migrate import migrate_engine
 
         # 创建 CSV 源文件
@@ -388,20 +388,20 @@ class TestMigrateEngineDataIntegrity:
         db.flush()
         db.close()
 
-        # 迁移到 Binary
-        binary_path = temp_dir / 'target.db'
+        # 迁移到 Pytuck
+        pytuck_path = temp_dir / 'target.pytuck'
         result = migrate_engine(
             source_path=csv_path,
             source_engine='csv',
-            target_path=binary_path,
-            target_engine='binary'
+            target_path=pytuck_path,
+            target_engine='pytuck'
         )
 
         assert result['tables'] == 1
         assert result['records'] == 3
 
         # 验证目标文件数据
-        db2 = Storage(file_path=binary_path, engine='binary')
+        db2 = Storage(file_path=pytuck_path, engine='pytuck')
         target_table = db2.get_table('users')
         assert len(target_table.data) == 3
         assert target_table.data[1]['name'] == 'Alice'
@@ -443,12 +443,12 @@ class TestMigrateEngineDataIntegrity:
 class TestFlushLoadDefaultValueIntegrity:
     """Bug 2: flush/load 循环不应篡改数据"""
 
-    @pytest.mark.parametrize("engine", ['binary', 'json', 'jsonl', 'csv'])
+    @pytest.mark.parametrize("engine", ['pytuck', 'json', 'jsonl', 'csv'])
     def test_add_column_then_set_null_preserves_on_reload(
         self, temp_dir: Path, engine: str
     ) -> None:
         """add_column 带默认值后，手动设为 null，flush/load 后 null 应保持"""
-        ext_map = {'binary': '.db', 'json': '.json', 'jsonl': '.zip', 'csv': '.csv'}
+        ext_map = {'pytuck': '.pytuck', 'json': '.json', 'jsonl': '.zip', 'csv': '.csv'}
         file_path = temp_dir / f'test{ext_map[engine]}'
 
         # 创建数据库并插入数据
@@ -482,12 +482,12 @@ class TestFlushLoadDefaultValueIntegrity:
         assert table2.data[2]['score'] == 0
         db2.close()
 
-    @pytest.mark.parametrize("engine", ['binary', 'json', 'jsonl', 'csv'])
+    @pytest.mark.parametrize("engine", ['pytuck', 'json', 'jsonl', 'csv'])
     def test_column_default_preserved_after_flush_load(
         self, temp_dir: Path, engine: str
     ) -> None:
         """Column 的 default 字段应在 flush/load 后保留"""
-        ext_map = {'binary': '.db', 'json': '.json', 'jsonl': '.zip', 'csv': '.csv'}
+        ext_map = {'pytuck': '.pytuck', 'json': '.json', 'jsonl': '.zip', 'csv': '.csv'}
         file_path = temp_dir / f'test{ext_map[engine]}'
 
         db = Storage(file_path=file_path, engine=engine)
@@ -501,8 +501,8 @@ class TestFlushLoadDefaultValueIntegrity:
         db2 = Storage(file_path=file_path, engine=engine)
         table2 = db2.get_table('items')
 
-        if engine != 'binary':
-            # 文本后端应保留 default（Binary 后端暂不支持）
+        if engine != 'pytuck':
+            # 文本后端应保留 default（Pytuck 后端暂不支持）
             assert table2.columns['score'].default == 42, \
                 f"{engine} 后端 flush/load 后丢失了 Column.default"
         db2.close()

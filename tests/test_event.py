@@ -27,7 +27,7 @@ def clear_events() -> None:
 @pytest.fixture
 def session_setup(temp_dir: Path):
     """创建 Session 模式的测试环境"""
-    db = Storage(file_path=str(temp_dir / 'test.db'), engine='json')
+    db = Storage(file_path=str(temp_dir / 'test.json'), engine='json')
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class User(Base):
@@ -43,7 +43,7 @@ def session_setup(temp_dir: Path):
 @pytest.fixture
 def crud_setup(temp_dir: Path):
     """创建 CRUD 模式的测试环境"""
-    db = Storage(file_path=str(temp_dir / 'test.db'), engine='json')
+    db = Storage(file_path=str(temp_dir / 'test.json'), engine='json')
     Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
     class Item(Base):

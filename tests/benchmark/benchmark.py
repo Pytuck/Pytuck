@@ -10,7 +10,7 @@ Pytuck 性能基准测试
     python tests/benchmark/benchmark.py -n 5000                   # 自定义记录数
     python tests/benchmark/benchmark.py --keep                    # 保留测试生成的文件
     python tests/benchmark/benchmark.py -n 10000 --keep           # 组合使用
-    python tests/benchmark/benchmark.py -e binary sqlite duckdb   # 只测试部分引擎
+    python tests/benchmark/benchmark.py -e pytuck sqlite duckdb   # 只测试部分引擎
 """
 
 import gc
@@ -41,7 +41,7 @@ DEFAULT_RECORD_COUNT = 10000
 
 # 引擎列表（名称, 显示名称, 依赖包列表）
 ENGINES = [
-    ('binary', 'Binary', []),
+    ('pytuck', 'Pytuck', []),
     ('json', 'JSON', []),
     ('jsonl', 'JSONL', []),
     ('csv', 'CSV', []),
@@ -228,7 +228,7 @@ class EngineBenchmark:
 
         # 根据引擎类型确定文件扩展名
         extensions = {
-            'binary': '.db',
+            'pytuck': '.pytuck',
             'json': '.json',
             'jsonl': '.zip',
             'csv': '.zip',
@@ -237,7 +237,7 @@ class EngineBenchmark:
             'excel': '.xlsx',
             'xml': '.xml',
         }
-        ext = extensions.get(engine_name, '.db')
+        ext = extensions.get(engine_name, '.pytuck')
         self.file_path: Path = Path(temp_dir) / f'benchmark_{engine_name}{ext}'
 
     def setup_database(self, record_count: int) -> Tuple['Storage', 'Session', type]:
@@ -374,31 +374,31 @@ class EngineBenchmark:
         return t.elapsed
 
     def benchmark_lazy_load(self) -> Optional[float]:
-        """测试懒加载性能（仅 Binary 引擎）"""
-        if self.engine_name != 'binary':
+        """测试懒加载性能（仅 Pytuck 引擎）"""
+        if self.engine_name != 'pytuck':
             return None
 
         options = BinaryBackendOptions(lazy_load=True)
         with Timer() as t:
-            db = Storage(file_path=self.file_path, engine='binary', backend_options=options)
+            db = Storage(file_path=self.file_path, engine='pytuck', backend_options=options)
         db.close()
         return t.elapsed
 
     def benchmark_lazy_query(self, count: int) -> Optional[Tuple[float, float]]:
         """
-        测试懒加载模式下的查询性能（仅 Binary 引擎）
+        测试懒加载模式下的查询性能（仅 Pytuck 引擎）
 
         在懒加载模式下，数据按需从磁盘读取。
         测试：首次查询特定记录的耗时。
 
         Returns:
-            Tuple[首次查询耗时, 后续查询耗时] 或 None（非 Binary 引擎）
+            Tuple[首次查询耗时, 后续查询耗时] 或 None（非 Pytuck 引擎）
         """
-        if self.engine_name != 'binary':
+        if self.engine_name != 'pytuck':
             return None
 
         options = BinaryBackendOptions(lazy_load=True)
-        db = Storage(file_path=self.file_path, engine='binary', backend_options=options)
+        db = Storage(file_path=self.file_path, engine='pytuck', backend_options=options)
         Base = declarative_base(db)
 
         class BenchmarkUser(Base):
@@ -514,12 +514,12 @@ class EngineBenchmark:
             db.close()
             results['load'] = self.benchmark_load()
 
-            # 懒加载测试（仅 Binary 引擎）
+            # 懒加载测试（仅 Pytuck 引擎）
             lazy_load_time = self.benchmark_lazy_load()
             if lazy_load_time is not None:
                 results['lazy_load'] = lazy_load_time
 
-            # 懒加载查询测试（仅 Binary 引擎，扩展测试）
+            # 懒加载查询测试（仅 Pytuck 引擎，扩展测试）
             if self.extended_tests:
                 lazy_query_result = self.benchmark_lazy_query(record_count)
                 if lazy_query_result is not None:
@@ -930,7 +930,7 @@ def parse_args():
   python benchmark.py -n 5000                 # 测试5000条记录
   python benchmark.py --keep                  # 保留测试生成的文件
   python benchmark.py -n 20000 --keep         # 测试20000条记录并保留文件
-  python benchmark.py -e binary json          # 只测试 binary 和 json 引擎
+  python benchmark.py -e pytuck json          # 只测试 pytuck 和 json 引擎
   python benchmark.py -n 1000 -e sqlite csv   # 测试1000条记录，只测 sqlite 和 csv 引擎
   python benchmark.py -n 1000 -e duckdb       # 只测试 DuckDB 引擎
   python benchmark.py --memtest               # 启用内存测试
@@ -956,7 +956,7 @@ def parse_args():
         nargs='+',
         choices=engines,
         metavar='ENGINE',
-        help='指定要测试的引擎（可选多个，例如: -e binary json；默认: 所有引擎）',
+        help='指定要测试的引擎（可选多个，例如: -e pytuck json；默认: 所有引擎）',
     )
     parser.add_argument(
         '--extended',

@@ -31,7 +31,7 @@ class TestMultiThreadedRead:
 
     def test_concurrent_read_same_table(self, tmp_path):
         """多线程并发读取同一表"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -75,7 +75,7 @@ class TestMultiThreadedRead:
 
     def test_concurrent_read_different_tables(self, tmp_path):
         """多线程并发读取不同表"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -139,7 +139,7 @@ class TestMultiThreadedRead:
 
     def test_thread_local_session_isolation(self, tmp_path):
         """每个线程 Session 的数据操作是隔离的"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -187,7 +187,7 @@ class TestMultiThreadedWrite:
 
     def test_concurrent_insert_different_records(self, tmp_path):
         """多线程并发插入不同记录"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -227,7 +227,7 @@ class TestMultiThreadedWrite:
 
     def test_sequential_write_after_read(self, tmp_path):
         """读取后顺序写入"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -288,7 +288,7 @@ class TestAutoFlushThreading:
         注意：auto_flush=True 不支持多线程并发写入，因为文件锁会导致冲突。
         应该使用 auto_flush=False 并在最后统一 flush()。
         """
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path), auto_flush=True)
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -326,7 +326,7 @@ class TestAutoFlushThreading:
 
     def test_auto_flush_false_multi_thread(self, tmp_path):
         """auto_flush=False 多线程行为"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path), auto_flush=False)
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -372,7 +372,7 @@ class TestThreadSafety:
 
     def test_multiple_sessions_same_storage(self, tmp_path):
         """多个 Session 共享同一个 Storage"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -404,7 +404,7 @@ class TestThreadSafety:
 
     def test_rapid_open_close_sessions(self, tmp_path):
         """快速打开关闭 Session"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)

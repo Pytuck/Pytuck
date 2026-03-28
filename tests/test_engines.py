@@ -2,7 +2,7 @@
 Pytuck 多存储引擎测试
 
 测试所有8种存储引擎的功能：
-- binary: 二进制引擎（默认）
+- pytuck: Pytuck 单文件引擎（默认）
 - json: JSON引擎
 - jsonl: JSONL引擎（ZIP压缩）
 - csv: CSV引擎（ZIP压缩）
@@ -36,8 +36,8 @@ def is_engine_available(engine_name: str) -> bool:
 class BaseEngineTest(unittest.TestCase):
     """引擎测试基类"""
 
-    engine_name: str = 'binary'
-    file_extension: str = 'db'
+    engine_name: str = 'pytuck'
+    file_extension: str = 'pytuck'
 
     def setUp(self) -> None:
         """测试前设置"""
@@ -228,11 +228,11 @@ class BaseEngineTest(unittest.TestCase):
 
 
 # 为每个引擎创建测试类
-@unittest.skipUnless(is_engine_available('binary'), "Binary engine not available")
-class TestBinaryEngine(BaseEngineTest):
-    """二进制引擎测试"""
-    engine_name = 'binary'
-    file_extension = 'db'
+@unittest.skipUnless(is_engine_available('pytuck'), "Pytuck engine not available")
+class TestPytuckEngine(BaseEngineTest):
+    """Pytuck 引擎测试"""
+    engine_name = 'pytuck'
+    file_extension = 'pytuck'
 
 
 @unittest.skipUnless(is_engine_available('json'), "JSON engine not available")
@@ -287,9 +287,9 @@ class TestXMLEngine(BaseEngineTest):
 class TestEngineAvailability(unittest.TestCase):
     """引擎可用性测试"""
 
-    def test_binary_engine_always_available(self) -> None:
-        """测试二进制引擎总是可用"""
-        self.assertTrue(is_engine_available('binary'))
+    def test_pytuck_engine_always_available(self) -> None:
+        """测试 Pytuck 引擎总是可用"""
+        self.assertTrue(is_engine_available('pytuck'))
 
     def test_json_engine_always_available(self) -> None:
         """测试 JSON 引擎总是可用（标准库）"""
@@ -328,7 +328,7 @@ if __name__ == '__main__':
     print("Pytuck 多存储引擎测试")
     print("="*60)
     print("\n可用引擎:")
-    for engine in ['binary', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml']:
+    for engine in ['pytuck', 'json', 'jsonl', 'csv', 'sqlite', 'duckdb', 'excel', 'xml']:
         available = is_engine_available(engine)
         status = "✓ 可用" if available else "✗ 不可用"
         print(f"  {engine:10} : {status}")

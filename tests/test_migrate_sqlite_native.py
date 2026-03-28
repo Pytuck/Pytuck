@@ -3,7 +3,7 @@
 
 测试 migrate_engine() 在后端使用懒加载模式时的数据迁移功能：
 - SQLite 原生模式：load() 只加载 schema，data 为空
-- Binary 懒加载模式：load() 只加载 schema 和索引，data 为空
+- Pytuck 懒加载模式：load() 只加载 schema 和索引，data 为空
 - migrate_engine() 应能正确填充数据并迁移
 """
 
@@ -79,11 +79,11 @@ class TestMigrateChainWithNativeSqlite:
     """测试完整迁移链条"""
 
     def test_migrate_chain(self, tmp_path: Path) -> None:
-        """完整迁移链条：SQLite(native) -> JSON -> CSV -> Binary -> SQLite"""
+        """完整迁移链条：SQLite(native) -> JSON -> CSV -> Pytuck -> SQLite"""
         sqlite_file = tmp_path / 'source.sqlite'
         json_file = tmp_path / 'target.json'
         csv_file = tmp_path / 'target.zip'
-        binary_file = tmp_path / 'target.db'
+        pytuck_file = tmp_path / 'target.pytuck'
         sqlite_target = tmp_path / 'target.sqlite'
 
         # 1. 使用兼容模式创建数据
@@ -123,19 +123,19 @@ class TestMigrateChainWithNativeSqlite:
         )
         assert result['records'] == 3
 
-        # 4. CSV -> Binary
+        # 4. CSV -> Pytuck
         result = migrate_engine(
             source_path=str(csv_file),
             source_engine='csv',
-            target_path=str(binary_file),
-            target_engine='binary'
+            target_path=str(pytuck_file),
+            target_engine='pytuck'
         )
         assert result['records'] == 3
 
-        # 5. Binary -> SQLite
+        # 5. Pytuck -> SQLite
         result = migrate_engine(
-            source_path=str(binary_file),
-            source_engine='binary',
+            source_path=str(pytuck_file),
+            source_engine='pytuck',
             target_path=str(sqlite_target),
             target_engine='sqlite'
         )
@@ -334,15 +334,15 @@ class TestMigrateSqliteNativeMultipleTables:
 
 
 class TestMigrateBinaryLazyLoadToJson:
-    """测试 Binary 懒加载模式迁移到 JSON"""
+    """测试 Pytuck 懒加载模式迁移到 JSON"""
 
     def test_migrate_binary_lazy_to_json(self, tmp_path: Path) -> None:
-        """Binary 懒加载模式迁移到 JSON，数据应正确迁移"""
-        binary_file = tmp_path / 'source.db'
+        """Pytuck 懒加载模式迁移到 JSON，数据应正确迁移"""
+        pytuck_file = tmp_path / 'source.pytuck'
         json_file = tmp_path / 'target.json'
 
-        # 1. 创建 Binary 数据库（正常模式）
-        db = Storage(file_path=str(binary_file), engine='binary')
+        # 1. 创建 Pytuck 数据库（正常模式）
+        db = Storage(file_path=str(pytuck_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -360,14 +360,14 @@ class TestMigrateBinaryLazyLoadToJson:
 
         # 2. 使用懒加载模式重新打开，验证 table.data 为空
         opts_lazy = BinaryBackendOptions(lazy_load=True)
-        db_lazy = Storage(file_path=str(binary_file), engine='binary', backend_options=opts_lazy)
+        db_lazy = Storage(file_path=str(pytuck_file), engine='pytuck', backend_options=opts_lazy)
         assert db_lazy.tables['users'].data == {}, "懒加载模式下 table.data 应该为空"
         db_lazy.close()
 
         # 3. 执行迁移（使用懒加载模式）
         result = migrate_engine(
-            source_path=str(binary_file),
-            source_engine='binary',
+            source_path=str(pytuck_file),
+            source_engine='pytuck',
             target_path=str(json_file),
             target_engine='json',
             source_options=opts_lazy
@@ -390,15 +390,15 @@ class TestMigrateBinaryLazyLoadToJson:
 
 
 class TestMigrateBinaryLazyLoadMultipleTables:
-    """测试 Binary 懒加载模式多表迁移"""
+    """测试 Pytuck 懒加载模式多表迁移"""
 
     def test_migrate_multiple_tables(self, tmp_path: Path) -> None:
         """多表迁移应正确处理"""
-        binary_file = tmp_path / 'source.db'
+        pytuck_file = tmp_path / 'source.pytuck'
         json_file = tmp_path / 'target.json'
 
         # 1. 创建多个表
-        db = Storage(file_path=str(binary_file), engine='binary')
+        db = Storage(file_path=str(pytuck_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Users(Base):
@@ -424,8 +424,8 @@ class TestMigrateBinaryLazyLoadMultipleTables:
         # 2. 使用懒加载模式迁移
         opts_lazy = BinaryBackendOptions(lazy_load=True)
         result = migrate_engine(
-            source_path=str(binary_file),
-            source_engine='binary',
+            source_path=str(pytuck_file),
+            source_engine='pytuck',
             target_path=str(json_file),
             target_engine='json',
             source_options=opts_lazy
@@ -447,16 +447,16 @@ class TestMigrateBinaryLazyLoadMultipleTables:
 
 
 class TestMigrateBinaryLazyLoadChain:
-    """测试 Binary 懒加载模式迁移链条"""
+    """测试 Pytuck 懒加载模式迁移链条"""
 
     def test_migrate_chain(self, tmp_path: Path) -> None:
-        """完整迁移链条：Binary(lazy) -> JSON -> SQLite"""
-        binary_file = tmp_path / 'source.db'
+        """完整迁移链条：Pytuck(lazy) -> JSON -> SQLite"""
+        pytuck_file = tmp_path / 'source.pytuck'
         json_file = tmp_path / 'target.json'
         sqlite_file = tmp_path / 'target.sqlite'
 
-        # 1. 创建 Binary 数据库
-        db = Storage(file_path=str(binary_file), engine='binary')
+        # 1. 创建 Pytuck 数据库
+        db = Storage(file_path=str(pytuck_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Person(Base):
@@ -473,11 +473,11 @@ class TestMigrateBinaryLazyLoadChain:
         db.flush()
         db.close()
 
-        # 2. Binary(lazy) -> JSON
+        # 2. Pytuck(lazy) -> JSON
         opts_lazy = BinaryBackendOptions(lazy_load=True)
         result = migrate_engine(
-            source_path=str(binary_file),
-            source_engine='binary',
+            source_path=str(pytuck_file),
+            source_engine='pytuck',
             target_path=str(json_file),
             target_engine='json',
             source_options=opts_lazy

@@ -22,8 +22,8 @@ class TestStringBoundaryValues:
 
     def test_empty_string(self, tmp_path: Path) -> None:
         """空字符串"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -44,8 +44,8 @@ class TestStringBoundaryValues:
 
     def test_very_long_string(self, tmp_path: Path) -> None:
         """超长字符串（10000+ 字符）"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -69,8 +69,8 @@ class TestStringBoundaryValues:
 
     def test_unicode_emoji(self, tmp_path: Path) -> None:
         """Unicode emoji 字符"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -93,8 +93,8 @@ class TestStringBoundaryValues:
 
     def test_unicode_non_bmp(self, tmp_path: Path) -> None:
         """非 BMP Unicode 字符（如数学符号、古文字）"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -118,8 +118,8 @@ class TestStringBoundaryValues:
 
     def test_control_characters(self, tmp_path: Path) -> None:
         """控制字符（\n, \t, \r）"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -145,8 +145,8 @@ class TestStringBoundaryValues:
 
     def test_mixed_unicode_ascii(self, tmp_path: Path) -> None:
         """混合 Unicode 和 ASCII"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -173,8 +173,8 @@ class TestNumericBoundaryValues:
 
     def test_int_zero(self, tmp_path: Path) -> None:
         """整数零"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -195,8 +195,8 @@ class TestNumericBoundaryValues:
 
     def test_int_large_value(self, tmp_path: Path) -> None:
         """大整数值"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -219,8 +219,8 @@ class TestNumericBoundaryValues:
 
     def test_int_negative(self, tmp_path: Path) -> None:
         """负整数"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -241,8 +241,8 @@ class TestNumericBoundaryValues:
 
     def test_float_zero(self, tmp_path: Path) -> None:
         """浮点零"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -263,8 +263,8 @@ class TestNumericBoundaryValues:
 
     def test_float_very_small(self, tmp_path: Path) -> None:
         """极小浮点数"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -287,8 +287,8 @@ class TestNumericBoundaryValues:
 
     def test_float_very_large(self, tmp_path: Path) -> None:
         """极大浮点数"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -311,8 +311,8 @@ class TestNumericBoundaryValues:
 
     def test_float_negative(self, tmp_path: Path) -> None:
         """负浮点数"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -337,8 +337,8 @@ class TestCollectionBoundaryValues:
 
     def test_empty_list(self, tmp_path: Path) -> None:
         """空列表"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -359,8 +359,8 @@ class TestCollectionBoundaryValues:
 
     def test_empty_dict(self, tmp_path: Path) -> None:
         """空字典"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -381,8 +381,8 @@ class TestCollectionBoundaryValues:
 
     def test_nested_list(self, tmp_path: Path) -> None:
         """嵌套列表"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -405,8 +405,8 @@ class TestCollectionBoundaryValues:
 
     def test_deeply_nested_structure(self, tmp_path: Path) -> None:
         """深度嵌套结构"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -440,8 +440,8 @@ class TestCollectionBoundaryValues:
 
     def test_list_with_mixed_types(self, tmp_path: Path) -> None:
         """混合类型列表"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -468,8 +468,8 @@ class TestDatetimeBoundaryValues:
 
     def test_datetime_now(self, tmp_path: Path) -> None:
         """当前时间"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -493,8 +493,8 @@ class TestDatetimeBoundaryValues:
 
     def test_date_only(self, tmp_path: Path) -> None:
         """只有日期"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -517,8 +517,8 @@ class TestDatetimeBoundaryValues:
 
     def test_timedelta(self, tmp_path: Path) -> None:
         """时间间隔"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -545,8 +545,8 @@ class TestBooleanBoundaryValues:
 
     def test_bool_true(self, tmp_path: Path) -> None:
         """布尔真"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -567,8 +567,8 @@ class TestBooleanBoundaryValues:
 
     def test_bool_false(self, tmp_path: Path) -> None:
         """布尔假"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -593,8 +593,8 @@ class TestBytesBoundaryValues:
 
     def test_empty_bytes(self, tmp_path: Path) -> None:
         """空字节"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -615,8 +615,8 @@ class TestBytesBoundaryValues:
 
     def test_binary_data(self, tmp_path: Path) -> None:
         """二进制数据"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -643,8 +643,8 @@ class TestNullableBoundaryValues:
 
     def test_nullable_string_none(self, tmp_path: Path) -> None:
         """可空字符串设为 None"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -665,8 +665,8 @@ class TestNullableBoundaryValues:
 
     def test_nullable_int_none(self, tmp_path: Path) -> None:
         """可空整数设为 None"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -687,8 +687,8 @@ class TestNullableBoundaryValues:
 
     def test_nullable_list_none(self, tmp_path: Path) -> None:
         """可空列表设为 None"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -713,8 +713,8 @@ class TestMultipleRecordsBoundaryValues:
 
     def test_single_record(self, tmp_path: Path) -> None:
         """单条记录"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -735,8 +735,8 @@ class TestMultipleRecordsBoundaryValues:
 
     def test_many_records(self, tmp_path: Path) -> None:
         """大量记录（1000条）"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):
@@ -766,8 +766,8 @@ class TestMultipleRecordsBoundaryValues:
 
     def test_empty_table(self, tmp_path: Path) -> None:
         """空表查询"""
-        db_file = tmp_path / 'test.db'
-        db = Storage(file_path=str(db_file), engine='binary')
+        db_file = tmp_path / 'test.pytuck'
+        db = Storage(file_path=str(db_file), engine='pytuck')
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class Item(Base):

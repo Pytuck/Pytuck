@@ -160,7 +160,7 @@ class TestTableNotFoundError:
 
     def test_access_nonexistent_table(self, tmp_path):
         """访问不存在的表"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         with pytest.raises(TableNotFoundError) as exc_info:
@@ -171,7 +171,7 @@ class TestTableNotFoundError:
 
     def test_session_execute_on_nonexistent_table(self, tmp_path):
         """Session 操作不存在的表"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -195,7 +195,7 @@ class TestRecordNotFoundError:
 
     def test_get_nonexistent_record(self, tmp_path):
         """获取不存在的记录返回 None"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -229,7 +229,7 @@ class TestDuplicateKeyError:
 
     def test_insert_duplicate_primary_key(self, tmp_path):
         """插入重复主键"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -287,7 +287,7 @@ class TestTypeConversionError:
 
     def test_invalid_int_conversion(self, tmp_path):
         """无效的整数转换抛出 ValidationError"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)

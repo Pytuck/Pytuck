@@ -30,7 +30,7 @@ class TestResultEmptyBehavior:
 
     def test_all_returns_empty_list(self, tmp_path):
         """all() 返回空列表"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -51,7 +51,7 @@ class TestResultEmptyBehavior:
 
     def test_first_returns_none(self, tmp_path):
         """first() 返回 None"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -71,7 +71,7 @@ class TestResultEmptyBehavior:
 
     def test_one_raises_on_empty(self, tmp_path):
         """one() 在空结果时抛出 QueryError"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -94,7 +94,7 @@ class TestResultEmptyBehavior:
 
     def test_one_or_none_returns_none(self, tmp_path):
         """one_or_none() 返回 None"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -114,7 +114,7 @@ class TestResultEmptyBehavior:
 
     def test_rowcount_on_empty(self, tmp_path):
         """空结果集的 rowcount() 返回 0"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -138,7 +138,7 @@ class TestResultSingleRecord:
 
     def test_all_returns_single_item_list(self, tmp_path):
         """all() 返回单元素列表"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -163,7 +163,7 @@ class TestResultSingleRecord:
 
     def test_first_returns_instance(self, tmp_path):
         """first() 返回模型实例"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -188,7 +188,7 @@ class TestResultSingleRecord:
 
     def test_one_returns_instance(self, tmp_path):
         """one() 返回唯一的模型实例"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -212,7 +212,7 @@ class TestResultSingleRecord:
 
     def test_one_or_none_returns_instance(self, tmp_path):
         """one_or_none() 返回唯一的模型实例"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -241,7 +241,7 @@ class TestResultMultipleRecords:
 
     def test_all_returns_multiple(self, tmp_path):
         """all() 返回多条记录"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -271,7 +271,7 @@ class TestResultMultipleRecords:
 
     def test_first_returns_first(self, tmp_path):
         """first() 返回第一条记录"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -298,7 +298,7 @@ class TestResultMultipleRecords:
 
     def test_one_raises_on_multiple(self, tmp_path):
         """one() 在多条结果时抛出 QueryError"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -325,7 +325,7 @@ class TestResultMultipleRecords:
 
     def test_one_or_none_raises_on_multiple(self, tmp_path):
         """one_or_none() 在多条结果时抛出 QueryError"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -352,7 +352,7 @@ class TestResultMultipleRecords:
 
     def test_rowcount_on_multiple(self, tmp_path):
         """多条记录的 rowcount()"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -379,7 +379,7 @@ class TestCursorResultBehavior:
 
     def test_rowcount_on_insert(self, tmp_path):
         """INSERT 的 rowcount"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -399,7 +399,7 @@ class TestCursorResultBehavior:
 
     def test_rowcount_on_update(self, tmp_path):
         """UPDATE 的 rowcount"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -426,7 +426,7 @@ class TestCursorResultBehavior:
 
     def test_rowcount_on_delete(self, tmp_path):
         """DELETE 的 rowcount"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -451,7 +451,7 @@ class TestCursorResultBehavior:
 
     def test_rowcount_on_no_match(self, tmp_path):
         """没有匹配时的 rowcount"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -477,7 +477,7 @@ class TestCursorResultBehavior:
 
     def test_inserted_primary_key(self, tmp_path):
         """INSERT 返回插入的主键"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -497,7 +497,7 @@ class TestCursorResultBehavior:
 
     def test_inserted_primary_key_auto_increment(self, tmp_path):
         """自增主键的 inserted_primary_key"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -530,7 +530,7 @@ class TestCursorResultUnsupportedOperations:
 
     def test_all_raises_on_insert(self, tmp_path):
         """INSERT 结果调用 all() 抛出异常"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -551,7 +551,7 @@ class TestCursorResultUnsupportedOperations:
 
     def test_first_raises_on_update(self, tmp_path):
         """UPDATE 结果调用 first() 抛出异常"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -577,7 +577,7 @@ class TestCursorResultUnsupportedOperations:
 
     def test_one_raises_on_delete(self, tmp_path):
         """DELETE 结果调用 one() 抛出异常"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -601,7 +601,7 @@ class TestCursorResultUnsupportedOperations:
 
     def test_one_or_none_raises_on_insert(self, tmp_path):
         """INSERT 结果调用 one_or_none() 抛出异常"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -626,7 +626,7 @@ class TestResultIdentityMap:
 
     def test_same_instance_from_identity_map(self, tmp_path):
         """同一主键返回相同实例（identity map）"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
@@ -656,7 +656,7 @@ class TestResultIdentityMap:
 
     def test_all_called_multiple_times(self, tmp_path):
         """多次调用 all() 返回相同实例"""
-        db_path = tmp_path / "test.db"
+        db_path = tmp_path / "test.pytuck"
         db = Storage(file_path=str(db_path))
 
         Base: Type[PureBaseModel] = declarative_base(db)
