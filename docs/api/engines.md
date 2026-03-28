@@ -115,6 +115,7 @@ JSONL 文件打包为 ZIP 存储（每张表一个 `.jsonl` 文件 + 元数据 `
 - 人类可读（解压后）
 - 每行一条记录，便于逐行处理和外部工具消费
 - 支持多种 JSON 库加速（`orjson`、`ujson`）
+- 支持 ZIP 密码保护
 - 无外部依赖
 
 ### 配置
@@ -128,6 +129,7 @@ db = Storage(
     backend_options=JsonlBackendOptions(
         ensure_ascii=False,
         impl='orjson',
+        password='my_password',  # 可选：ZIP 密码（仅 ASCII 字符）
     )
 )
 ```
@@ -136,6 +138,9 @@ db = Storage(
 
 - 外层文件是 ZIP 容器，不是单个裸 `.jsonl`
 - 每张表对应一个 `.jsonl` 文件，schema 保存在 `_metadata.json`
+- 设置 `JsonlBackendOptions(password='...')` 后会启用 ZIP 密码保护；重新打开同一归档时也需要提供相同密码
+- `probe()` 和 `get_metadata()` 在未提供密码时仍能识别“这是加密的 JSONL ZIP”，但只能返回有限信息
+- ZIP 密码仅允许 ASCII 可打印字符（不支持中文、日文、空格等）
 - 当前保存策略为全量重写，适合交换、归档、调试，不适合超大文件高频更新
 - `datetime`、`date`、`timedelta` 序列化为字符串，`bytes` 序列化为 Base64
 

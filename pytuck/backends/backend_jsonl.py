@@ -17,7 +17,7 @@ from typing import Any, Dict, Optional, Set, Tuple, TYPE_CHECKING, Union
 from .base import StorageBackend
 from .backend_json import JSONBackend
 from .versions import get_format_version
-from ..common.exceptions import ConfigurationError, SerializationError
+from ..common.exceptions import ConfigurationError, EncryptionError, SerializationError
 from ..common.options import JsonlBackendOptions
 from ..core.types import TypeRegistry
 
@@ -131,10 +131,17 @@ class JSONLBackend(StorageBackend):
         temp_path = Path(temp_path_str)
 
         try:
-            with zipfile.ZipFile(str(temp_path), 'w', zipfile.ZIP_DEFLATED) as zf:
-                zf.writestr('_metadata.json', metadata_bytes)
-                for table_name, table in tables.items():
-                    zf.writestr(f'{table_name}.jsonl', self._generate_jsonl_bytes(table))
+            if self.options.password:
+                from ..common.encrypted_zip import EncryptedZipFile
+                with EncryptedZipFile(str(temp_path), self.options.password) as zf:
+                    zf.writestr('_metadata.json', metadata_bytes)
+                    for table_name, table in tables.items():
+                        zf.writestr(f'{table_name}.jsonl', self._generate_jsonl_bytes(table))
+            else:
+                with zipfile.ZipFile(str(temp_path), 'w', zipfile.ZIP_DEFLATED) as zf:
+                    zf.writestr('_metadata.json', metadata_bytes)
+                    for table_name, table in tables.items():
+                        zf.writestr(f'{table_name}.jsonl', self._generate_jsonl_bytes(table))
 
             temp_path.replace(self.file_path)
 
@@ -152,7 +159,18 @@ class JSONLBackend(StorageBackend):
 
         try:
             with zipfile.ZipFile(str(self.file_path), 'r') as zf:
-                metadata = self._load_metadata(zf)
+                encrypted = any((info.flag_bits & 0x1) != 0 for info in zf.infolist())
+
+                if encrypted:
+                    if not self.options.password:
+                        raise EncryptionError(
+                            'JSONL archive is encrypted. Please provide password in JsonlBackendOptions.'
+                        )
+                    pwd = self.options.password.encode('utf-8')
+                else:
+                    pwd = None
+
+                metadata = self._load_metadata(zf, pwd)
                 tables_schema = metadata.get('tables', {})
                 if not isinstance(tables_schema, dict):
                     raise SerializationError('Invalid JSONL tables schema')
@@ -165,13 +183,17 @@ class JSONLBackend(StorageBackend):
                 for table_name, table in tables.items():
                     jsonl_file = f'{table_name}.jsonl'
                     if jsonl_file in zf.namelist():
-                        self._read_jsonl_into_table(zf, jsonl_file, table)
+                        self._read_jsonl_into_table(zf, jsonl_file, table, pwd)
 
             self._rebuild_indexes(tables)
             return tables
 
-        except SerializationError:
+        except (EncryptionError, SerializationError):
             raise
+        except RuntimeError as e:
+            if 'Bad password' in str(e) or 'password' in str(e).lower():
+                raise EncryptionError('Incorrect password for JSONL archive.')
+            raise SerializationError(f'Failed to load JSONL archive: {e}')
         except Exception as e:
             raise SerializationError(f'Failed to load JSONL archive: {e}')
 
@@ -225,12 +247,12 @@ class JSONLBackend(StorageBackend):
             buffer.write('\n')
         return buffer.getvalue().encode('utf-8')
 
-    def _load_metadata(self, zf: zipfile.ZipFile) -> Dict[str, Any]:
+    def _load_metadata(self, zf: zipfile.ZipFile, pwd: Optional[bytes] = None) -> Dict[str, Any]:
         """从 ZIP 中读取元数据"""
         if '_metadata.json' not in zf.namelist():
             raise SerializationError('Missing _metadata.json in JSONL archive')
 
-        with zf.open('_metadata.json') as f:
+        with zf.open('_metadata.json', pwd=pwd) as f:
             content = f.read().decode('utf-8')
             metadata = self._loads_func(content)
 
@@ -266,9 +288,15 @@ class JSONLBackend(StorageBackend):
         table.next_id = schema.get('next_id', 1)
         return table
 
-    def _read_jsonl_into_table(self, zf: zipfile.ZipFile, jsonl_file: str, table: 'Table') -> None:
+    def _read_jsonl_into_table(
+        self,
+        zf: zipfile.ZipFile,
+        jsonl_file: str,
+        table: 'Table',
+        pwd: Optional[bytes] = None
+    ) -> None:
         """从 ZIP 中读取单表 JSONL 数据并填充到表中"""
-        with zf.open(jsonl_file) as f:
+        with zf.open(jsonl_file, pwd=pwd) as f:
             text_stream = io.TextIOWrapper(f, encoding='utf-8')
             for idx, line in enumerate(text_stream):
                 if not line.strip():
@@ -308,23 +336,54 @@ class JSONLBackend(StorageBackend):
             return {}
 
         file_stat = self.file_path.stat()
+        file_size = file_stat.st_size
+        modified_time = file_stat.st_mtime
 
         try:
             with zipfile.ZipFile(str(self.file_path), 'r') as zf:
-                metadata = self._load_metadata(zf)
-        except Exception:
-            metadata = {}
+                encrypted = any((info.flag_bits & 0x1) != 0 for info in zf.infolist())
 
-        tables = metadata.get('tables', {}) if isinstance(metadata, dict) else {}
-        return {
-            'engine': self.ENGINE_NAME,
-            'version': metadata.get('format_version', 'unknown') if isinstance(metadata, dict) else 'unknown',
-            'file_size': file_stat.st_size,
-            'modified': file_stat.st_mtime,
-            'timestamp': metadata.get('timestamp', 'unknown') if isinstance(metadata, dict) else 'unknown',
-            'table_count': len(tables) if isinstance(tables, dict) else 0,
-            'json_impl': getattr(self, '_impl_name', 'unknown'),
-        }
+                if encrypted:
+                    if self.options.password:
+                        pwd = self.options.password.encode('utf-8')
+                        try:
+                            metadata = self._load_metadata(zf, pwd)
+                        except RuntimeError:
+                            return {
+                                'engine': self.ENGINE_NAME,
+                                'encrypted': True,
+                                'file_size': file_size,
+                                'modified': modified_time,
+                                'json_impl': getattr(self, '_impl_name', 'unknown'),
+                                'error': 'incorrect_password'
+                            }
+                    else:
+                        return {
+                            'engine': self.ENGINE_NAME,
+                            'encrypted': True,
+                            'requires_password': True,
+                            'file_size': file_size,
+                            'modified': modified_time,
+                            'json_impl': getattr(self, '_impl_name', 'unknown'),
+                        }
+                else:
+                    metadata = self._load_metadata(zf) if '_metadata.json' in zf.namelist() else {}
+
+            tables = metadata.get('tables', {}) if isinstance(metadata, dict) else {}
+            result = {
+                'engine': self.ENGINE_NAME,
+                'version': metadata.get('format_version', 'unknown') if isinstance(metadata, dict) else 'unknown',
+                'file_size': file_size,
+                'modified': modified_time,
+                'timestamp': metadata.get('timestamp', 'unknown') if isinstance(metadata, dict) else 'unknown',
+                'table_count': len(tables) if isinstance(tables, dict) else 0,
+                'json_impl': getattr(self, '_impl_name', 'unknown'),
+            }
+            if encrypted:
+                result['encrypted'] = True
+            return result
+        except Exception:
+            return {}
 
     @classmethod
     def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
@@ -346,27 +405,47 @@ class JSONLBackend(StorageBackend):
             if not zipfile.is_zipfile(str(path)):
                 return False, None
 
-            with zipfile.ZipFile(str(path), 'r') as zf:
-                if '_metadata.json' not in zf.namelist():
+            try:
+                with zipfile.ZipFile(str(path), 'r') as zf:
+                    namelist = zf.namelist()
+                    if '_metadata.json' not in namelist:
+                        return False, None
+
+                    encrypted = any((info.flag_bits & 0x1) != 0 for info in zf.infolist())
+                    jsonl_files = [name for name in namelist if name.endswith('.jsonl') and not name.startswith('_')]
+
+                    if encrypted:
+                        return True, {
+                            'engine': 'jsonl',
+                            'encrypted': True,
+                            'requires_password': True,
+                            'jsonl_file_count': len(jsonl_files),
+                            'file_size': file_stat.st_size,
+                            'modified': file_stat.st_mtime,
+                            'confidence': 'medium'
+                        }
+
+                    with zf.open('_metadata.json') as f:
+                        metadata = json.loads(f.read().decode('utf-8'))
+
+                if not isinstance(metadata, dict):
                     return False, None
-                with zf.open('_metadata.json') as f:
-                    metadata = json.loads(f.read().decode('utf-8'))
+                if metadata.get('engine') != 'jsonl' or 'tables' not in metadata:
+                    return False, None
 
-            if not isinstance(metadata, dict):
-                return False, None
-            if metadata.get('engine') != 'jsonl' or 'tables' not in metadata:
-                return False, None
-
-            tables = metadata.get('tables', {})
-            table_count = len(tables) if isinstance(tables, dict) else 0
-            return True, {
-                'engine': 'jsonl',
-                'format_version': metadata.get('format_version'),
-                'table_count': table_count,
-                'file_size': file_stat.st_size,
-                'modified': file_stat.st_mtime,
-                'timestamp': metadata.get('timestamp'),
-                'confidence': 'high'
-            }
+                tables = metadata.get('tables', {})
+                table_count = len(tables) if isinstance(tables, dict) else 0
+                return True, {
+                    'engine': 'jsonl',
+                    'format_version': metadata.get('format_version'),
+                    'table_count': table_count,
+                    'jsonl_file_count': len(jsonl_files),
+                    'file_size': file_stat.st_size,
+                    'modified': file_stat.st_mtime,
+                    'timestamp': metadata.get('timestamp'),
+                    'confidence': 'high'
+                }
+            except zipfile.BadZipFile:
+                return False, {'error': 'corrupted_zip'}
         except Exception as e:
-            return False, {'error': str(e)}
+            return False, {'error': f'probe_exception: {str(e)}'}

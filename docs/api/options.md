@@ -55,12 +55,14 @@ class JsonBackendOptions:
 class JsonlBackendOptions:
     ensure_ascii: bool = False
     impl: Optional[str] = None
+    password: Optional[str] = None
 ```
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `ensure_ascii` | `bool` | `False` | 是否强制 ASCII 编码 |
 | `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'ujson'`、`'json'` 等 |
+| `password` | `Optional[str]` | `None` | ZIP 密码（仅 ASCII 可打印字符）；设置后 JSONL ZIP 将启用密码保护 |
 
 ### CsvBackendOptions
 

@@ -260,13 +260,16 @@ db = Storage(file_path='data.json', engine='json', backend_options=json_opts)
 
 ### JSONL 引擎
 
-**特点**: ZIP 容器、多表按 `.jsonl` 分文件存储、逐行文本、零依赖
+**特点**: ZIP 容器、多表按 `.jsonl` 分文件存储、逐行文本、支持 ZIP 密码、零依赖
 
 ```python
 from pytuck.common.options import JsonlBackendOptions
 
 # 外层是 ZIP 容器，内部为 _metadata.json + 每表一个 .jsonl
-jsonl_opts = JsonlBackendOptions(ensure_ascii=False)
+jsonl_opts = JsonlBackendOptions(
+    ensure_ascii=False,
+    password='my_password',  # 可选：ZIP 密码（仅 ASCII 字符）
+)
 db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
 ```
 
@@ -275,6 +278,12 @@ db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
 - 逐行处理 / 流式交换
 - 需要兼顾可读性与多表组织
 - 保持零依赖
+
+**补充说明**:
+- 设置 `JsonlBackendOptions(password='...')` 后会启用 ZIP 密码保护
+- 重新打开加密归档时需要提供相同密码
+- `probe()` / `get_metadata()` 在无密码时仍能识别加密 JSONL，但只返回有限信息
+- ZIP 密码仅支持 ASCII 可打印字符，不支持中文、日文和空格
 
 ### CSV 引擎
 

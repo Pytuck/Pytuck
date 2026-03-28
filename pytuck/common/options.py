@@ -64,6 +64,13 @@ class JsonlBackendOptions:
     """JSONL 后端配置选项"""
     ensure_ascii: bool = False  # 是否强制 ASCII 编码
     impl: Optional[str] = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
+    password: Optional[str] = None  # ZIP 密码（仅允许 ASCII 字符）
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """拦截属性赋值，校验 password 字段"""
+        if name == 'password':
+            _validate_zip_password(value)
+        object.__setattr__(self, name, value)
 
 
 @dataclass

@@ -261,13 +261,16 @@ db = Storage(file_path='data.json', engine='json', backend_options=json_opts)
 
 ### JSONL Engine
 
-**Features**: ZIP container, one `.jsonl` file per table, line-oriented text, zero dependencies
+**Features**: ZIP container, one `.jsonl` file per table, line-oriented text, ZIP password support, zero dependencies
 
 ```python
 from pytuck.common.options import JsonlBackendOptions
 
 # Outer file is a ZIP archive with _metadata.json + one .jsonl per table
-jsonl_opts = JsonlBackendOptions(ensure_ascii=False)
+jsonl_opts = JsonlBackendOptions(
+    ensure_ascii=False,
+    password='my_password',  # Optional: ZIP password (ASCII printable characters only)
+)
 db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
 ```
 
@@ -276,6 +279,12 @@ db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
 - Line-oriented processing / streaming exchange
 - Human-readable exchange with better multi-table organization
 - Zero-dependency deployments
+
+**Notes**:
+- Setting `JsonlBackendOptions(password='...')` enables ZIP password protection
+- Reopening an encrypted archive requires the same password
+- `probe()` / `get_metadata()` can still identify an encrypted JSONL ZIP without a password, but only return limited information
+- ZIP passwords only support ASCII printable characters, not Chinese, Japanese, or spaces
 
 ### CSV Engine
 
