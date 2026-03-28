@@ -49,6 +49,7 @@
 | 与 Excel 互操作 | Excel | CSV |
 | 嵌入式应用（如 Ren'Py） | Binary | JSON |
 | 跨系统数据交换 | CSV / JSON | XML |
+| 需要最小文件体积 | CSV | — |
 
 ### 引擎切换
 
