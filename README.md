@@ -15,7 +15,7 @@
 
 > [!IMPORTANT]
 > **适用场景说明**：Pytuck 是纯 Python 实现的嵌入式数据库，专为**中小规模数据**和**受限环境**设计。
-> - **数据量建议**：万级记录以内体验最佳，十万级以上建议使用 SQLite 引擎或评估其他方案
+> - **数据量建议**：这里的“万级 / 十万级”主要按**单张热点表**记录数衡量。万级记录以内体验最佳；当单表接近或超过 10 万条时，优先使用 DuckDB / SQLite 引擎或评估其他方案，多表总量继续增长时也要同步关注整体 I/O 与加载时间
 > - **性能定位**：纯 Python 实现意味着性能无法与 C 扩展数据库（如 SQLite、PostgreSQL）相比，不适合高并发或计算密集型场景
 > - **并发限制**：定位单进程嵌入式数据库，不支持多进程并发访问
 > - **如果你的环境没有特殊限制**，建议优先考虑 [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite/PostgreSQL 等成熟方案，它们拥有更好的性能、更完善的生态和更广泛的社区支持
@@ -28,7 +28,7 @@
 ## 核心特性
 
 - **无SQL设计** - 完全通过Python对象和方法操作数据，无需编写SQL
-- **多引擎支持** - 支持二进制、JSON、CSV、SQLite、Excel、XML等多种存储格式
+- **多引擎支持** - 支持二进制、JSON、CSV、SQLite、DuckDB、Excel、XML 等多种存储格式
 - **插件化架构** - 默认零依赖，可选引擎按需安装
 - **SQLAlchemy 2.0 风格 API** - 现代化的查询构建器（`select()`, `insert()`, `update()`, `delete()`）
 - **泛型类型提示** - 完整的泛型支持，IDE智能提示精确到具体模型类型（`List[User]` 而非 `List[PureBaseModel]`）
@@ -49,6 +49,7 @@ pip install pytuck
 
 # 安装特定引擎
 pip install pytuck[json]    # JSON引擎
+pip install pytuck[duckdb]  # DuckDB引擎（需要 duckdb）
 pip install pytuck[excel]   # Excel引擎（需要 openpyxl）
 pip install pytuck[xml]     # XML引擎（需要 lxml）
 
@@ -840,6 +841,26 @@ uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /t
 # 加密专项 benchmark（仅 Binary / CSV）
 uv run python tests/benchmark/benchmark_encryption.py
 ```
+
+### PyPy 7.3.15 复测（当前机器上可用引擎）
+
+- **Python**: PyPy 3.9.18 (PyPy 7.3.15)
+- **测试数据量**: 100,000 条记录
+- **模式**: 扩展测试（包含索引对比、范围查询、批量读取、懒加载查询）
+- **命令**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+
+| 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |
+|------|------|----------|------------|----------|----------|------|------|--------|----------|
+| Binary | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
+| JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
+| CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
+| SQLite | 1.80s | 35.09ms | 473.51ms | 13x | 170.87ms | 18.70ms | 908.7μs | - | 6.97MB |
+| Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
+
+**说明**:
+- 这组数据主要反映 PyPy 对纯 Python 路径的加速潜力；Binary / JSON / CSV / Excel 的插入、扫描和序列化普遍快于当前 CPython 结果
+- 当前机器未将 DuckDB / XML 纳入 PyPy 结果：`duckdb` 在 PyPy 下构建缺少 `Development.Module`（PyPy 头文件 / 开发包），`lxml` 构建需要 `libxml2` / `libxslt` 开发包
+- SQLite 仍保持很快的保存 / 加载路径，但整体插入与查询收益不如纯 Python 引擎明显
 
 ### 引擎特性对比
 

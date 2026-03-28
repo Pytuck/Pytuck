@@ -15,7 +15,7 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 
 > [!IMPORTANT]
 > **When to use Pytuck**: Pytuck is a pure Python embedded database designed for **small-to-medium datasets** and **restricted environments**.
-> - **Data volume**: Best for up to ~10K records; for 100K+, use the SQLite engine or consider alternatives
+> - **Data volume**: The "~10K / 100K+" guidance mainly refers to the row count of a **single hot table**. Best for up to ~10K rows; when one table approaches or exceeds 100K rows, prefer DuckDB / SQLite or consider alternatives. As the total row count across tables keeps growing, overall I/O and load time will also rise
 > - **Performance**: Pure Python means it cannot match C-extension databases (SQLite, PostgreSQL, etc.) — not suitable for high-concurrency or compute-intensive scenarios
 > - **Concurrency**: Designed for single-process embedded use; no multi-process concurrent access support
 > - **If your environment has no special restrictions**, consider [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite/PostgreSQL first — they offer better performance, a more mature ecosystem, and broader community support
@@ -28,7 +28,7 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 ## Key Features
 
 - **No SQL Required** - Work entirely with Python objects and methods
-- **Multi-Engine Support** - Binary, JSON, CSV, SQLite, Excel, XML storage formats
+- **Multi-Engine Support** - Binary, JSON, CSV, SQLite, DuckDB, Excel, XML storage formats
 - **Pluggable Architecture** - Zero dependencies by default, optional engines on demand
 - **SQLAlchemy 2.0 Style API** - Modern query builders (`select()`, `insert()`, `update()`, `delete()`)
 - **Generic Type Hints** - Complete generic support with precise IDE type inference (`List[User]` instead of `List[PureBaseModel]`)
@@ -48,6 +48,8 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 pip install pytuck
 
 # Install specific engines
+pip install pytuck[json]    # JSON engine
+pip install pytuck[duckdb]  # DuckDB engine (requires duckdb)
 pip install pytuck[excel]   # Excel engine (requires openpyxl)
 pip install pytuck[xml]     # XML engine (requires lxml)
 
@@ -840,6 +842,26 @@ uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /t
 # Encryption-specific benchmark (Binary / CSV only)
 uv run python tests/benchmark/benchmark_encryption.py
 ```
+
+### PyPy 7.3.15 Rerun (engines available on this machine)
+
+- **Python**: PyPy 3.9.18 (PyPy 7.3.15)
+- **Test Data**: 100,000 records
+- **Mode**: Extended benchmark (index comparison, range queries, batch reads, lazy loading)
+- **Command**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+
+| Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
+|--------|--------|---------|-------------|---------|-------|------|------|------|------|
+| Binary | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
+| JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
+| CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
+| SQLite | 1.80s | 35.09ms | 473.51ms | 13x | 170.87ms | 18.70ms | 908.7μs | - | 6.97MB |
+| Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
+
+**Notes**:
+- These numbers mainly show PyPy's upside on pure-Python paths; Binary / JSON / CSV / Excel are generally faster than the current CPython run for inserts, scans, and serialization-heavy work
+- DuckDB and XML are not included in this PyPy table on the current machine: `duckdb` failed to build without PyPy `Development.Module` support (headers / dev package), and `lxml` requires `libxml2` / `libxslt` development packages
+- SQLite still keeps very fast save / load behavior, but its overall insert/query gains are less dramatic than the pure-Python engines here
 
 ### Engine Feature Comparison
 
