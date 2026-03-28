@@ -6,10 +6,11 @@ Pytuck 性能基准测试
 运行此脚本生成 README 所需的基准测试结果。
 
 用法:
-    python tests/benchmark/benchmark.py                    # 默认测试（10000条记录）
-    python tests/benchmark/benchmark.py -n 5000            # 自定义记录数
-    python tests/benchmark/benchmark.py --keep             # 保留测试生成的文件
-    python tests/benchmark/benchmark.py -n 10000 --keep    # 组合使用
+    python tests/benchmark/benchmark.py                           # 默认测试（10000条记录）
+    python tests/benchmark/benchmark.py -n 5000                   # 自定义记录数
+    python tests/benchmark/benchmark.py --keep                    # 保留测试生成的文件
+    python tests/benchmark/benchmark.py -n 10000 --keep           # 组合使用
+    python tests/benchmark/benchmark.py -e binary sqlite duckdb   # 只测试部分引擎
 """
 
 import gc
@@ -44,9 +45,15 @@ ENGINES = [
     ('json', 'JSON', []),
     ('csv', 'CSV', []),
     ('sqlite', 'SQLite', []),
+    ('duckdb', 'DuckDB', ['duckdb']),
     ('excel', 'Excel', ['openpyxl']),
     ('xml', 'XML', ['lxml']),
 ]
+
+DISPLAY_ENGINE_NAMES = {
+    name: display_name
+    for name, display_name, _ in ENGINES
+}
 
 
 # ============== 临时目录工具 ==============
@@ -224,6 +231,7 @@ class EngineBenchmark:
             'json': '.json',
             'csv': '.zip',
             'sqlite': '.sqlite',
+            'duckdb': '.duckdb',
             'excel': '.xlsx',
             'xml': '.xml',
         }
@@ -719,9 +727,7 @@ def generate_markdown_table(results: List[Dict[str, Any]], record_count: int,
             lines.append("|------|------|----------|------------|----------|----------|------|------|--------|----------|")
 
         for r in filtered:
-            engine = r['engine'].capitalize()
-            if r['engine'] == 'sqlite':
-                engine = 'SQLite'
+            engine = DISPLAY_ENGINE_NAMES.get(r['engine'], r['engine'].capitalize())
 
             # 计算索引加速比
             speedup = '-'
@@ -776,9 +782,7 @@ def generate_markdown_table(results: List[Dict[str, Any]], record_count: int,
             lines.append("|------|------|----------|----------|----------|------|------|------|----------|")
 
         for r in filtered:
-            engine = r['engine'].capitalize()
-            if r['engine'] == 'sqlite':
-                engine = 'SQLite'
+            engine = DISPLAY_ENGINE_NAMES.get(r['engine'], r['engine'].capitalize())
 
             # 内存占用
             memory = format_size(r['memory_delta']) if 'memory_delta' in r else '-'
@@ -833,9 +837,7 @@ def generate_english_table(results: List[Dict[str, Any]], record_count: int,
             lines.append("|--------|--------|---------|-------------|---------|-------|------|------|------|------|")
 
         for r in filtered:
-            engine = r['engine'].capitalize()
-            if r['engine'] == 'sqlite':
-                engine = 'SQLite'
+            engine = DISPLAY_ENGINE_NAMES.get(r['engine'], r['engine'].capitalize())
 
             speedup = '-'
             if 'query_non_indexed' in r and r['query_indexed'] > 0:
@@ -882,9 +884,7 @@ def generate_english_table(results: List[Dict[str, Any]], record_count: int,
             lines.append("|--------|--------|-----------|---------|----------|--------|------|------|-----------|")
 
         for r in filtered:
-            engine = r['engine'].capitalize()
-            if r['engine'] == 'sqlite':
-                engine = 'SQLite'
+            engine = DISPLAY_ENGINE_NAMES.get(r['engine'], r['engine'].capitalize())
 
             memory = format_size(r['memory_delta']) if 'memory_delta' in r else '-'
 
@@ -930,6 +930,7 @@ def parse_args():
   python benchmark.py -n 20000 --keep         # 测试20000条记录并保留文件
   python benchmark.py -e binary json          # 只测试 binary 和 json 引擎
   python benchmark.py -n 1000 -e sqlite csv   # 测试1000条记录，只测 sqlite 和 csv 引擎
+  python benchmark.py -n 1000 -e duckdb       # 只测试 DuckDB 引擎
   python benchmark.py --memtest               # 启用内存测试
   python benchmark.py --parallel              # 并行执行
   python benchmark.py --parallel --workers 4  # 使用4个工作进程
