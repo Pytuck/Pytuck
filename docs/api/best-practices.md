@@ -45,10 +45,11 @@
 | 大数据量（单表 > 10 万条） | DuckDB / SQLite | Binary（懒加载） |
 | 分析型查询 / 多 schema | DuckDB | SQLite |
 | 需要加密保护 | Binary（加密） | CSV（ZIP 密码） |
-| 开发调试 | JSON | — |
+| 开发调试 | JSON | JSONL |
+| 逐行文本归档 / 多表交换 | JSONL | JSON / CSV |
 | 与 Excel 互操作 | Excel | CSV |
-| 嵌入式应用（如 Ren'Py） | Binary | JSON |
-| 跨系统数据交换 | CSV / JSON | XML |
+| 嵌入式应用（如 Ren'Py） | Binary | JSON / JSONL |
+| 跨系统数据交换 | CSV / JSONL | JSON / XML |
 | 需要最小文件体积 | CSV | — |
 
 ### 引擎切换
@@ -280,6 +281,7 @@ class MyMixin(Base):
 |------|------------|----------|------|
 | Binary | ✅ | ✅ | 完整类型保留 |
 | JSON | ✅ | ✅ | `null` vs `""` |
+| JSONL | ✅ | ✅ | 逐行 JSON 文本，`null` vs `""` |
 | SQLite | ✅ | ✅ | `NULL` vs `''` |
 | DuckDB | ✅ | ✅ | 原生 `NULL` vs `''`，语义与 SQLite 类似 |
 | CSV | ⚠️ | ⚠️ | **无法区分 `None` 和 `''`** |
@@ -289,7 +291,7 @@ class MyMixin(Base):
 ### 建议
 
 - 如果业务逻辑依赖 `None` 和 `''` 的区分，避免使用 CSV、Excel、XML 引擎
-- Binary、JSON、SQLite 和 DuckDB 都能稳定区分 `None` 与 `''`；其中 Binary 的类型保留最完整
+- Binary、JSON、JSONL、SQLite 和 DuckDB 都能稳定区分 `None` 与 `''`；其中 Binary 的类型保留最完整
 
 ---
 

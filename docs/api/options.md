@@ -4,7 +4,7 @@
 
 ```python
 from pytuck.common.options import (
-    BinaryBackendOptions, JsonBackendOptions, CsvBackendOptions,
+    BinaryBackendOptions, JsonBackendOptions, JsonlBackendOptions, CsvBackendOptions,
     SqliteBackendOptions, DuckdbBackendOptions,
     ExcelBackendOptions, XmlBackendOptions,
     SqliteConnectorOptions, DuckdbConnectorOptions,
@@ -45,6 +45,20 @@ class JsonBackendOptions:
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `indent` | `Optional[int]` | `None` | 缩进空格数。`None` 为紧凑格式 |
+| `ensure_ascii` | `bool` | `False` | 是否强制 ASCII 编码 |
+| `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'ujson'`、`'json'` 等 |
+
+### JsonlBackendOptions
+
+```python
+@dataclass
+class JsonlBackendOptions:
+    ensure_ascii: bool = False
+    impl: Optional[str] = None
+```
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
 | `ensure_ascii` | `bool` | `False` | 是否强制 ASCII 编码 |
 | `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'ujson'`、`'json'` 等 |
 
@@ -157,7 +171,7 @@ class DuckdbConnectorOptions:
 ```python
 # 后端配置选项联合类型
 BackendOptions = Union[
-    JsonBackendOptions, CsvBackendOptions, SqliteBackendOptions,
+    JsonBackendOptions, JsonlBackendOptions, CsvBackendOptions, SqliteBackendOptions,
     DuckdbBackendOptions, ExcelBackendOptions,
     XmlBackendOptions, BinaryBackendOptions
 ]
@@ -173,6 +187,7 @@ from pytuck.common.options import get_default_backend_options, get_default_conne
 
 # 根据引擎类型返回默认配置
 options = get_default_backend_options('json')    # JsonBackendOptions()
+options = get_default_backend_options('jsonl')   # JsonlBackendOptions()
 options = get_default_backend_options('sqlite')  # SqliteBackendOptions()
 options = get_default_backend_options('duckdb')  # DuckdbBackendOptions()
 

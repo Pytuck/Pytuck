@@ -57,6 +57,14 @@ migrate_engine(
     target_engine='sqlite',
     overwrite=True,
 )
+
+# 迁移到 JSONL ZIP 容器
+migrate_engine(
+    source_path='data.db',
+    source_engine='binary',
+    target_path='archive.zip',
+    target_engine='jsonl',
+)
 ```
 
 ### import_from_database()
@@ -133,7 +141,7 @@ def get_available_engines() -> Dict[str, bool]
 from pytuck.tools.migrate import get_available_engines
 
 engines = get_available_engines()
-# {'binary': True, 'json': True, 'csv': True, 'sqlite': True, 'duckdb': True, 'excel': False, 'xml': False}
+# {'binary': True, 'json': True, 'jsonl': True, 'csv': True, 'sqlite': True, 'duckdb': True, 'excel': False, 'xml': False}
 ```
 
 ### benchmark 脚本
@@ -143,6 +151,9 @@ engines = get_available_engines()
 ```bash
 # 通用性能 benchmark
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
+
+# 指定引擎（包含 JSONL）
+uv run python tests/benchmark/benchmark.py -n 100000 -e binary json jsonl csv sqlite duckdb excel xml --extended
 
 # 加密专项 benchmark（仅 Binary / CSV）
 uv run python tests/benchmark/benchmark_encryption.py

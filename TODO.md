@@ -9,8 +9,9 @@
 ## 已完成
 
 - [x] 核心 ORM 和内存存储
-- [x] 插件化多引擎持久化（Binary、JSON、CSV、SQLite、DuckDB、Excel、XML）
+- [x] 插件化多引擎持久化（Binary、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
 - [x] DuckDB 原生后端（多 schema、原生 SQL、原生注释、服务端分页）
+- [x] JSONL 文件后端（ZIP 容器、每表 `.jsonl`、统一 `_metadata.json`）
 - [x] SQLAlchemy 2.0 风格 API（select、insert、update、delete）
 - [x] 基础事务支持
 - [x] Identity Map（对象唯一性管理）
@@ -81,10 +82,7 @@
 
 ## 计划增加的引擎
 
-- [ ] **LMDB** - 高性能嵌入式键值数据库
-  - 读取极快，ACID 事务保证
-  - 内存映射（mmap），零拷贝读取
-  - 与 Pytuck 的键值存储模型天然匹配
+（暂无。当前文件后端矩阵已包含 Binary、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
 
 ---
 

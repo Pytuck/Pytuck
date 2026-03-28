@@ -44,16 +44,17 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 ### Installation
 
 ```bash
-# Basic installation (binary engine only, zero dependencies)
+# Basic installation (includes binary / json / jsonl / csv / sqlite, zero external deps)
 pip install pytuck
 
-# Install specific engines
-pip install pytuck[json]    # JSON engine
+# Install optional engines / accelerators
 pip install pytuck[duckdb]  # DuckDB engine (requires duckdb)
 pip install pytuck[excel]   # Excel engine (requires openpyxl)
 pip install pytuck[xml]     # XML engine (requires lxml)
+pip install pytuck[orjson]  # Optional JSON / JSONL acceleration
+pip install pytuck[ujson]   # Optional JSON / JSONL acceleration
 
-# Install all engines
+# Install all optional dependencies
 pip install pytuck[all]
 
 # Development environment
@@ -257,6 +258,24 @@ db = Storage(file_path='data.json', engine='json', backend_options=json_opts)
 - Development and debugging
 - Configuration storage
 - Data exchange
+
+### JSONL Engine
+
+**Features**: ZIP container, one `.jsonl` file per table, line-oriented text, zero dependencies
+
+```python
+from pytuck.common.options import JsonlBackendOptions
+
+# Outer file is a ZIP archive with _metadata.json + one .jsonl per table
+jsonl_opts = JsonlBackendOptions(ensure_ascii=False)
+db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
+```
+
+**Use Cases**:
+- Multi-table text archives
+- Line-oriented processing / streaming exchange
+- Human-readable exchange with better multi-table organization
+- Zero-dependency deployments
 
 ### CSV Engine
 
@@ -819,6 +838,7 @@ The following numbers come from the benchmark scripts in this repository, not fr
 |--------|--------|---------|-------------|---------|-------|------|------|------|------|
 | Binary | 829.25ms | 1.79ms | 4.66s | 2607x | 396.86ms | 776.86ms | 1.03s | 327.86ms | 11.73MB |
 | JSON | 914.12ms | 1.75ms | 4.79s | 2741x | 385.80ms | 289.49ms | 370.47ms | - | 10.70MB |
+| JSONL | 814.13ms | 2.02ms | 4.68s | 2315x | 398.39ms | 585.12ms | 559.74ms | - | 827.5KB |
 | CSV | 871.90ms | 2.40ms | 4.69s | 1951x | 392.43ms | 450.32ms | 512.40ms | - | 731.9KB |
 | SQLite | 1.97s | 4.35ms | 484.05ms | 111x | 506.23ms | 11.44ms | 343.6μs | - | 6.97MB |
 | DuckDB | 279.19s | 56.64ms | 193.83ms | 3x | 478.79ms | 19.49ms | 27.56ms | - | 4.76MB |
@@ -848,18 +868,19 @@ uv run python tests/benchmark/benchmark_encryption.py
 - **Python**: PyPy 3.9.18 (PyPy 7.3.15)
 - **Test Data**: 100,000 records
 - **Mode**: Extended benchmark (index comparison, range queries, batch reads, lazy loading)
-- **Command**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+- **Command**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
 
 | Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
 |--------|--------|---------|-------------|---------|-------|------|------|------|------|
 | Binary | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
 | JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
+| JSONL | 586.37ms | 9.51ms | 1.53s | 161x | 99.36ms | 270.48ms | 256.08ms | - | 827.5KB |
 | CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
 | SQLite | 1.80s | 35.09ms | 473.51ms | 13x | 170.87ms | 18.70ms | 908.7μs | - | 6.97MB |
 | Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
 
 **Notes**:
-- These numbers mainly show PyPy's upside on pure-Python paths; Binary / JSON / CSV / Excel are generally faster than the current CPython run for inserts, scans, and serialization-heavy work
+- These numbers mainly show PyPy's upside on pure-Python paths; Binary / JSON / JSONL / CSV / Excel are generally faster than the current CPython run for inserts, scans, and serialization-heavy work
 - DuckDB and XML are not included in this PyPy table on the current machine: `duckdb` failed to build without PyPy `Development.Module` support (headers / dev package), and `lxml` requires `libxml2` / `libxslt` development packages
 - SQLite still keeps very fast save / load behavior, but its overall insert/query gains are less dramatic than the pure-Python engines here
 
@@ -869,6 +890,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 |--------|-----------|----------|-------------|----------------|--------------|-----------------|
 | Binary | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | None | **Production default** |
 | JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | None | Development, config storage |
+| JSONL | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ✅ (after unzip) | None | Multi-table text archives, line-oriented exchange |
 | CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | None | Data exchange, smallest footprint |
 | SQLite | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | None | Stable SQL writes, transactions, fast reload |
 | DuckDB | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | duckdb | Analytical queries, DuckDB ecosystem integration, multi-schema workflows |
@@ -877,7 +899,8 @@ uv run python tests/benchmark/benchmark_encryption.py
 
 **Conclusions**:
 - **Binary** remains the most balanced default engine overall, with the best indexed-query and lazy-loading behavior
-- **JSON** and **CSV** are still the most convenient human-readable / exchange-friendly options, and CSV remains the smallest on disk
+- **JSON** is still the most straightforward single-file readable format, while **JSONL** fills the gap for multi-table archives and line-oriented text exchange
+- **CSV** remains the smallest exchange format on disk; if line-oriented JSON matters more than minimum size, **JSONL** is a strong alternative
 - **SQLite** is the most practical general-purpose SQL backend in the current benchmark, with the lowest save/load overhead
 - **DuckDB** is attractive for analytical reads, filtering, and existing DuckDB integration, but the current row-by-row write path is clearly not its strength in this benchmark
 - **Excel** and **XML** are best treated as interoperability / delivery formats rather than primary storage when I/O speed matters
@@ -887,13 +910,16 @@ uv run python tests/benchmark/benchmark_encryption.py
 ### Install from PyPI
 
 ```bash
-# Basic installation
+# Basic installation (includes binary / json / jsonl / csv / sqlite)
 pip install pytuck
 
 # With specific extras
-pip install pytuck[all]      # All optional engines
+pip install pytuck[all]      # All optional dependencies
+pip install pytuck[duckdb]   # DuckDB support only
 pip install pytuck[excel]    # Excel support only
 pip install pytuck[xml]      # XML support only
+pip install pytuck[orjson]   # Optional JSON / JSONL acceleration
+pip install pytuck[ujson]    # Optional JSON / JSONL acceleration
 pip install pytuck[dev]      # Development tools
 ```
 
@@ -902,14 +928,16 @@ pip install pytuck[dev]      # Development tools
 [uv](https://github.com/astral-sh/uv) is an extremely fast Python project and package manager. If your application already uses uv, add pytuck directly to your project dependencies:
 
 ```bash
-# Basic installation
+# Basic installation (includes binary / json / jsonl / csv / sqlite)
 uv add pytuck
 
 # With specific extras
-uv add "pytuck[all]"       # All optional engines
+uv add "pytuck[all]"       # All optional dependencies
 uv add "pytuck[duckdb]"    # DuckDB support only
 uv add "pytuck[excel]"     # Excel support only
 uv add "pytuck[xml]"       # XML support only
+uv add "pytuck[orjson]"    # Optional JSON / JSONL acceleration
+uv add "pytuck[ujson]"     # Optional JSON / JSONL acceleration
 ```
 
 ### Contributors: Sync the Development Environment
@@ -1015,7 +1043,7 @@ Pytuck is a lightweight embedded database designed for simplicity. Here are the 
 |------------|-------------|
 | **No JOIN support** | Single table queries only, no multi-table joins |
 | **No aggregate functions** | No COUNT, SUM, AVG, MIN, MAX support |
-| **Full rewrite on save** | JSON/Excel/XML backends rewrite entire file on each save (CSV engine supports incremental save) |
+| **Full rewrite on save** | JSON/JSONL/Excel/XML backends rewrite entire file on each save (CSV engine supports incremental save) |
 | **No nested transactions** | Only single-level transactions supported |
 
 ### Concurrency Limitations

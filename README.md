@@ -44,16 +44,17 @@
 ### 安装
 
 ```bash
-# 基础安装（仅二进制引擎，无外部依赖）
+# 基础安装（已包含 binary / json / jsonl / csv / sqlite，零外部依赖）
 pip install pytuck
 
-# 安装特定引擎
-pip install pytuck[json]    # JSON引擎
+# 安装可选引擎 / 加速依赖
 pip install pytuck[duckdb]  # DuckDB引擎（需要 duckdb）
 pip install pytuck[excel]   # Excel引擎（需要 openpyxl）
 pip install pytuck[xml]     # XML引擎（需要 lxml）
+pip install pytuck[orjson]  # JSON / JSONL 可选加速
+pip install pytuck[ujson]   # JSON / JSONL 可选加速
 
-# 安装所有引擎
+# 安装所有可选依赖
 pip install pytuck[all]
 
 # 开发环境
@@ -256,6 +257,24 @@ db = Storage(file_path='data.json', engine='json', backend_options=json_opts)
 - 开发调试
 - 配置存储
 - 数据交换
+
+### JSONL 引擎
+
+**特点**: ZIP 容器、多表按 `.jsonl` 分文件存储、逐行文本、零依赖
+
+```python
+from pytuck.common.options import JsonlBackendOptions
+
+# 外层是 ZIP 容器，内部为 _metadata.json + 每表一个 .jsonl
+jsonl_opts = JsonlBackendOptions(ensure_ascii=False)
+db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
+```
+
+**适用场景**:
+- 多表文本归档
+- 逐行处理 / 流式交换
+- 需要兼顾可读性与多表组织
+- 保持零依赖
 
 ### CSV 引擎
 
@@ -818,6 +837,7 @@ user.to_dict(depth=1)  # 展开一层 Relationship（如 orders 列表）
 |------|------|----------|------------|----------|----------|------|------|--------|----------|
 | Binary | 829.25ms | 1.79ms | 4.66s | 2607x | 396.86ms | 776.86ms | 1.03s | 327.86ms | 11.73MB |
 | JSON | 914.12ms | 1.75ms | 4.79s | 2741x | 385.80ms | 289.49ms | 370.47ms | - | 10.70MB |
+| JSONL | 814.13ms | 2.02ms | 4.68s | 2315x | 398.39ms | 585.12ms | 559.74ms | - | 827.5KB |
 | CSV | 871.90ms | 2.40ms | 4.69s | 1951x | 392.43ms | 450.32ms | 512.40ms | - | 731.9KB |
 | SQLite | 1.97s | 4.35ms | 484.05ms | 111x | 506.23ms | 11.44ms | 343.6μs | - | 6.97MB |
 | DuckDB | 279.19s | 56.64ms | 193.83ms | 3x | 478.79ms | 19.49ms | 27.56ms | - | 4.76MB |
@@ -847,18 +867,19 @@ uv run python tests/benchmark/benchmark_encryption.py
 - **Python**: PyPy 3.9.18 (PyPy 7.3.15)
 - **测试数据量**: 100,000 条记录
 - **模式**: 扩展测试（包含索引对比、范围查询、批量读取、懒加载查询）
-- **命令**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
+- **命令**: `uv run --python pypy3 --extra excel python tests/benchmark/benchmark.py -n 100000 -e binary json jsonl csv sqlite excel --extended --output-json /tmp/pytuck-benchmark-pypy-final.json`
 
 | 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |
 |------|------|----------|------------|----------|----------|------|------|--------|----------|
 | Binary | 530.91ms | 18.01ms | 1.62s | 90x | 97.78ms | 329.81ms | 307.23ms | 67.40ms | 11.73MB |
 | JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
+| JSONL | 586.37ms | 9.51ms | 1.53s | 161x | 99.36ms | 270.48ms | 256.08ms | - | 827.5KB |
 | CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
 | SQLite | 1.80s | 35.09ms | 473.51ms | 13x | 170.87ms | 18.70ms | 908.7μs | - | 6.97MB |
 | Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
 
 **说明**:
-- 这组数据主要反映 PyPy 对纯 Python 路径的加速潜力；Binary / JSON / CSV / Excel 的插入、扫描和序列化普遍快于当前 CPython 结果
+- 这组数据主要反映 PyPy 对纯 Python 路径的加速潜力；Binary / JSON / JSONL / CSV / Excel 的插入、扫描和序列化普遍快于当前 CPython 结果
 - 当前机器未将 DuckDB / XML 纳入 PyPy 结果：`duckdb` 在 PyPy 下构建缺少 `Development.Module`（PyPy 头文件 / 开发包），`lxml` 构建需要 `libxml2` / `libxslt` 开发包
 - SQLite 仍保持很快的保存 / 加载路径，但整体插入与查询收益不如纯 Python 引擎明显
 
@@ -868,6 +889,7 @@ uv run python tests/benchmark/benchmark_encryption.py
 |------|---------|---------|---------|---------|---------|----------|
 | Binary | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | 无 | **生产环境首选** |
 | JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | 无 | 开发调试、配置存储 |
+| JSONL | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ✅（解压后） | 无 | 多表文本归档、逐行交换 |
 | CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ | 无 | 数据交换、最小体积 |
 | SQLite | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | 无 | 需要稳定 SQL 写路径、事务和快速加载 |
 | DuckDB | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | duckdb | 分析查询、DuckDB 生态集成、多 schema 场景 |
@@ -876,7 +898,8 @@ uv run python tests/benchmark/benchmark_encryption.py
 
 **结论**:
 - **Binary** 仍是综合最均衡的默认引擎，索引查询和懒加载表现最好，适合生产环境首选
-- **JSON** / **CSV** 在可读性与易交换性方面依旧最友好，CSV 文件体积最小
+- **JSON** 仍是最直观的单文件可读格式；**JSONL** 则补上了多表归档和逐行文本交换的空位
+- **CSV** 依旧是当前体积最小的交换格式；若更看重逐行 JSON 文本而非最小体积，可考虑 **JSONL**
 - **SQLite** 在当前 benchmark 中是原生 SQL 写路径最稳妥的通用数据库后端，保存 / 加载开销最低
 - **DuckDB** 的加载、过滤和分析型查询很有吸引力，但当前逐条写入路径明显不是它的强项，更适合分析查询、已有 DuckDB 文件接入和多 schema 使用场景
 - **Excel** / **XML** 更适合格式互操作和交付，不适合追求极致 I/O 性能的主存储场景
@@ -948,7 +971,7 @@ Pytuck 是一个轻量级嵌入式数据库，设计目标是简单易用。以�
 |------|------|
 | **无 JOIN 支持** | 仅支持单表查询，不支持多表关联查询 |
 | **无聚合函数** | 不支持 COUNT, SUM, AVG, MIN, MAX 等 |
-| **全量保存** | JSON/Excel/XML 后端每次保存完整重写文件（CSV 引擎已支持增量保存） |
+| **全量保存** | JSON/JSONL/Excel/XML 后端每次保存完整重写文件（CSV 引擎已支持增量保存） |
 | **无嵌套事务** | 仅支持单层事务，不支持嵌套 |
 
 ### 并发限制
@@ -1084,13 +1107,16 @@ session.rollback()  # 清除 pending，但 id=1 的记录仍存在
 ### 从 PyPI 安装
 
 ```bash
-# 基础安装
+# 基础安装（已包含 binary / json / jsonl / csv / sqlite）
 pip install pytuck
 
 # 安装特定功能
-pip install pytuck[all]      # 所有可选引擎
+pip install pytuck[all]      # 所有可选依赖
+pip install pytuck[duckdb]   # 仅 DuckDB 支持
 pip install pytuck[excel]    # 仅 Excel 支持
 pip install pytuck[xml]      # 仅 XML 支持
+pip install pytuck[orjson]   # JSON / JSONL 可选加速
+pip install pytuck[ujson]    # JSON / JSONL 可选加速
 pip install pytuck[dev]      # 开发工具
 ```
 
@@ -1099,14 +1125,16 @@ pip install pytuck[dev]      # 开发工具
 [uv](https://github.com/astral-sh/uv) 是一个极快的 Python 项目与包管理器。如果你的应用本身使用 uv 管理，推荐直接把 pytuck 添加到当前项目依赖中：
 
 ```bash
-# 基础安装
+# 基础安装（已包含 binary / json / jsonl / csv / sqlite）
 uv add pytuck
 
 # 安装特定功能
-uv add "pytuck[all]"       # 所有可选引擎
+uv add "pytuck[all]"       # 所有可选依赖
 uv add "pytuck[duckdb]"    # 仅 DuckDB 支持
 uv add "pytuck[excel]"     # 仅 Excel 支持
 uv add "pytuck[xml]"       # 仅 XML 支持
+uv add "pytuck[orjson]"    # JSON / JSONL 可选加速
+uv add "pytuck[ujson]"     # JSON / JSONL 可选加速
 ```
 
 ### 贡献者：同步源码开发环境
