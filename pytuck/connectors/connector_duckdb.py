@@ -402,6 +402,11 @@ class DuckDBConnector(DatabaseConnector):
         if self.conn is not None:
             self.conn.commit()
 
+    def checkpoint(self) -> None:
+        """执行 CHECKPOINT，将 WAL 数据刷入主数据库文件"""
+        if self.conn is not None:
+            self.conn.execute('CHECKPOINT')
+
     def set_table_comment(self, table_name: str, comment: Optional[str]) -> None:
         """设置表备注"""
         if self.conn is None:
@@ -720,7 +725,10 @@ class DuckDBConnector(DatabaseConnector):
     def rollback_transaction(self) -> None:
         """回滚事务"""
         if self.conn is not None:
-            self.conn.rollback()
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass  # DuckDB 无活跃事务时 rollback 会抛异常，安全忽略
 
     def commit_transaction(self) -> None:
         """提交事务"""
