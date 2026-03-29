@@ -1034,6 +1034,7 @@ class Storage:
         # 原生 SQL 模式相关属性
         self._native_sql_mode: bool = False  # 是否启用原生 SQL 模式
         self._connector: Optional[Any] = None  # 数据库连接器（原生 SQL 模式）
+        self._native_sql_in_transaction: bool = False  # 是否在原生 SQL 事务中
 
         # 模型注册表（表名 -> 模型类，用于 Relationship 解析）
         self._model_registry: Dict[str, Type] = {}
@@ -1723,6 +1724,83 @@ class Storage:
 
         return pk
 
+    def _bulk_insert_native_sql(
+        self,
+        table_name: str,
+        table: Table,
+        records: List[Dict[str, Any]]
+    ) -> List[Any]:
+        """
+        原生 SQL 批量插入，使用 connector.insert_records() (executemany)
+
+        Args:
+            table_name: 表名
+            table: Table 对象
+            records: 数据字典列表
+
+        Returns:
+            主键列表
+        """
+        assert self._connector is not None, "Connector must not be None in native SQL mode"
+        connector = self._connector
+
+        # 准备列名列表（固定顺序）
+        columns = list(table.columns.keys())
+
+        # 验证所有记录，并预分配自增 PK
+        validated_records: List[Dict[str, Any]] = []
+        pks: List[Any] = []
+        pk_col = table.primary_key
+        pk_is_int_auto = (
+            pk_col is not None
+            and pk_col in table.columns
+            and table.columns[pk_col].col_type == int
+        )
+
+        for data in records:
+            validated_record: Dict[str, Any] = {}
+            for col_name, column in table.columns.items():
+                value = data.get(col_name)
+                validated_record[col_name] = column.validate(value)
+
+            # 预分配自增 PK（客户端分配，与 _insert_native_sql 一致）
+            if pk_is_int_auto and pk_col is not None and validated_record.get(pk_col) is None:
+                validated_record[pk_col] = table.columns[pk_col].validate(table.next_id)
+                table.next_id += 1
+
+            # 记录 PK
+            if pk_col is not None:
+                pk = validated_record.get(pk_col)
+            else:
+                pk = None
+            pks.append(pk)
+            validated_records.append(validated_record)
+
+        # 批量插入：优先使用快速路径（如 DuckDB 的 COPY FROM CSV），退而使用 executemany
+        # 注意：COPY FROM CSV 不支持 bytes 类型，含 bytes 数据时必须用 executemany
+        has_bytes = any(
+            isinstance(v, (bytes, bytearray))
+            for record in validated_records
+            for v in record.values()
+        )
+        try:
+            if not has_bytes and hasattr(connector, 'insert_records_fast'):
+                connector.insert_records_fast(table_name, columns, validated_records)
+            else:
+                connector.insert_records(table_name, columns, validated_records)
+        except Exception as e:
+            if self._is_duplicate_key_error(e):
+                raise DuplicateKeyError(table_name, None) from e
+            raise
+
+        # 标记需要保存 schema（next_id 可能已更新）
+        self._dirty = True
+
+        if self.auto_flush:
+            self.flush()
+
+        return pks
+
     def update(self, table_name: str, pk: Any, data: Dict[str, Any]) -> None:
         """
         更新记录
@@ -1826,13 +1904,9 @@ class Storage:
 
         table = self.get_table(table_name)
 
-        # 原生 SQL 模式：逐条走原生插入
+        # 原生 SQL 模式：使用批量插入
         if self._native_sql_mode and self._connector:
-            pks: List[Any] = []
-            for data in records:
-                pk = self._insert_native_sql(table_name, table, data)
-                pks.append(pk)
-            return pks
+            return self._bulk_insert_native_sql(table_name, table, records)
 
         # 内存模式：批量插入
         pks = table.bulk_insert(records)
@@ -2563,6 +2637,36 @@ class Storage:
             # 获取连接器
             if hasattr(self.backend, 'get_connector'):
                 self._connector = self.backend.get_connector()
+                # 开启隐式事务，避免每条 SQL 独立 autocommit（对 DuckDB 影响巨大）
+                self._native_sql_begin_transaction()
+
+    def _native_sql_begin_transaction(self) -> None:
+        """开启原生 SQL 隐式事务"""
+        if self._connector and hasattr(self._connector, 'begin_transaction'):
+            try:
+                self._connector.begin_transaction()
+                self._native_sql_in_transaction = True
+            except Exception:
+                # 某些连接器不支持或已在事务中，忽略
+                pass
+
+    def _native_sql_commit_transaction(self) -> None:
+        """提交原生 SQL 事务并开始新事务"""
+        if self._connector and self._native_sql_in_transaction:
+            if hasattr(self._connector, 'commit_transaction'):
+                self._connector.commit_transaction()
+            self._native_sql_in_transaction = False
+            # 立即开始新事务，保持后续操作也在事务内
+            self._native_sql_begin_transaction()
+
+    def _native_sql_rollback_transaction(self) -> None:
+        """回滚原生 SQL 事务并开始新事务"""
+        if self._connector and self._native_sql_in_transaction:
+            if hasattr(self._connector, 'rollback_transaction'):
+                self._connector.rollback_transaction()
+            self._native_sql_in_transaction = False
+            # 开始新事务
+            self._native_sql_begin_transaction()
 
     @property
     def is_native_sql_mode(self) -> bool:
@@ -2629,6 +2733,10 @@ class Storage:
 
     def flush(self) -> None:
         """强制写入磁盘"""
+        # 原生 SQL 模式：提交连接器事务确保数据持久化
+        if self._native_sql_mode and self._native_sql_in_transaction:
+            self._native_sql_commit_transaction()
+
         if self.backend and self._dirty:
             event.dispatch_storage(self, 'before_flush')
 
@@ -2664,6 +2772,14 @@ class Storage:
 
         # 关闭原生 SQL 模式的后端连接
         if self._native_sql_mode and self.backend:
+            # 提交未完成的事务
+            if self._native_sql_in_transaction and self._connector:
+                if hasattr(self._connector, 'commit_transaction'):
+                    try:
+                        self._connector.commit_transaction()
+                    except Exception:
+                        pass
+                self._native_sql_in_transaction = False
             if hasattr(self.backend, 'close'):
                 self.backend.close()
             self._connector = None
