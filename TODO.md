@@ -49,7 +49,7 @@
   - 优先保证数据准确与安全，其次性能，最后才是体积
   - 持续评估 data / index / WAL 的体积优化空间
 - [ ] **jsonl 文件读写性能优化**：可参考csv引擎的优化方案，增量追加
-- [ ] **duckdb 引擎优化**：可查看 `docs/guide/benchmark.md` 中的性能基准结果，`duckdb` 实现的插入性能非常慢，需要优化
+- [x] **duckdb 引擎优化**：Session 插入缓冲 + COPY FROM CSV 快速批量插入 + 事务包裹，100k 插入从 277s 降至 1.5s
 - [x] **readme文档拆分**：README 首页现在聚焦项目定位、安装与最小上手示例，详细说明已拆分到 `docs/api/` 与 `docs/guide/`，兼顾首页入口与可维护性
 
 ---
