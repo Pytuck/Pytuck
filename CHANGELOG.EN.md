@@ -11,44 +11,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.0.0] - 2026-03-29
+## [1.1.0] - 2026-03-29
 
 ### Added
 
-- **Native DuckDB Backend**
-  - Added the optional `duckdb` dependency and a native DuckDB backend implementation
-  - Supports multi-schema workflows, native SQL, table/column comments, and server-side pagination
-  - Keeps the existing `Storage` / `Session` / ORM API shape; switching engine and options is enough to use it
+- **DuckDB Bulk Insert Optimization**
+  - Session insert buffer: individual `INSERT` statements are automatically buffered and batch-committed on `commit()`
+  - DuckDB engine now uses `COPY FROM CSV` fast bulk insert path, reducing 100k inserts from `277s` to `1.5s`
+  - Native SQL mode transaction wrapping + `bulk_insert` batching, now on par with SQLite insert performance
 
-- **JSONL ZIP Backend**
-  - Added the `jsonl` engine with a ZIP container layout
-  - Stores each table as its own `.jsonl` file with a unified `_metadata.json`
-  - Integrated into migration tools, benchmark scripts, and engine documentation
+- **JSONL Engine Incremental Save**
+  - Following the CSV engine's incremental pattern, `save()` is split into `_save_full()` + `_save_incremental()`
+  - In multi-table scenarios, unchanged tables are copied as compressed bytes from the old ZIP, avoiding full serialization
+  - Encrypted ZIPs automatically fall back to full save; API is fully backward-compatible
 
-### Changed
+- **Lazy-Loaded Table Full Record Access**
+  - Lazy-load mode now supports `len(table)`, `iter(table)` and other full record access operations
+  - First access automatically loads all records from disk; subsequent operations behave identically to in-memory mode
 
-- **Pytuck Single-File Engine Finalized**
-  - The public engine name `binary` has been renamed to `pytuck`
-  - The default single-file extension has changed from `.db` to `.pytuck`
-  - PTK5 is now the only supported single-file format; v4/PTK4 compatibility has been dropped
-  - The sidecar WAL filename now uses the hidden form `.<name>.wal`
+### Fixed
 
-- **Public Entry Points Synchronized for 1.0.0**
-  - `Storage` default engine, migration-tool defaults, README, docs/api, TODO, and benchmark docs now consistently use `pytuck`
-  - Public documentation for the single-file engine is now aligned on Pytuck / `.pytuck` / PTK5 terminology
+- **DuckDB WAL Not Written to Main File**
+  - In DuckDB native SQL mode, data remained in the WAL file after `commit()`, leaving the main database file with only schema (~12KB)
+  - Added `DuckDBConnector.checkpoint()` method; `flush()` and `close()` now automatically execute `CHECKPOINT`
+  - After fix, 100k record file size restored from `12KB` to `6.76MB`
+
+- **SQLite `insert_records` Special Type Handling**
+  - `executemany` bulk inserts failed for `datetime` / `timedelta` / `list` / `dict` types that were not serialized
+  - All field values now go through `_serialize_value()` uniformly
+
+- **DuckDB `rollback_transaction` Error on No Active Transaction**
+  - After `CHECKPOINT` ended the transaction, `session.close()` rollback threw `TransactionException`
+  - `rollback_transaction()` now safely ignores "no active transaction" exceptions
 
 ### Improved
 
-- **Dependencies and Tooling**
-  - Default installation remains zero external dependencies; DuckDB / Excel / XML / JSON acceleration are all exposed through extras
-  - GitHub Actions and benchmark workflows have been updated to use uv-based commands
+- **README Documentation Split**
+  - README home page streamlined to project positioning, installation, and minimal examples
+  - Detailed documentation moved to `docs/api/` (API reference) and `docs/guide/` (guides & benchmarks)
 
-- **Documentation and Benchmarks**
-  - README and API docs now include DuckDB, JSONL, CSV footprint guidance, PyPy rerun results, and engine-selection notes
-  - Clarified that the "~10K / 100K+" guidance mainly refers to a single hot table, and documented DuckDB handling of `None` vs `''`
+- **Example Code Cleanup**
+  - Renamed `new_api_demo.py` → `session_api_demo.py` for clearer naming
+  - All examples now have `if __name__ == '__main__'` entry guards
+  - Fixed `_common.py` path joining and `json_impl_demo.py` exception handling issues
 
 ### Tests
 
-- Expanded test coverage for DuckDB, JSONL, and the Pytuck engine rename
-- Updated benchmark scripts to include DuckDB, JSONL, and PyPy rerun results
-- Synchronized the engine matrix, migration examples, and documentation samples
+- Added all-engine persistence integrity tests (500 records: flush → file size sanity → reopen → record count + data verification)
+- Added all-engine flush-then-reopen tests (verify data is written to file after flush without close)
+- SQLite Chinese column name tests changed from permanent skip to SQLite compatibility mode execution
+- Optimized Pytuck engine tests to support lazy-load logic
+
+### Benchmark (100k records)
+
+| Engine | Insert | Save | Load | File Size |
+|--------|--------|------|------|-----------|
+| DuckDB | 1.52s | 86.23ms | 29.24ms | 6.76MB |
+| SQLite | 1.53s | 2.91ms | 389.5μs | 6.97MB |
+| Pytuck | 834.38ms | 562.03ms | 337.28ms | 6.09MB |
+
+> Full benchmark at [docs/guide/benchmark.md](./docs/guide/benchmark.md)
