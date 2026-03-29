@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pytuck import Storage, declarative_base, Session, Column, PureBaseModel
 from pytuck import select, insert, update, delete
 from pytuck.backends import BackendRegistry
+from pytuck.common.options import SqliteBackendOptions
 
 
 # 所有引擎配置：(引擎名称, 文件扩展名)
@@ -578,13 +579,16 @@ class TestAllEngines:
         if not is_engine_available(engine_name):
             pytest.skip(get_skip_reason(engine_name))
 
-        # SQLite 原生 SQL 模式不支持特殊字符作为列名（需要用引号包围）
-        if engine_name == 'sqlite':
-            pytest.skip("SQLite 原生模式不支持中文列名")
-
         db_file = tmp_path / f'test_chinese_col_{engine_name}.{file_ext}'
 
-        db = Storage(file_path=str(db_file), engine=engine_name)
+        if engine_name == 'sqlite':
+            db = Storage(
+                file_path=str(db_file),
+                engine=engine_name,
+                backend_options=SqliteBackendOptions(use_native_sql=False)
+            )
+        else:
+            db = Storage(file_path=str(db_file), engine=engine_name)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
