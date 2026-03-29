@@ -48,6 +48,9 @@
   - 在现有懒加载基础上继续强化按需查询 / 非全量加载能力
   - 优先保证数据准确与安全，其次性能，最后才是体积
   - 持续评估 data / index / WAL 的体积优化空间
+- [ ] **jsonl 文件读写性能优化**：可参考csv引擎的优化方案，增量追加
+- [ ] **duckdb 引擎优化**：可查看readme中`性能对比表`章节，`duckdb` 实现的插入性能非常慢，需要优化
+- [ ] **readme文档拆分**：目前的readme文档过于庞大，需要拆分为多个文件，方便阅读和维护，可参考`docs/api`目录下的拆分，但readme的基本作用不能搞错、不能全部丢弃
 
 ---
 
@@ -122,6 +125,11 @@
 ## 生态系统
 
 - [x] **Pytuck-view** - Web 数据浏览器（[GitHub](https://github.com/pytuck/pytuck-view) | [Gitee](https://gitee.com/pytuck/pytuck-view) | `pip install pytuck-view`）
+- [ ] pytuck only（名称未定）：将本库中`pytuck`引擎单独拆分，提供更有针对性的轻量级的数据库功能
+  + 和本库使用同一个格式的`pytuck v5+`引擎
+  + 免去众多选择，仅支持 `pytuck` 引擎，专为针对受限Python环境使用；只保留核心功能，不再需要tools等无关模块
+  + 优化 `pytuck` 引擎的使用，就像sqlite那样高性能读写，不再每次全量加载到内存、全量保存
+  + 对于基本的orm使用，最好能达到仅仅更改 import 语句就能从`pytuck`库切换到新库（比如readme中的`基础使用`章节）
 
 ---
 
