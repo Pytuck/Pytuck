@@ -51,10 +51,22 @@ class TransactionSnapshot:
 
         # 深拷贝所有表的关键状态
         for table_name, table in tables.items():
+            # 额外保存 lazy 相关运行时元数据，避免回滚后丢失按需加载能力
+            pk_offsets = copy.deepcopy(table._pk_offsets)
+            data_file = copy.deepcopy(table._data_file)
+            backend_ref = table._backend
+            lazy_loaded = table._lazy_loaded
+
             self.table_snapshots[table_name] = {
                 'data': copy.deepcopy(table.data),
                 'indexes': copy.deepcopy(table.indexes),
-                'next_id': table.next_id
+                'next_id': table.next_id,
+                'pk_offsets': pk_offsets,
+                '_lazy_loaded': lazy_loaded,
+                '_data_file': data_file,
+                '_backend': backend_ref,
+                '_data_dirty': table._data_dirty,
+                '_schema_dirty': table._schema_dirty
             }
 
     def restore(self, tables: Dict[str, 'Table']) -> None:
@@ -71,6 +83,14 @@ class TransactionSnapshot:
                 table.data = snapshot['data']
                 table.indexes = snapshot['indexes']
                 table.next_id = snapshot['next_id']
+
+                # 恢复 lazy 相关运行时元数据，确保回滚后仍可按需加载
+                table._pk_offsets = copy.deepcopy(snapshot.get('pk_offsets'))
+                table._lazy_loaded = bool(snapshot.get('_lazy_loaded', False))
+                table._data_file = copy.deepcopy(snapshot.get('_data_file'))
+                table._backend = snapshot.get('_backend')
+                table._data_dirty = bool(snapshot.get('_data_dirty', False))
+                table._schema_dirty = bool(snapshot.get('_schema_dirty', False))
 
 
 class Table:
@@ -123,6 +143,11 @@ class Table:
     def is_dirty(self) -> bool:
         """表是否有任何变更（数据或结构）"""
         return self._data_dirty or self._schema_dirty
+
+    @property
+    def record_count(self) -> int:
+        """返回表中的真实记录数（包含懒加载未入内存的记录）"""
+        return len(self.all_pks())
 
     def reset_dirty(self) -> None:
         """重置脏标记（由 Storage.flush 在保存完成后调用）"""
@@ -185,7 +210,7 @@ class Table:
                     )
             else:
                 # 检查主键是否已存在
-                if pk in self.data:
+                if self.has_pk(pk):
                     raise DuplicateKeyError(self.name, pk)
         else:
             # 无用户主键：使用内部 rowid
@@ -230,7 +255,9 @@ class Table:
         # 转换主键类型
         pk = self._normalize_pk(pk)
         if pk not in self.data:
-            raise RecordNotFoundError(self.name, pk)
+            if not self.has_pk(pk):
+                raise RecordNotFoundError(self.name, pk)
+            self.data[pk] = self.get(pk)
 
         old_record = self.data[pk]
 
@@ -269,7 +296,9 @@ class Table:
         # 转换主键类型
         pk = self._normalize_pk(pk)
         if pk not in self.data:
-            raise RecordNotFoundError(self.name, pk)
+            if not self.has_pk(pk):
+                raise RecordNotFoundError(self.name, pk)
+            self.data[pk] = self.get(pk)
 
         record = self.data[pk]
 
@@ -281,6 +310,8 @@ class Table:
 
         # 删除记录
         del self.data[pk]
+        if self._pk_offsets is not None and pk in self._pk_offsets:
+            del self._pk_offsets[pk]
         self._data_dirty = True
 
     def bulk_insert(self, records: List[Dict[str, Any]]) -> List[Any]:
@@ -335,10 +366,10 @@ class Table:
                     record[self.primary_key] = pk  # type: ignore[index]
                 else:
                     record[self.primary_key] = pk  # type: ignore[index]
-                    if pk in self.data:
+                    if self.has_pk(pk):
                         raise DuplicateKeyError(self.name, pk)
                 # 检查已分配的主键是否与前面的冲突
-                if pk in self.data:
+                if self.has_pk(pk):
                     raise DuplicateKeyError(self.name, pk)
                 pks.append(pk)
         else:
@@ -404,7 +435,10 @@ class Table:
         for pk, record in updates:
             pk = self._normalize_pk(pk)
             if pk not in self.data:
-                raise RecordNotFoundError(self.name, pk)
+                # 如果在懒加载模式且 pk 在磁盘上，先从文件加载
+                if not self.has_pk(pk):
+                    raise RecordNotFoundError(self.name, pk)
+                self.data[pk] = self.get(pk)
 
             old_record = self.data[pk]
 
@@ -492,6 +526,40 @@ class Table:
 
         return self._backend.read_lazy_record(self._data_file, offset, self.columns, pk)
 
+    def has_pk(self, pk: Any) -> bool:
+        """判断主键是否存在（包含懒加载未入内存的记录）"""
+        normalized_pk = self._normalize_pk(pk)
+        return normalized_pk in self.data or (
+            self._pk_offsets is not None and normalized_pk in self._pk_offsets
+        )
+
+    def _ensure_all_loaded(self) -> None:
+        """
+        将懒加载表中磁盘上的所有记录 materialize 到 self.data 中。
+
+        实现要求：复用现有的 get/_read_record_from_file 逻辑，不直接操作后端文件格式。
+        该方法只在 lazy 模式下有意义；如果已全部加载或不是 lazy 模式则为 no-op。
+        """
+        if not self._lazy_loaded or self._pk_offsets is None:
+            return
+        # 索引在 lazy 打开时已从文件恢复，这里只需要补齐 data 缓存
+        for pk in list(self._pk_offsets.keys()):
+            if pk in self.data:
+                continue
+            try:
+                record = self.get(pk)
+            except RecordNotFoundError:
+                # 如果记录在索引中存在但实际被删除（可能的并发或损坏），跳过
+                continue
+            self.data[pk] = record
+
+    def all_pks(self) -> List[Any]:
+        """返回表中的所有主键（包含懒加载未入内存的记录）"""
+        pks = set(self.data.keys())
+        if self._pk_offsets is not None:
+            pks.update(self._pk_offsets.keys())
+        return list(pks)
+
     def scan(self) -> Iterator[Tuple[Any, Dict[str, Any]]]:
         """
         扫描所有记录
@@ -499,6 +567,8 @@ class Table:
         Yields:
             (主键, 记录字典)
         """
+        # 在懒加载模式下，确保先把磁盘记录 materialize 到内存
+        self._ensure_all_loaded()
         for pk, record in self.data.items():
             yield pk, record.copy()
 
@@ -535,7 +605,8 @@ class Table:
         else:
             index = HashIndex(column_name)
 
-        # 为现有数据建立索引
+        # 在懒加载模式下先确保加载磁盘记录，然后为现有数据建立索引
+        self._ensure_all_loaded()
         for pk, record in self.data.items():
             value = record.get(column_name)
             if value is not None:
@@ -562,6 +633,8 @@ class Table:
         if col_name in self.columns:
             raise SchemaError(f"Column '{col_name}' already exists in table '{self.name}'")
 
+        # 在懒加载模式下确保加载磁盘数据再判断是否有数据
+        self._ensure_all_loaded()
         # 检查非空约束：如果表中有数据，新增非空列必须有默认值
         has_data = len(self.data) > 0
         has_fill = default_value is not None or column.has_default()
@@ -611,6 +684,8 @@ class Table:
         del self.columns[column_name]
 
         # 从所有记录中移除该列
+        # 在懒加载模式下先确保加载磁盘记录
+        self._ensure_all_loaded()
         for record in self.data.values():
             record.pop(column_name, None)
 
@@ -664,6 +739,8 @@ class Table:
         # 第一步：验证所有记录是否满足新约束（先验证再修改）
         converted_values: Dict[Any, Any] = {}  # {pk: converted_value}
 
+        # 在懒加载模式下先确保加载磁盘记录
+        self._ensure_all_loaded()
         for pk, record in self.data.items():
             value = record.get(column_name)
 
@@ -752,6 +829,8 @@ class Table:
 
         target_col = self.columns[column_name]
 
+        # 在懒加载模式下先确保加载磁盘记录
+        self._ensure_all_loaded()
         # 验证新主键列的值唯一且非 null
         seen: set = set()
         for pk, record in self.data.items():
@@ -790,6 +869,15 @@ class Table:
         elif target_col.col_type == int:
             self.next_id = 1
 
+        # 标记为 schema/data 脏，以便 Storage.flush 会保存
+        self._schema_dirty = True
+        self._data_dirty = True
+
+        # 如果处于懒加载模式，现有的 pk -> offset 映射不再有效，清除它们
+        # 旧的 _pk_offsets 是基于旧主键建立的，因此不能继续使用
+        if self._lazy_loaded:
+            self._pk_offsets = None
+
     def reorder_columns(self, new_order: List[str]) -> None:
         """
         重新排列列的顺序
@@ -827,10 +915,16 @@ class Table:
         # 重建有序的 columns 字典
         self.columns = {name: self.columns[name] for name in new_order}
 
+        # 在懒加载模式下先确保加载磁盘记录
+        self._ensure_all_loaded()
         # 重建每条记录的字段顺序
-        for pk in self.data:
+        for pk in list(self.data.keys()):
             record = self.data[pk]
             self.data[pk] = {name: record.get(name) for name in new_order}
+
+        # 标记为 schema/data 脏，以便 Storage.flush 会保存
+        self._schema_dirty = True
+        self._data_dirty = True
 
     def update_comment(self, comment: Optional[str]) -> None:
         """
@@ -1847,8 +1941,8 @@ class Storage:
             result = cursor.fetchone()
             return int(result[0]) if result else 0
 
-        # 内存模式：返回 data 字典的长度
-        return len(table.data)
+        # 内存模式：返回真实记录数（包含懒加载未入内存的记录）
+        return table.record_count
 
     @staticmethod
     def _deserialize_record(record: Dict[str, Any], columns: Dict[str, Column]) -> Dict[str, Any]:
@@ -1964,7 +2058,7 @@ class Storage:
 
         # 如果没有使用索引，全表扫描
         if candidate_pks is None:
-            candidate_pks = set(table.data.keys())
+            candidate_pks = set(table.all_pks())
             remaining_simple_conditions = simple_conditions
 
         # 检查是否可以使用索引排序
@@ -1990,9 +2084,10 @@ class Storage:
             none_results: List[Dict[str, Any]] = []
             if none_value_pks:
                 for pk in none_value_pks:
-                    if pk not in table.data:
+                    try:
+                        record = table.get(pk)
+                    except RecordNotFoundError:
                         continue
-                    record = table.data[pk]
                     if not all(cond.evaluate(record) for cond in remaining_simple_conditions):
                         continue
                     if not all(cond.evaluate(record) for cond in composite_conditions):
@@ -2023,9 +2118,10 @@ class Storage:
             for pk in ordered_pks:
                 if pk not in candidate_pks:
                     continue
-                if pk not in table.data:
+                try:
+                    record = table.get(pk)
+                except RecordNotFoundError:
                     continue
-                record = table.data[pk]
                 if not all(cond.evaluate(record) for cond in remaining_simple_conditions):
                     continue
                 if not all(cond.evaluate(record) for cond in composite_conditions):
@@ -2049,20 +2145,22 @@ class Storage:
             # 常规路径：遍历 candidate_pks → 过滤 → 排序 → 分页
             results = []
             for pk in candidate_pks:
-                if pk in table.data:
-                    record = table.data[pk]
-                    # 评估简单条件
-                    if not all(cond.evaluate(record) for cond in remaining_simple_conditions):
-                        continue
-                    # 评估复合条件（OR/AND/NOT）
-                    if not all(cond.evaluate(record) for cond in composite_conditions):
-                        continue
+                try:
+                    record = table.get(pk)
+                except RecordNotFoundError:
+                    continue
+                # 评估简单条件
+                if not all(cond.evaluate(record) for cond in remaining_simple_conditions):
+                    continue
+                # 评估复合条件（OR/AND/NOT）
+                if not all(cond.evaluate(record) for cond in composite_conditions):
+                    continue
 
-                    record_copy = record.copy()
-                    # 无主键表：注入内部 rowid
-                    if not table.primary_key:
-                        record_copy[PSEUDO_PK_NAME] = pk
-                    results.append(record_copy)
+                record_copy = record.copy()
+                # 无主键表：注入内部 rowid
+                if not table.primary_key:
+                    record_copy[PSEUDO_PK_NAME] = pk
+                results.append(record_copy)
 
             # 排序
             if order_by and order_by in table.columns:
@@ -2539,6 +2637,12 @@ class Storage:
                 name for name, table in self.tables.items()
                 if table.is_dirty
             }
+
+            # 当前 BinaryBackend.save() 仍会执行全量 checkpoint，
+            # 因此 flush 前必须把所有 lazy 表 materialize，避免未改动表被写成空表。
+            for table in self.tables.values():
+                if table._lazy_loaded:
+                    table._ensure_all_loaded()
 
             self.backend.save(self.tables, changed_tables=changed_tables)
             self._dirty = False
