@@ -5,6 +5,7 @@ __pycache__/
 .vscode/
 .DS_Store
 tmp
+docs/superpowers/
 *.egg-info/
 dist/
 build/

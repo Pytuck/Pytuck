@@ -13,7 +13,7 @@ import zlib
 from dataclasses import dataclass, field, replace
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Set, Union, TYPE_CHECKING, BinaryIO, Tuple, Optional, Iterator, Type
+from typing import Any, Callable, Dict, List, Set, Union, TYPE_CHECKING, BinaryIO, Tuple, Optional, Iterator, Type, cast
 
 if TYPE_CHECKING:
     from ..core.storage import Table
@@ -22,7 +22,7 @@ from .base import StorageBackend
 from ..common.exceptions import SerializationError, EncryptionError
 from ..core.types import TypeRegistry, TypeCode
 from ..core.orm import Column, PSEUDO_PK_NAME
-from ..core.index import HashIndex
+from ..core.index import BaseIndex, HashIndex, SortedIndex
 from .versions import get_format_version
 
 from ..common.options import BinaryBackendOptions
@@ -663,8 +663,20 @@ class BinaryBackend(StorageBackend):
         for col_name, idx_map in idx_maps.items():
             if col_name in table.indexes:
                 del table.indexes[col_name]
-            index = HashIndex(col_name)
-            index.map = idx_map
+
+            column = table.columns[col_name]
+            index_type = column.index
+            if index_type is True:
+                index_type = 'hash'
+
+            index: BaseIndex
+            if index_type == 'sorted':
+                index = SortedIndex(col_name)
+                cast(SortedIndex, index).value_to_pks = idx_map
+                cast(SortedIndex, index).sorted_values = sorted(idx_map.keys())
+            else:
+                index = HashIndex(col_name)
+                cast(HashIndex, index).map = idx_map
             table.indexes[col_name] = index
 
         return table
@@ -1471,6 +1483,8 @@ class BinaryBackend(StorageBackend):
             flags |= 0x02
         if column.index:
             flags |= 0x04
+        if column.index == 'sorted':
+            flags |= 0x08
         f.write(struct.pack('B', flags))
 
         # Column Comment
@@ -1496,7 +1510,11 @@ class BinaryBackend(StorageBackend):
         flags = struct.unpack('B', f.read(1))[0]
         nullable = bool(flags & 0x01)
         primary_key = bool(flags & 0x02)
-        index = bool(flags & 0x04)
+        index: Union[bool, str]
+        if flags & 0x08:
+            index = 'sorted'
+        else:
+            index = bool(flags & 0x04)
 
         # Column Comment
         comment_len = struct.unpack('<H', f.read(2))[0]
@@ -1663,7 +1681,12 @@ class BinaryBackend(StorageBackend):
                 buf += col_bytes
 
                 # 获取索引映射
-                idx_map = index.map if hasattr(index, 'map') else {}
+                if isinstance(index, SortedIndex):
+                    idx_map = index.value_to_pks
+                elif hasattr(index, 'map'):
+                    idx_map = index.map
+                else:
+                    idx_map = {}
 
                 # Entry Count
                 buf += struct.pack('<I', len(idx_map))
@@ -1740,8 +1763,13 @@ class BinaryBackend(StorageBackend):
                 buf += struct.pack('<H', len(col_bytes))
                 buf += col_bytes
 
-                # 获取索引映射（HashIndex 的 map 属性）
-                idx_map = index.map if hasattr(index, 'map') else {}
+                # 获取索引映射
+                if isinstance(index, SortedIndex):
+                    idx_map = index.value_to_pks
+                elif hasattr(index, 'map'):
+                    idx_map = index.map
+                else:
+                    idx_map = {}
 
                 # Entry Count
                 buf += struct.pack('<I', len(idx_map))

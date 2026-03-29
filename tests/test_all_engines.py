@@ -26,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from pytuck import Storage, declarative_base, Session, Column, PureBaseModel
 from pytuck import select, insert, update, delete
 from pytuck.backends import BackendRegistry
+from pytuck.common.options import SqliteBackendOptions
 
 
 # 所有引擎配置：(引擎名称, 文件扩展名)
@@ -578,13 +579,16 @@ class TestAllEngines:
         if not is_engine_available(engine_name):
             pytest.skip(get_skip_reason(engine_name))
 
-        # SQLite 原生 SQL 模式不支持特殊字符作为列名（需要用引号包围）
-        if engine_name == 'sqlite':
-            pytest.skip("SQLite 原生模式不支持中文列名")
-
         db_file = tmp_path / f'test_chinese_col_{engine_name}.{file_ext}'
 
-        db = Storage(file_path=str(db_file), engine=engine_name)
+        if engine_name == 'sqlite':
+            db = Storage(
+                file_path=str(db_file),
+                engine=engine_name,
+                backend_options=SqliteBackendOptions(use_native_sql=False)
+            )
+        else:
+            db = Storage(file_path=str(db_file), engine=engine_name)
         Base: Type[PureBaseModel] = declarative_base(db)
 
         class User(Base):
@@ -634,6 +638,152 @@ class TestAllEngines:
 
         session2.close()
         db2.close()
+
+    @pytest.mark.parametrize("engine_name,file_ext", ALL_ENGINES)
+    def test_persistence_data_integrity(self, engine_name: str, file_ext: str, tmp_path: Path) -> None:
+        """
+        测试持久化数据完整性
+
+        验证各引擎在保存一定数量记录后：
+        1. flush 后文件大小合理（非空且不过小）
+        2. close → reopen 后记录数完整
+        3. 数据内容准确
+        """
+        if not is_engine_available(engine_name):
+            pytest.skip(get_skip_reason(engine_name))
+
+        db_file = tmp_path / f'test_integrity_{engine_name}.{file_ext}'
+        record_count = 500
+
+        # 1. 创建数据库并批量插入
+        db = Storage(file_path=str(db_file), engine=engine_name)
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class Item(Base):
+            __tablename__ = 'items'
+            id = Column(int, primary_key=True)
+            name = Column(str, nullable=False, index=True)
+            value = Column(float)
+            active = Column(bool)
+
+        session = Session(db)
+        for i in range(record_count):
+            stmt = insert(Item).values(
+                name=f'Item_{i}',
+                value=float(i) * 1.5,
+                active=(i % 2 == 0)
+            )
+            session.execute(stmt)
+        session.commit()
+
+        # 2. flush 后验证文件大小合理
+        db.flush()
+        assert db_file.exists(), f"{engine_name}: 文件应该存在"
+
+        file_size = db_file.stat().st_size
+        # 500 条记录的文件不应小于 1KB（排除 DuckDB WAL 等异常）
+        assert file_size > 1024, (
+            f"{engine_name}: flush 后文件仅 {file_size} bytes，"
+            f"500 条记录不应如此小，可能数据未正确持久化"
+        )
+
+        # 3. close → reopen → 验证记录数
+        session.close()
+        db.close()
+
+        db2 = Storage(file_path=str(db_file), engine=engine_name)
+        Base2: Type[PureBaseModel] = declarative_base(db2)
+
+        class Item2(Base2):
+            __tablename__ = 'items'
+            id = Column(int, primary_key=True)
+            name = Column(str, nullable=False, index=True)
+            value = Column(float)
+            active = Column(bool)
+
+        session2 = Session(db2)
+
+        stmt = select(Item2)
+        all_items = session2.execute(stmt).all()
+        assert len(all_items) == record_count, (
+            f"{engine_name}: 期望 {record_count} 条记录，"
+            f"实际 {len(all_items)} 条"
+        )
+
+        # 4. 验证首尾记录数据准确
+        first = session2.execute(select(Item2).where(Item2.id == 1)).first()
+        assert first is not None
+        assert first.name == 'Item_0'
+        assert first.value == 0.0
+        assert first.active is True
+
+        last = session2.execute(
+            select(Item2).where(Item2.name == f'Item_{record_count - 1}')
+        ).first()
+        assert last is not None
+        assert last.value == float(record_count - 1) * 1.5
+        assert last.active == ((record_count - 1) % 2 == 0)
+
+        # 5. 验证条件查询结果数量
+        active_items = session2.execute(select(Item2).filter_by(active=True)).all()
+        expected_active = (record_count + 1) // 2  # i % 2 == 0 的数量
+        assert len(active_items) == expected_active, (
+            f"{engine_name}: 期望 {expected_active} 条 active 记录，"
+            f"实际 {len(active_items)} 条"
+        )
+
+        session2.close()
+        db2.close()
+
+    @pytest.mark.parametrize("engine_name,file_ext", ALL_ENGINES)
+    def test_flush_then_reopen_without_close(self, engine_name: str, file_ext: str, tmp_path: Path) -> None:
+        """
+        测试 flush 后直接 reopen（不经过 close）的数据完整性
+
+        验证 flush 已将数据写入文件，另一个 Storage 实例能正确读取。
+        """
+        if not is_engine_available(engine_name):
+            pytest.skip(get_skip_reason(engine_name))
+
+        db_file = tmp_path / f'test_flush_reopen_{engine_name}.{file_ext}'
+
+        db = Storage(file_path=str(db_file), engine=engine_name)
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class Record(Base):
+            __tablename__ = 'records'
+            id = Column(int, primary_key=True)
+            data = Column(str)
+
+        session = Session(db)
+        for i in range(100):
+            session.execute(insert(Record).values(data=f'data_{i}'))
+        session.commit()
+        db.flush()
+
+        # 不 close，直接用新 Storage 读取文件
+        # 注意：DuckDB native SQL 模式下，连接仍然持有锁，需要先 close
+        if engine_name in ('duckdb', 'sqlite'):
+            db.close()
+
+        db2 = Storage(file_path=str(db_file), engine=engine_name)
+        Base2: Type[PureBaseModel] = declarative_base(db2)
+
+        class Record2(Base2):
+            __tablename__ = 'records'
+            id = Column(int, primary_key=True)
+            data = Column(str)
+
+        session2 = Session(db2)
+        all_records = session2.execute(select(Record2)).all()
+        assert len(all_records) == 100, (
+            f"{engine_name}: flush 后应有 100 条记录，实际 {len(all_records)}"
+        )
+
+        session2.close()
+        db2.close()
+        if engine_name not in ('duckdb', 'sqlite'):
+            db.close()
 
 
 # 允许直接运行测试

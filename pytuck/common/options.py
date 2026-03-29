@@ -121,7 +121,7 @@ class XmlBackendOptions:
 @dataclass
 class BinaryBackendOptions:
     """Pytuck 引擎后端配置选项"""
-    lazy_load: bool = False  # 是否懒加载（只加载 schema 和索引，按需读取数据）
+    lazy_load: bool = True  # 是否懒加载（只加载 schema 和索引，按需读取数据）
     sidecar_wal: bool = False  # 是否将 WAL 写入独立 sidecar 文件（.<文件名>.wal）
 
     # 加密选项

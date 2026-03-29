@@ -65,6 +65,10 @@ class DuckDBBackend(StorageBackend):
     def close(self) -> None:
         """关闭连接器"""
         if self._connector is not None:
+            try:
+                self._connector.checkpoint()
+            except Exception:
+                pass
             self._connector.close()
             self._connector = None
 
@@ -127,6 +131,7 @@ class DuckDBBackend(StorageBackend):
                 self._apply_comments(connector, table_name, table)
 
             connector.commit()
+            connector.checkpoint()
         except Exception as e:
             raise SerializationError(f'Failed to save schema to DuckDB: {e}')
 

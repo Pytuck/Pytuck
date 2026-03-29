@@ -295,10 +295,7 @@ class SQLiteConnector(DatabaseConnector):
             values = []
             for col in columns:
                 value = record.get(col)
-                # SQLite 用 INTEGER 存储布尔值
-                if isinstance(value, bool):
-                    value = 1 if value else 0
-                values.append(value)
+                values.append(self._serialize_value(value))
             values_list.append(tuple(values))
 
         self.conn.executemany(sql, values_list)

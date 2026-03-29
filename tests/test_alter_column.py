@@ -402,11 +402,10 @@ class TestMigrateEngineDataIntegrity:
 
         # 验证目标文件数据
         db2 = Storage(file_path=pytuck_path, engine='pytuck')
-        target_table = db2.get_table('users')
-        assert len(target_table.data) == 3
-        assert target_table.data[1]['name'] == 'Alice'
-        assert target_table.data[2]['name'] == 'Bob'
-        assert target_table.data[3]['name'] == 'Charlie'
+        assert db2.count_rows('users') == 3
+        assert db2.select('users', 1)['name'] == 'Alice'
+        assert db2.select('users', 2)['name'] == 'Bob'
+        assert db2.select('users', 3)['name'] == 'Charlie'
         db2.close()
 
     def test_json_to_csv_preserves_data(self, temp_dir: Path) -> None:
@@ -474,12 +473,11 @@ class TestFlushLoadDefaultValueIntegrity:
         db.close()
 
         db2 = Storage(file_path=file_path, engine=engine)
-        table2 = db2.get_table('items')
 
         # 验证 null 值保持不变
-        assert table2.data[1]['score'] is None, \
+        assert db2.select('items', 1)['score'] is None, \
             f"{engine} 后端在 flush/load 后将 null 值篡改为默认值"
-        assert table2.data[2]['score'] == 0
+        assert db2.select('items', 2)['score'] == 0
         db2.close()
 
     @pytest.mark.parametrize("engine", ['pytuck', 'json', 'jsonl', 'csv'])

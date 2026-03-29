@@ -9,13 +9,13 @@
 
 [中文](README.md) | English
 
-A lightweight, pure Python document database with multi-engine support. No SQL required - manage your data through Python objects and methods.
+A lightweight, pure Python document database with multi-engine support. No SQL required — manage your data through Python objects and methods.
 
-> **Design Philosophy**: Provide a zero-dependency relational database solution for restricted Python environments like Ren'Py, enabling SQLAlchemy-style Pythonic data operations in any limited environment.
+> **Design Philosophy**: Provide a zero-dependency relational database solution for restricted Python environments like Ren'Py, enabling SQLAlchemy-style Pythonic data operations in limited environments.
 
 > [!IMPORTANT]
 > **When to use Pytuck**: Pytuck is a pure Python embedded database designed for **small-to-medium datasets** and **restricted environments**.
-> - **Data volume**: The "~10K / 100K+" guidance mainly refers to the row count of a **single hot table**. Best for up to ~10K rows; when one table approaches or exceeds 100K rows, prefer DuckDB / SQLite or consider alternatives. As the total row count across tables keeps growing, overall I/O and load time will also rise
+> - **Data volume**: The "~10K / 100K+" guidance mainly refers to the row count of a **single hot table**. Best for up to ~10K rows; when one table approaches or exceeds 100K rows, prefer DuckDB / SQLite or evaluate alternatives. As total row count across tables grows, overall I/O and load time will also rise
 > - **Performance**: Pure Python means it cannot match C-extension databases (SQLite, PostgreSQL, etc.) — not suitable for high-concurrency or compute-intensive scenarios
 > - **Concurrency**: Designed for single-process embedded use; no multi-process concurrent access support
 > - **If your environment has no special restrictions**, consider [SQLAlchemy](https://www.sqlalchemy.org/) + SQLite/PostgreSQL first — they offer better performance, a more mature ecosystem, and broader community support
@@ -27,17 +27,33 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 
 ## Key Features
 
-- **No SQL Required** - Work entirely with Python objects and methods
-- **Multi-Engine Support** - Pytuck, JSON, JSONL, CSV, SQLite, DuckDB, Excel, XML storage formats
-- **Pluggable Architecture** - Zero dependencies by default, optional engines on demand
-- **SQLAlchemy 2.0 Style API** - Modern query builders (`select()`, `insert()`, `update()`, `delete()`)
-- **Generic Type Hints** - Complete generic support with precise IDE type inference (`List[User]` instead of `List[PureBaseModel]`)
-- **Pythonic Query Syntax** - Use native Python operators (`User.age >= 18`)
-- **Index Optimization** - Hash and sorted indexes for accelerated queries, range queries and sorting automatically leverage indexes
-- **Type Safety** - Automatic type validation and conversion (loose/strict modes), custom validators, supports 10 field types
-- **Relationships** - Supports one-to-many and many-to-one with lazy loading + auto caching
-- **Independent Data Models** - Accessible after session close, usable like Pydantic
-- **Persistence** - Automatic or manual data persistence to disk
+- **No SQL required**: Work entirely with Python objects and methods
+- **Multi-engine support**: Pytuck, JSON, JSONL, CSV, SQLite, DuckDB, Excel, XML
+- **Pluggable architecture**: Zero dependencies by default, optional engines on demand
+- **SQLAlchemy 2.0 style API**: `select()` / `insert()` / `update()` / `delete()`
+- **Generic type hints**: Precise model-aware IDE and type-checker inference
+- **Index optimization**: Hash and sorted indexes accelerate equality, range, and ordering queries
+- **Relationships and prefetch**: `Relationship` and `prefetch()` help with N+1 scenarios
+- **Type safety**: Built-in conversion, strict mode, and custom `validator`
+- **Flexible persistence**: Manual `flush()` or `auto_flush=True`
+
+## Documentation Map
+
+The README home page now focuses on project positioning, installation, and minimal getting-started examples. Detailed explanations have been split into `docs/`:
+
+| Document | Content |
+|----------|---------|
+| [API docs index](./docs/api/index.md) | API overview and entry point |
+| [Engine comparison & configuration](./docs/api/engines.md) | Engine features, configuration, limits, and selection advice |
+| [Best practices](./docs/api/best-practices.md) | Persistence, indexing, transactions, lazy loading, performance tuning |
+| [Storage API](./docs/api/storage.md) | `Storage` / `Table` / `flush()` / `transaction()` |
+| [Session API](./docs/api/session.md) | `Session`, transactions, object state management |
+| [Query system](./docs/api/query.md) | `select` / `insert` / `update` / `delete` and result handling |
+| [Tools & migration](./docs/api/tools.md) | `migrate_engine()`, benchmark scripts, hooks, prefetch |
+| [Benchmark report](./docs/guide/benchmark.en.md) | Latest benchmark results and reproduction commands |
+| [Development & release guide](./docs/guide/development.en.md) | Installation details, uv workflow, contributing, build & release |
+| [Development TODO](./TODO.md) | Current roadmap and development tasks |
+| [Changelog](./CHANGELOG.EN.md) | Latest changes and archive entry points |
 
 ## Quick Start
 
@@ -63,89 +79,41 @@ pip install pytuck[dev]
 
 ### Basic Usage
 
-Pytuck offers two usage modes:
+Pytuck offers two common usage modes:
 
 #### Mode 1: Pure Model (Default, Recommended)
-
-Operate data through Session, following SQLAlchemy 2.0 style:
 
 ```python
 from typing import Type
 from pytuck import Storage, declarative_base, Session, Column
-from pytuck import PureBaseModel, select, insert, update, delete
+from pytuck import PureBaseModel, select, insert
 
 # Create database (default: pytuck engine)
 db = Storage(file_path='mydb.pytuck')
 Base: Type[PureBaseModel] = declarative_base(db)
 
-# Define model
 class Student(Base):
     __tablename__ = 'students'
 
     id = Column(int, primary_key=True)
     name = Column(str, nullable=False, index=True)
     age = Column(int)
-    email = Column(str, nullable=True)
 
-# Create Session
 session = Session(db)
-
-# Insert records
-stmt = insert(Student).values(name='Alice', age=20, email='alice@example.com')
-result = session.execute(stmt)
-session.commit()
-print(f"Created student, ID: {result.inserted_primary_key}")
-
-# Query records
-stmt = select(Student).where(Student.id == 1)
-result = session.execute(stmt)
-alice = result.first()
-print(f"Found: {alice.name}, {alice.age} years old")
-
-# Conditional query (Pythonic syntax)
-stmt = select(Student).where(Student.age >= 18).order_by('name')
-result = session.execute(stmt)
-adults = result.all()
-for student in adults:
-    print(f"  - {student.name}")
-
-# Identity Map example (0.3.0 NEW, object uniqueness guarantee)
-student1 = session.get(Student, 1)  # Load from database
-stmt = select(Student).where(Student.id == 1)
-student2 = session.execute(stmt).scalars().first()  # Get through query
-print(f"Same object? {student1 is student2}")  # True, same instance
-
-# merge() operation example (0.3.0 NEW, merge external data)
-external_student = Student(id=1, name="Alice Updated", age=22)  # External data
-merged = session.merge(external_student)  # Intelligently merge into Session
-session.commit()  # Update takes effect
-
-# Update records
-# Method 1: Use update statement (bulk update)
-stmt = update(Student).where(Student.id == 1).values(age=21)
-session.execute(stmt)
+session.execute(insert(Student).values(name='Alice', age=20))
 session.commit()
 
-# Method 2: Attribute assignment update (0.3.0 NEW, more intuitive)
-stmt = select(Student).where(Student.id == 1)
-result = session.execute(stmt)
-alice = result.first()
-alice.age = 21  # Attribute assignment auto-detected and updates database
-session.commit()  # Automatically writes changes to database
+alice = session.execute(
+    select(Student).where(Student.name == 'Alice')
+).first()
+print(alice.name)
 
-# Delete records
-stmt = delete(Student).where(Student.id == 1)
-session.execute(stmt)
-session.commit()
-
-# Close
-session.close()
+# Default auto_flush=False: data reaches disk only after flush/close
+db.flush()
 db.close()
 ```
 
 #### Mode 2: Active Record
-
-Models with built-in CRUD methods for simpler operations:
 
 ```python
 from typing import Type
@@ -154,9 +122,8 @@ from pytuck import CRUDBaseModel
 
 # Create database
 db = Storage(file_path='mydb.pytuck')
-Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)  # Note: crud=True
+Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
-# Define model
 class Student(Base):
     __tablename__ = 'students'
 
@@ -164,1046 +131,91 @@ class Student(Base):
     name = Column(str, nullable=False)
     age = Column(int)
 
-# Create record (auto-save)
 alice = Student.create(name='Alice', age=20)
-print(f"Created: {alice.name}, ID: {alice.id}")
+adults = Student.filter(Student.age >= 18).all()
 
-# Or save manually
-bob = Student(name='Bob', age=22)
-bob.save()
+alice.age = 21
+alice.save()
 
-# Query records
-student = Student.get(1)  # Query by primary key
-students = Student.filter(Student.age >= 18).all()  # Conditional query
-students = Student.filter_by(name='Alice').all()  # Equality query
-all_students = Student.all()  # Get all
-
-# Update records
-alice.age = 21  # Active Record mode already supports attribute assignment updates
-alice.save()    # Explicitly save to database
-
-# Delete records
-alice.delete()
-
-# Close
+db.flush()
 db.close()
 ```
 
-**How to Choose?**
-- **Pure Model Mode**: Suited for larger projects, team development, clear data access layer separation
-- **Active Record Mode**: Suited for smaller projects, rapid prototyping, simple CRUD operations
+**How to choose?**
+- **Pure Model mode**: Better for larger projects, team development, and clear data-access layering
+- **Active Record mode**: Better for small projects, rapid prototyping, and simple CRUD flows
 
-## Storage Engines
+> **Persistence note**: The default is `auto_flush=False`. `session.commit()` / `Model.save()` only commit to in-memory state by default; data reaches disk after `db.flush()` or `db.close()`. See [Best Practices - Persistence Strategy](./docs/api/best-practices.md#持久化策略) for details.
 
-Pytuck supports multiple storage engines, each suited for different scenarios:
+## Storage Engines at a Glance
 
-### Pytuck Engine (Default)
+- **Pytuck**: Default choice, zero dependencies, encryption, lazy loading, on-demand reads
+- **JSON**: Best when readability and debugging matter most
+- **JSONL**: Good for multi-table text archives and line-oriented exchange
+- **CSV**: Good for minimum size and spreadsheet-style interchange
+- **SQLite**: Good for stable SQL write paths, transactions, and fast loading
+- **DuckDB**: Good for analytical queries, DuckDB ecosystem integration, and multi-schema use
+- **Excel**: Good for visual editing, reports, and office handoff
+- **XML**: Good for standardized exchange and enterprise integration
 
-**Features**: Zero dependencies, compact, high performance, encryption support
+> **SQLite note**: With `use_native_sql=True` (default), behavior is closer to native SQLite and support for Chinese column names / special identifiers is limited. If you need names like `Column.name='用户名'`, switch to `SqliteBackendOptions(use_native_sql=False)` compatibility mode. See [docs/api/engines.md](./docs/api/engines.md#sqlite-引擎).
 
-```python
-from pytuck.common.options import BinaryBackendOptions
+## Performance & Benchmarking
 
-# Basic usage
-db = Storage(file_path='data.pytuck', engine='pytuck')
-
-# Enable encryption (three levels: low/medium/high)
-opts = BinaryBackendOptions(encryption='high', password='mypassword')
-db = Storage(file_path='secure.pytuck', engine='pytuck', backend_options=opts)
-
-# Open encrypted database (auto-detects encryption level)
-opts = BinaryBackendOptions(password='mypassword')
-db = Storage(file_path='secure.pytuck', engine='pytuck', backend_options=opts)
-```
-
-**Encryption Levels**:
-
-| Level | Algorithm | Security | Use Case |
-|-------|-----------|----------|----------|
-| `low` | XOR obfuscation | Prevents casual viewing | Prevent accidental file opening |
-| `medium` | LCG stream cipher | Prevents regular users | General protection needs |
-| `high` | ChaCha20 | Cryptographically secure | Sensitive data protection |
-
-**Encryption Performance Benchmark** (1000 records, ~100 bytes each):
-
-| Level | Write Time | Read Time | File Size | Read Overhead |
-|-------|------------|-----------|-----------|---------------|
-| None | 41ms | 17ms | 183KB | (baseline) |
-| low | 33ms | 33ms | 183KB | +100% |
-| medium | 82ms | 86ms | 183KB | +418% |
-| high | 342ms | 335ms | 183KB | +1928% |
-
-> **Note**: Encryption uses a pure Python implementation to maintain zero dependencies. For better performance, consider using `low` or `medium` levels.
-> Run `uv run python tests/benchmark/benchmark_encryption.py` to reproduce the encryption-specific benchmark in your environment.
-
-**Use Cases**:
-- Production deployment
-- Embedded applications
-- Sensitive data protection
-- Minimum footprint required
-
-### JSON Engine
-
-**Features**: Human-readable, debug-friendly, standard format
-
-```python
-from pytuck.common.options import JsonBackendOptions
-
-# Configure JSON options
-json_opts = JsonBackendOptions(indent=2, ensure_ascii=False)
-db = Storage(file_path='data.json', engine='json', backend_options=json_opts)
-```
-
-**Use Cases**:
-- Development and debugging
-- Configuration storage
-- Data exchange
-
-### JSONL Engine
-
-**Features**: ZIP container, one `.jsonl` file per table, line-oriented text, ZIP password support, zero dependencies
-
-```python
-from pytuck.common.options import JsonlBackendOptions
-
-# Outer file is a ZIP archive with _metadata.json + one .jsonl per table
-jsonl_opts = JsonlBackendOptions(
-    ensure_ascii=False,
-    password='my_password',  # Optional: ZIP password (ASCII printable characters only)
-)
-db = Storage(file_path='data.zip', engine='jsonl', backend_options=jsonl_opts)
-```
-
-**Use Cases**:
-- Multi-table text archives
-- Line-oriented processing / streaming exchange
-- Human-readable exchange with better multi-table organization
-- Zero-dependency deployments
-
-**Notes**:
-- Setting `JsonlBackendOptions(password='...')` enables ZIP password protection
-- Reopening an encrypted archive requires the same password
-- `probe()` / `get_metadata()` can still identify an encrypted JSONL ZIP without a password, but only return limited information
-- ZIP passwords only support ASCII printable characters, not Chinese, Japanese, or spaces
-
-### CSV Engine
-
-**Features**: Excel compatible, tabular format, data analysis friendly, password protection
-
-```python
-from pytuck.common.options import CsvBackendOptions
-
-# Configure CSV options
-csv_opts = CsvBackendOptions(encoding='utf-8', delimiter=',')
-db = Storage(file_path='data.zip', engine='csv', backend_options=csv_opts)
-
-# Enable ZIP password protection (ZipCrypto encryption, compatible with WinRAR/7-Zip)
-csv_opts = CsvBackendOptions(password="my_password")
-db = Storage(file_path='secure.zip', engine='csv', backend_options=csv_opts)
-```
-
-**Use Cases**:
-- Data analysis
-- Excel import/export
-- Tabular data
-- Minimal file size needed
-- Sharing encrypted files with other tools
-
-### SQLite Engine
-
-**Features**: Mature, stable, ACID compliance, SQL support
-
-```python
-from pytuck.common.options import SqliteBackendOptions
-
-# Configure SQLite options (optional)
-sqlite_opts = SqliteBackendOptions()  # Use default config
-db = Storage(file_path='data.sqlite', engine='sqlite', backend_options=sqlite_opts)
-```
-
-**Use Cases**:
-- Need SQL queries
-- Need transaction guarantees
-- Large datasets
-
-### Excel Engine (Optional)
-
-**Requires**: `openpyxl>=3.0.0`
-
-```python
-from pytuck.common.options import ExcelBackendOptions
-
-# Configure Excel options (optional)
-excel_opts = ExcelBackendOptions(read_only=False)  # Use default config
-db = Storage(file_path='data.xlsx', engine='excel', backend_options=excel_opts)
-```
-
-**Use Cases**:
-- Business reports
-- Visualization needs
-- Office automation
-
-### XML Engine (Optional)
-
-**Requires**: `lxml>=4.9.0`
-
-```python
-from pytuck.common.options import XmlBackendOptions
-
-# Configure XML options
-xml_opts = XmlBackendOptions(encoding='utf-8', pretty_print=True)
-db = Storage(file_path='data.xml', engine='xml', backend_options=xml_opts)
-```
-
-**Use Cases**:
-- Enterprise integration
-- Standardized exchange
-- Configuration files
-
-## Advanced Features
-
-### Generic Type Hints
-
-Pytuck provides complete generic type support, enabling IDEs to precisely infer the specific types of query results and significantly enhancing the development experience:
-
-#### IDE Type Inference Effects
-
-```python
-from typing import List, Optional
-from pytuck import Storage, declarative_base, Session, Column
-from pytuck import select, insert, update, delete
-
-db = Storage('mydb.pytuck')
-Base = declarative_base(db)
-
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(int, primary_key=True)
-    name = Column(str)
-    age = Column(int)
-
-session = Session(db)
-
-# Statement builder type inference
-stmt = select(User)  # IDE infers: Select[User] ✅
-chained = stmt.where(User.age >= 18)  # IDE infers: Select[User] ✅
-
-# Session execution type inference
-result = session.execute(stmt)  # IDE infers: Result[User] ✅
-
-# Result processing precise types
-users = result.all()  # Returns a list of model instances List[T]
-user = result.first()  # Returns the first model instance Optional[T]
-
-Notes:
-- Result.all() → Returns a list of model instances List[T]
-- Result.first() → Returns the first model instance Optional[T]
-- Result.one() → Returns the unique model instance T (must be exactly one)
-- Result.one_or_none() → Returns the unique model instance or None Optional[T] (at most one)
-- Result.rowcount() → Returns the number of results int
-
-# IDE knows specific attribute types
-for user in users:
-    user_name: str = user.name  # ✅ IDE knows this is str
-    user_age: int = user.age    # ✅ IDE knows this is int
-    # user.invalid_field        # ❌ IDE warns attribute doesn't exist
-```
-
-#### Type Safety Features
-
-- **Precise Type Inference**: `select(User)` returns `Select[User]`, not generic `Select`
-- **Smart Code Completion**: IDE accurately suggests model attributes and methods
-- **Compile-time Error Detection**: MyPy can detect type errors at compile time
-- **Method Chain Type Preservation**: All chained calls maintain specific generic types
-- **100% Backward Compatibility**: Existing code works unchanged and automatically gains type hint enhancement
-
-#### Comparison Effects
-
-**Before:**
-```python
-users = result.all()  # IDE: List[PureBaseModel] 😞
-user.name                       # IDE: doesn't know what attributes exist 😞
-```
-
-**Now:**
-```python
-users = result.all()  # IDE: List[User] ✅
-user.name                       # IDE: knows this is str type ✅
-user.age                        # IDE: knows this is int type ✅
-```
-
-### Data Persistence
-
-Pytuck provides flexible data persistence mechanisms.
-
-#### Pure Model Mode (Session)
-
-```python
-db = Storage(file_path='data.pytuck')  # auto_flush=False (default)
-
-# Data changes only in memory
-session.execute(insert(User).values(name='Alice'))
-session.commit()  # Commits to Storage memory
-
-# Manually write to disk
-db.flush()  # Method 1: Explicit flush
-# or
-db.close()  # Method 2: Auto-flush on close
-```
-
-Enable auto persistence:
-
-```python
-db = Storage(file_path='data.pytuck', auto_flush=True)
-
-# Each commit automatically writes to disk
-session.execute(insert(User).values(name='Alice'))
-session.commit()  # Automatically writes to disk, no manual flush needed
-```
-
-#### Active Record Mode (CRUDBaseModel)
-
-CRUDBaseModel has no Session, operates directly on Storage:
-
-```python
-db = Storage(file_path='data.pytuck')  # auto_flush=False (default)
-Base = declarative_base(db, crud=True)
-
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(int, primary_key=True)
-    name = Column(str)
-
-# create/save/delete only modify memory
-user = User.create(name='Alice')
-user.name = 'Bob'
-user.save()
-
-# Manually write to disk
-db.flush()  # Method 1: Explicit flush
-# or
-db.close()  # Method 2: Auto-flush on close
-```
-
-Enable auto persistence:
-
-```python
-db = Storage(file_path='data.pytuck', auto_flush=True)
-Base = declarative_base(db, crud=True)
-
-# Each create/save/delete automatically writes to disk
-user = User.create(name='Alice')  # Automatically writes to disk
-user.name = 'Bob'
-user.save()  # Automatically writes to disk
-```
-
-#### Persistence Method Summary
-
-| Method | Mode | Description |
-|--------|------|-------------|
-| `session.commit()` | Pure Model | Commits transaction to Storage memory; if `auto_flush=True`, also writes to disk |
-| `Model.create/save/delete()` | Active Record | Modifies Storage memory; if `auto_flush=True`, also writes to disk |
-| `storage.flush()` | Both | Forces in-memory data to be written to disk |
-| `storage.close()` | Both | Closes database, automatically calls `flush()` |
-
-**Recommendations**:
-- Use `auto_flush=True` in production for data safety
-- Use default mode for batch operations, call `flush()` at the end for better performance
-
-### Transaction Support
-
-Pytuck supports memory-level transactions with automatic rollback on exceptions:
-
-```python
-# Session transaction (recommended)
-with session.begin():
-    session.add(User(name='Alice'))
-    session.add(User(name='Bob'))
-    # Auto-commit on success, auto-rollback on exception
-
-# Storage-level transaction
-with db.transaction():
-    db.insert('users', {'name': 'Alice'})
-    db.insert('users', {'name': 'Bob'})
-    # Auto-rollback to pre-transaction state on exception
-```
-
-### Session Context Manager
-
-Session supports context manager for automatic commit/rollback:
-
-```python
-with Session(db) as session:
-    stmt = insert(User).values(name='Alice')
-    session.execute(stmt)
-    # Auto-commit on exit, auto-rollback on exception
-```
-
-### Auto-commit Mode
-
-```python
-session = Session(db, autocommit=True)
-# Each operation auto-commits
-session.add(User(name='Alice'))  # Auto-committed
-```
-
-### Object State Tracking
-
-Session provides complete object state tracking:
-
-```python
-# Add single object
-session.add(user)
-
-# Batch add
-session.add_all([user1, user2, user3])
-
-# Flush to database (without committing transaction)
-session.flush()
-
-# Commit transaction
-session.commit()
-
-# Rollback transaction
-session.rollback()
-```
-
-### Auto Flush
-
-Enable `auto_flush` for automatic disk persistence on each write:
-
-```python
-db = Storage(file_path='data.pytuck', auto_flush=True)
-
-# Insert automatically writes to disk
-stmt = insert(Student).values(name='Bob', age=21)
-session.execute(stmt)
-session.commit()
-```
-
-### Index Queries
-
-Add indexes to fields to accelerate queries:
-
-```python
-class Student(Base):
-    __tablename__ = 'students'
-    name = Column(str, index=True)           # Hash index (equality query acceleration)
-    age = Column(int, index='sorted')         # Sorted index (range query + sorting acceleration)
-
-# Equality query (uses hash index)
-stmt = select(Student).filter_by(name='Bob')
-result = session.execute(stmt)
-bob = result.first()
-
-# Range query (automatically uses sorted index)
-stmt = select(Student).where(Student.age >= 18, Student.age < 30)
-result = session.execute(stmt)
-adults = result.all()
-
-# Sorting query (automatically uses sorted index, no full-data sorting needed)
-stmt = select(Student).order_by('age').limit(10)
-result = session.execute(stmt)
-youngest = result.all()
-```
-
-### Query Operators
-
-Supported Pythonic query operators:
-
-```python
-# Equal
-stmt = select(Student).where(Student.age == 20)
-
-# Not equal
-stmt = select(Student).where(Student.age != 20)
-
-# Greater than / Greater than or equal
-stmt = select(Student).where(Student.age > 18)
-stmt = select(Student).where(Student.age >= 18)
-
-# Less than / Less than or equal
-stmt = select(Student).where(Student.age < 30)
-stmt = select(Student).where(Student.age <= 30)
-
-# IN query
-stmt = select(Student).where(Student.age.in_([18, 19, 20]))
-
-# Multiple conditions (AND)
-stmt = select(Student).where(Student.age >= 18, Student.age < 30)
-
-# Simple equality query (filter_by)
-stmt = select(Student).filter_by(name='Alice', age=20)
-```
-
-### Sorting and Pagination
-
-```python
-# Sorting
-stmt = select(Student).order_by('age')
-stmt = select(Student).order_by('age', desc=True)
-
-# Pagination
-stmt = select(Student).limit(10)
-stmt = select(Student).offset(10).limit(10)
-
-# Count
-stmt = select(Student).where(Student.age >= 18)
-result = session.execute(stmt)
-adults = result.all()
-count = len(adults)
-```
-
-## Data Model Features
-
-Pytuck's data models have unique characteristics that make them behave like both ORM and pure data containers.
-
-### Independent Data Objects
-
-Pytuck model instances are completely independent Python objects that are immediately materialized to memory after query:
-
-- ✅ **Accessible After Session Close**: No DetachedInstanceError
-- ✅ **Operable After Storage Close**: Loaded objects are completely independent
-- ✅ **No Lazy Loading**: All direct attributes are loaded immediately
-- ✅ **Serializable**: Supports JSON, Pickle, and other serialization formats
-- ✅ **Usable as Data Containers**: Use like Pydantic models
-
-```python
-from pytuck import Storage, declarative_base, Session, Column, select
-
-db = Storage(file_path='data.pytuck')
-Base = declarative_base(db)
-
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(int, primary_key=True)
-    name = Column(str)
-
-session = Session(db)
-stmt = select(User).where(User.id == 1)
-user = session.execute(stmt).scalars().first()
-
-# Close session and storage
-session.close()
-db.close()
-
-# Still accessible!
-print(user.name)  # ✅ Works
-print(user.to_dict())  # ✅ Works
-```
-
-**Comparison with SQLAlchemy**:
-
-| Feature | Pytuck | SQLAlchemy |
-|---------|--------|------------|
-| Access after Session close | ✅ Supported | ❌ DetachedInstanceError |
-| Lazy loading relationships | ✅ Supported (with cache) | ✅ Supported |
-| Model as pure data container | ✅ Yes | ❌ No (bound to session) |
-
-### Relationships
-
-Pytuck supports one-to-many, many-to-one, and self-referential relationships:
-
-```python
-from pytuck.core.orm import Relationship
-from typing import List, Optional
-
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(int, primary_key=True)
-    name = Column(str)
-    # One-to-many: use table name reference (recommended)
-    orders: List['Order'] = Relationship('orders', foreign_key='user_id')  # type: ignore
-
-class Order(Base):
-    __tablename__ = 'orders'
-    id = Column(int, primary_key=True)
-    user_id = Column(int)
-    amount = Column(float)
-    # Many-to-one
-    user: Optional[User] = Relationship('users', foreign_key='user_id')  # type: ignore
-
-# Self-reference (tree structure) - use uselist to specify direction
-class Category(Base):
-    __tablename__ = 'categories'
-    id = Column(int, primary_key=True)
-    parent_id = Column(int, nullable=True)
-    parent: Optional['Category'] = Relationship('categories', foreign_key='parent_id', uselist=False)  # type: ignore
-    children: List['Category'] = Relationship('categories', foreign_key='parent_id', uselist=True)  # type: ignore
-```
-
-**Features**:
-- ✅ **Table Name Reference**: Use table name string for forward references
-- ✅ **Lazy Loading**: Queries on first access, auto-cached
-- ✅ **uselist Parameter**: Explicitly specify return type for self-reference
-- ✅ **Type Hints**: Declare return type for IDE completion
-
-> See `examples/relationship_demo.py` for complete examples
-
-### Type Validation and Conversion
-
-Pytuck provides zero-dependency automatic type validation and conversion:
-
-```python
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(int, primary_key=True)
-    age = Column(int)  # Declared as int
-
-# Loose mode (default): auto conversion
-user = User(age='25')  # ✅ Automatically converts '25' → 25
-
-# Strict mode: no conversion, raises error on type mismatch
-class StrictUser(Base):
-    __tablename__ = 'strict_users'
-    id = Column(int, primary_key=True)
-    age = Column(int, strict=True)  # Strict mode
-
-user = StrictUser(age='25')  # ❌ ValidationError
-```
-
-#### Custom Validators
-
-Use the `validator` parameter to add fine-grained constraints on field values:
-
-```python
-class ValidatedUser(Base):
-    __tablename__ = 'validated_users'
-    id = Column(int, primary_key=True)
-    name = Column(str, validator=lambda x: len(x) <= 100)        # Length limit
-    age = Column(int, validator=[lambda x: x >= 0, lambda x: x <= 150])  # Multiple constraints
-    email = Column(str, validator=lambda x: '@' in x)            # Format check
-
-ValidatedUser.create(name='Alice', age=25, email='a@b.com')  # ✅ Passes
-ValidatedUser.create(age=200)  # ❌ ValidationError: validation failed
-```
-
-- Validators execute **after** type conversion, receiving the correctly-typed value
-- `None` values skip validators (`nullable` controls whether `None` is allowed)
-- Returning `False` or raising an exception triggers `ValidationError`
-
-**Type Conversion Rules (Loose Mode)**:
-
-| Python Type | Conversion Rule | Example |
-|------------|----------------|---------|
-| int | int(value) | '123' → 123 |
-| float | float(value) | '3.14' → 3.14 |
-| str | str(value) | 123 → '123' |
-| bool | Special rules* | '1', 'true', 1 → True |
-| bytes | encode() if str | 'hello' → b'hello' |
-| datetime | ISO 8601 parse | '2024-01-15T10:30:00' → datetime |
-| date | ISO 8601 parse | '2024-01-15' → date |
-| timedelta | Total seconds | 3600.0 → timedelta(hours=1) |
-| list | JSON parse | '[1,2,3]' → [1, 2, 3] |
-| dict | JSON parse | '{"a":1}' → {'a': 1} |
-| None | Allowed if nullable=True | None → None |
-
-*bool conversion rules:
-- True: `True`, `1`, `'1'`, `'true'`, `'True'`, `'yes'`, `'Yes'`
-- False: `False`, `0`, `'0'`, `'false'`, `'False'`, `'no'`, `'No'`, `''`
-
-**Use Cases**:
-
-```python
-# Web API development: return directly after query, no connection concerns
-@app.get("/users/{id}")
-def get_user(id: int):
-    session = Session(db)
-    stmt = select(User).where(User.id == id)
-    user = session.execute(stmt).scalars().first()
-    session.close()
-
-    # Return model with field filtering (hide sensitive fields)
-    return user.to_dict(exclude={'password', 'secret'})
-
-# Data transfer: model objects can be passed freely between functions
-def process_users(users: List[User]) -> List[dict]:
-    return [u.to_dict(include={'id', 'name', 'email'}) for u in users]
-
-# JSON serialization (auto-handles datetime/bytes and other special types)
-json_str = user.to_json()                    # Compact JSON string
-json_str = user.to_json(indent=2)            # Pretty-printed output
-json_str = user.to_json(exclude={'password'}) # Exclude sensitive fields
-
-# Expand relationship data
-user.to_dict(depth=1)  # Expand one level of Relationships (e.g., orders list)
-```
-
-## Performance Benchmark
-
-The following numbers come from the benchmark scripts in this repository, not from an older static table.
-
-### Test Environment
-
-- **System**: Linux 6.18.7-76061807-generic
-- **Python**: 3.12.3
-- **Test Data**: 100,000 records
-- **Mode**: Extended benchmark (index comparison, range queries, batch reads, lazy loading)
-- **Command**: `uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark-final.json`
-
-### Performance Comparison
-
-| Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
-|--------|--------|---------|-------------|---------|-------|------|------|------|------|
-| Pytuck | 893.36ms | 1.72ms | 4.59s | 2668x | 393.30ms | 534.11ms | 864.94ms | 317.35ms | 6.09MB |
-| JSON | 889.64ms | 1.64ms | 4.55s | 2767x | 388.95ms | 287.45ms | 369.13ms | - | 10.70MB |
-| JSONL | 825.68ms | 2.19ms | 4.61s | 2107x | 398.19ms | 592.01ms | 562.36ms | - | 827.5KB |
-| CSV | 859.33ms | 1.71ms | 4.56s | 2669x | 391.67ms | 436.29ms | 502.32ms | - | 731.9KB |
-| SQLite | 2.20s | 4.32ms | 476.03ms | 110x | 510.05ms | 9.96ms | 341.3μs | - | 6.97MB |
-| DuckDB | 272.98s | 57.70ms | 179.81ms | 3x | 465.90ms | 17.75ms | 26.12ms | - | 4.76MB |
-| Excel | 731.59ms | 1.63ms | 4.40s | 2691x | 370.73ms | 5.20s | 7.10s | - | 2.84MB |
-| XML | 711.97ms | 1.94ms | 4.34s | 2237x | 374.44ms | 2.24s | 1.84s | - | 34.54MB |
-
-**Notes**:
-- **Indexed**: 100 indexed equality lookups
-- **Non-Indexed**: 100 non-indexed full scans
-- **Speedup**: Indexed query vs non-indexed query speedup ratio
-- **Range**: Range-condition queries such as `age >= 20 AND age < 62`
-- **Lazy**: Only Pytuck supports lazy loading (load index first, records on demand)
-- These numbers go through Pytuck's current ORM / Session write path; the DuckDB write / update / delete numbers mainly reflect the current row-by-row DML path rather than DuckDB's native bulk-load ceiling
-
-### How to Reproduce
+- The latest 100,000-row extended benchmark has been moved to [docs/guide/benchmark.en.md](./docs/guide/benchmark.en.md) so the README stays focused
+- Benchmark script documentation lives in [docs/api/tools.md](./docs/api/tools.md#benchmark-脚本)
+- To reproduce locally:
 
 ```bash
-# General performance benchmark
-uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark-final.json
-
-# Encryption-specific benchmark (Pytuck / CSV only)
+uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
 uv run python tests/benchmark/benchmark_encryption.py
-```
-
-### PyPy 7.3.15 Rerun (engines available on this machine)
-
-- **Python**: PyPy 3.9.18 (PyPy 7.3.15)
-- **Test Data**: 100,000 records
-- **Mode**: Extended benchmark (index comparison, range queries, batch reads, lazy loading)
-- **Command**: `uv run --python pypy3 python tests/benchmark/benchmark.py -n 100000 -e pytuck --extended --output-json /tmp/pytuck-benchmark-pypy-pytuck-v5.json`
-- **Note**: This refresh reran only the `Pytuck` (PTK5 / v5) row; the other engines still use the previous PyPy results collected on the same machine
-
-| Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
-|--------|--------|---------|-------------|---------|-------|------|------|------|------|
-| Pytuck | 533.32ms | 19.99ms | 1.52s | 76x | 141.41ms | 284.51ms | 307.59ms | 66.98ms | 6.09MB |
-| JSON | 389.40ms | 11.40ms | 1.56s | 137x | 83.91ms | 278.40ms | 144.44ms | - | 10.70MB |
-| JSONL | 586.37ms | 9.51ms | 1.53s | 161x | 99.36ms | 270.48ms | 256.08ms | - | 827.5KB |
-| CSV | 441.42ms | 10.61ms | 1.53s | 144x | 87.92ms | 289.99ms | 447.78ms | - | 731.9KB |
-| SQLite | 1.80s | 35.09ms | 473.51ms | 13x | 170.87ms | 18.70ms | 908.7μs | - | 6.97MB |
-| Excel | 309.04ms | 18.79ms | 1.45s | 77x | 89.88ms | 2.16s | 4.76s | - | 2.84MB |
-
-**Notes**:
-- These numbers mainly show PyPy's upside on pure-Python paths; Pytuck / JSON / JSONL / CSV / Excel are generally faster than the current CPython run for inserts, scans, and serialization-heavy work
-- DuckDB and XML are not included in this PyPy table on the current machine: `duckdb` failed to build without PyPy `Development.Module` support (headers / dev package), and `lxml` requires `libxml2` / `libxslt` development packages
-- SQLite still keeps very fast save / load behavior, but its overall insert/query gains are less dramatic than the pure-Python engines here
-
-### Engine Feature Comparison
-
-| Engine | Query Perf | I/O Perf | Storage Eff | Human Readable | Dependencies | Recommended Use |
-|--------|-----------|----------|-------------|----------------|--------------|-----------------|
-| Pytuck | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ❌ | None | **Production default** |
-| JSON | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ | ✅ | None | Development, config storage |
-| JSONL | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐ | ✅ (after unzip) | None | Multi-table text archives, line-oriented exchange |
-| CSV | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ✅ (after unzip) | None | Data exchange, smallest footprint |
-| SQLite | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | None | Stable SQL writes, transactions, fast reload |
-| DuckDB | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ❌ | duckdb | Analytical queries, DuckDB ecosystem integration, multi-schema workflows |
-| Excel | ⭐⭐⭐⭐ | ⭐ | ⭐⭐⭐⭐ | ✅ | openpyxl | Visual editing, reports |
-| XML | ⭐⭐⭐ | ⭐⭐ | ⭐ | ✅ | lxml | Enterprise integration, standardized exchange |
-
-**Conclusions**:
-- **Pytuck** remains the most balanced default engine overall, with the best indexed-query and lazy-loading behavior
-- **JSON** is still the most straightforward single-file readable format, while **JSONL** fills the gap for multi-table archives and line-oriented text exchange
-- **CSV** remains the smallest exchange format on disk; if line-oriented JSON matters more than minimum size, **JSONL** is a strong alternative
-- **SQLite** is the most practical general-purpose SQL backend in the current benchmark, with the lowest save/load overhead
-- **DuckDB** is attractive for analytical reads, filtering, and existing DuckDB integration, but the current row-by-row write path is clearly not its strength in this benchmark
-- **Excel** and **XML** are best treated as interoperability / delivery formats rather than primary storage when I/O speed matters
-
-## Installation Methods
-
-### Install from PyPI
-
-```bash
-# Basic installation (includes pytuck / json / jsonl / csv / sqlite)
-pip install pytuck
-
-# With specific extras
-pip install pytuck[all]      # All optional dependencies
-pip install pytuck[duckdb]   # DuckDB support only
-pip install pytuck[excel]    # Excel support only
-pip install pytuck[xml]      # XML support only
-pip install pytuck[orjson]   # Optional JSON / JSONL acceleration
-pip install pytuck[ujson]    # Optional JSON / JSONL acceleration
-pip install pytuck[dev]      # Development tools
-```
-
-### Add to a uv-managed Project (Recommended)
-
-[uv](https://github.com/astral-sh/uv) is an extremely fast Python project and package manager. If your application already uses uv, add pytuck directly to your project dependencies:
-
-```bash
-# Basic installation (includes pytuck / json / jsonl / csv / sqlite)
-uv add pytuck
-
-# With specific extras
-uv add "pytuck[all]"       # All optional dependencies
-uv add "pytuck[duckdb]"    # DuckDB support only
-uv add "pytuck[excel]"     # Excel support only
-uv add "pytuck[xml]"       # XML support only
-uv add "pytuck[orjson]"    # Optional JSON / JSONL acceleration
-uv add "pytuck[ujson]"     # Optional JSON / JSONL acceleration
-```
-
-### Contributors: Sync the Development Environment
-
-If you cloned this repository to contribute, do not manually install the project into the current environment with an editable install. Sync the project's development environment directly instead:
-
-```bash
-# Clone repository
-git clone https://github.com/Pytuck/Pytuck.git
-cd pytuck
-
-# Sync development environment (includes test tools and optional engines)
-uv sync --extra dev
-
-# Run tests or examples
-uv run pytest tests/ -v
-uv run python examples/sqlalchemy20_api_demo.py
-```
-
-### Build and Publish
-
-```bash
-# Install build tools
-pip install build twine
-
-# Build wheel and source distribution
-python -m build
-
-# Upload to PyPI
-python -m twine upload dist/*
-
-# Upload to Test PyPI
-python -m twine upload --repository testpypi dist/*
 ```
 
 ## Data Migration
 
-Migrate data between different engines:
+Migrate data between engines:
 
 ```python
 from pytuck.tools.migrate import migrate_engine
 from pytuck.common.options import JsonBackendOptions
 
-# Configure target engine options
 json_opts = JsonBackendOptions(indent=2, ensure_ascii=False)
 
-# Migrate from pytuck to JSON
 migrate_engine(
     source_path='data.pytuck',
     source_engine='pytuck',
     target_path='data.json',
     target_engine='json',
-    target_options=json_opts  # Use strongly-typed options
+    target_options=json_opts,
 )
 ```
 
-## Architecture
+For more migration and import details, see [docs/api/tools.md](./docs/api/tools.md#数据迁移工具).
 
-```
-┌─────────────────────────────────────┐
-│       Application Layer             │
-│   BaseModel, Column, Query API      │
-└─────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│          ORM Layer (orm.py)         │
-│   Model definitions, validation,    │
-│   relationship mapping              │
-└─────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│     Storage Layer (storage.py)      │
-│   Table management, CRUD ops,       │
-│   query execution                   │
-└─────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│    Backend Layer (backends/)        │
-│ BinaryBackend (pytuck) | JSONBackend | ... │
-└─────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────┐
-│      Common Layer (common/)         │
-│   Exceptions, Utils, Options        │
-└─────────────────────────────────────┘
-```
+## Project Status & Further Reading
 
-## Roadmap
-
-### Completed
-- Core ORM and in-memory storage
-- Pluggable multi-engine persistence
-- SQLAlchemy 2.0 style API
-- Basic transaction support
-
-## Current Limitations
-
-Pytuck is a lightweight embedded database designed for simplicity. Here are the current limitations:
-
-### Feature Limitations
-
-| Limitation | Description |
-|------------|-------------|
-| **No JOIN support** | Single table queries only, no multi-table joins |
-| **No aggregate functions** | No COUNT, SUM, AVG, MIN, MAX support |
-| **Full rewrite on save** | JSON/JSONL/Excel/XML backends rewrite entire file on each save (CSV engine supports incremental save) |
-| **No nested transactions** | Only single-level transactions supported |
-
-### Concurrency Limitations
-
-| Limitation | Description |
-|------------|-------------|
-| **Single process only** | Multi-process concurrent access not supported, single-process read/write recommended |
-| **auto_flush=True not thread-safe for writes** | Multi-threaded concurrent writes cause file lock conflicts; use `auto_flush=False` and call `flush()` at the end |
-| **Thread-safe reads** | Multi-threaded concurrent reads on the same Storage are supported |
-
-### Transaction Semantics
-
-Pytuck's transaction model differs slightly from traditional ACID databases:
-
-| Behavior | Description |
-|----------|-------------|
-| **execute() takes effect immediately** | `session.execute()` writes to Storage memory immediately, queryable in the same Session |
-| **rollback() only clears pending** | `session.rollback()` only clears objects added via `session.add()`, does not undo executed operations |
-| **commit() persists** | `session.commit()` commits data; if `auto_flush=True`, also writes to disk |
-
-```python
-# Transaction behavior example
-session = Session(db)
-
-# execute() writes to memory immediately
-session.execute(insert(User).values(id=1, name='Alice'))
-# Can query immediately
-user = session.execute(select(User).where(User.id == 1)).first()  # ✅ Found
-
-# rollback() only affects pending objects
-user2 = User(id=2, name='Bob')
-session.add(user2)  # Added to pending
-session.rollback()  # Clears pending, but id=1 record still exists
-```
-
-### Engine-Specific Limitations
-
-| Engine | Limitation |
-|--------|------------|
-| **SQLite** | Chinese column names not supported (Column.name parameter cannot contain Chinese characters) |
-| **Excel** | Slow I/O performance, not suitable for frequent read/write; requires openpyxl dependency |
-| **XML** | Large file size, moderate I/O performance; requires lxml dependency |
-
-## Roadmap / TODO
-
-### Completed
-
-- [x] **Extended Field Type Support** ✨NEW✨
-  - [x] Added `datetime`, `date`, `timedelta`, `list`, `dict` five new types
-  - [x] Unified TypeRegistry codec, all backends use consistent serialization interface
-  - [x] JSON backend format optimization, removed redundant `_type`/`_value` wrapper
-- [x] **Pytuck Single-File Engine (PTK5)** ✨NEW✨
-  - [x] Public rename: `binary` → `pytuck`, `.db` → `.pytuck`
-  - [x] PTK5 is now the only supported single-file format
-  - [x] Hidden sidecar WAL + dual-header crash recovery
-  - [x] Batch I/O and codec caching optimizations
-  - [x] Three-tier encryption support (low/medium/high), pure Python implementation
-- [x] **Primary Key Query Optimization** (affects ALL storage engines) ✨NEW✨
-  - [x] `WHERE pk = value` queries use O(1) direct access
-  - [x] Single update/delete performance improved ~1000x
-- [x] Complete SQLAlchemy 2.0 Style Object State Management
-  - [x] Identity Map (Object Uniqueness Management)
-  - [x] Automatic Dirty Tracking (Attribute assignment auto-detected and updates database)
-  - [x] merge() Operation (Merge detached objects)
-  - [x] Query Instance Auto-Registration to Session
-- [x] Unified database connector architecture (`pytuck/connectors/` module)
-- [x] Data migration tools (`migrate_engine()`, `import_from_database()`)
-- [x] Import from external relational databases feature
-- [x] Unified engine version management (`pytuck/backends/versions.py`)
-- [x] Table and column comment support (`comment` parameter)
-- [x] Complete generic type hints system
-- [x] Strongly-typed configuration options system (dataclass replaces **kwargs)
-- [x] **Schema Sync & Migration** ✨NEW✨
-  - [x] Support automatic schema synchronization when loading existing database
-  - [x] `SyncOptions` configuration class to control sync behavior
-  - [x] `SyncResult` to record sync change details
-  - [x] Three-layer API design: Table → Storage → Session
-  - [x] Support SQLite native SQL mode DDL operations
-  - [x] Pure table-name API (no model class required)
-- [x] **Excel Row Number Mapping** ✨NEW✨
-  - [x] `row_number_mapping='as_pk'`: Use row number as primary key
-  - [x] `row_number_mapping='field'`: Map row number to a field
-  - [x] Support loading external Excel files
-- [x] **SQLite Native SQL Mode Optimization** ✨NEW✨
-  - [x] Native SQL mode enabled by default
-  - [x] Complete type mapping (10 Pytuck types)
-  - [x] Multi-column ORDER BY support
-- [x] **Exception System Refactoring** ✨NEW✨
-  - [x] Unified exception hierarchy
-  - [x] Added TypeConversionError, ConfigurationError, SchemaError, etc.
-- [x] **Backend Auto-Registration** ✨NEW✨
-  - [x] Automatic registration via `__init_subclass__`
-  - [x] Custom backends only need to inherit `StorageBackend`
-- [x] **Query Result API Simplification** ✨NEW✨
-  - [x] Removed `Result.scalars()` intermediate layer
-  - [x] Use `result.all()`, `result.first()` directly
-- [x] **Migration Tool Lazy Loading Support** ✨NEW✨
-  - [x] Fixed data migration issues with lazy loading backends
-- [x] **Primary Key-less Model Support** ✨NEW✨
-  - [x] Support defining models without a primary key, using internal implicit `_pytuck_rowid`
-  - [x] Suitable for log tables, event tables, etc.
-- [x] **Logical Query Operators OR/AND/NOT** ✨NEW✨
-  - [x] Added `or_()`, `and_()`, `not_()` logical operators
-  - [x] Support for complex condition combinations and nested queries
-- [x] **External File Loading (load_table)** ✨NEW✨
-  - [x] Added `load_table()` function to load CSV/Excel files as model object lists
-  - [x] Type coercion: convert if possible, raise error if not
-
-### Planned Features
-
-> 📋 For detailed development plans, please refer to [TODO.md](./TODO.md)
-
-- [x] **Web UI Data Browser** - Released as standalone project [pytuck-view](https://github.com/pytuck/pytuck-view) (`pip install pytuck-view`)
-- [x] **ORM Event Hooks** - Model-level + Storage-level event callbacks
-- [x] **Relationship Prefetch** - Batch load related data, solving the N+1 problem
-- [x] **Query Index Optimization** - Automatically use indexes for range queries and sorting
-- [x] **Bulk Operations** - `bulk_insert` / `bulk_update` API for efficient batch inserts and updates
-- [x] **to_dict() Enhancement & to_json()** - `include`/`exclude` field filtering, `depth` relationship expansion, `to_json()` JSON serialization
-- [x] **Column-level Validators** - `validator` parameter supports custom validation functions and value range constraints
-- [x] **DuckDB Engine** - Native DuckDB backend with multi-schema support, native SQL, comments, and server-side pagination
-
-### Planned Engines
-
-- None for now. The current file backend matrix already includes Pytuck, JSON, JSONL, CSV, SQLite, DuckDB, Excel, and XML.
-
-### Planned Optimizations
-
-- [x] **Incremental save for non-pytuck backends** - Table-level dirty tracking, CSV engine incremental ZIP writing (unchanged tables copied directly)
-- [x] **Pytuck encryption + lazy loading compatibility** - All three ciphers support random-access decryption (`decrypt_at`), encrypted files can be lazily loaded
+- **Detailed roadmap**: [TODO.md](./TODO.md)
+- **Version history**: [CHANGELOG.EN.md](./CHANGELOG.EN.md) and [docs/changelog/](./docs/changelog/)
+- **Complete API docs**: [docs/api/index.md](./docs/api/index.md)
+- **Development & release workflow**: [docs/guide/development.en.md](./docs/guide/development.en.md)
 
 ## Examples
 
 See the `examples/` directory for more examples:
 
 - `sqlalchemy20_api_demo.py` - Complete SQLAlchemy 2.0 style API example (recommended)
-- `all_engines_test.py` - All storage engine functionality tests
-- `transaction_demo.py` - Transaction management example
-- `type_validation_demo.py` - Type validation and conversion example
-- `data_model_demo.py` - Data model independence features example
-- `backend_options_demo.py` - Backend configuration options demo (new)
-- `migration_tools_demo.py` - Data migration tools demo (new)
+- `active_record_demo.py` - Active Record example
+- `new_api_demo.py` - Pure model example
+- `migration_tools_demo.py` - Data migration demo
 
 ## Contributing
 
-Issues and Pull Requests are welcome!
+Issues and Pull Requests are welcome.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License
 
 ## Acknowledgments
 
-Inspired by SQLAlchemy, and TinyDB.
+Inspired by SQLAlchemy and TinyDB.

@@ -43,11 +43,14 @@
 
 ## 近期计划
 
-- [ ] **Pytuck 单文件引擎按需查询优化**
+- [x] **Pytuck 单文件引擎按需查询优化**
   - 以 PTK5 / `.pytuck` 作为稳定格式继续演进，不再维护 v4 兼容分支
   - 在现有懒加载基础上继续强化按需查询 / 非全量加载能力
   - 优先保证数据准确与安全，其次性能，最后才是体积
   - 持续评估 data / index / WAL 的体积优化空间
+- [x] **jsonl 文件读写性能优化**：参考 CSV 引擎增量保存方案，未变更表直接从旧 ZIP 复制压缩字节
+- [x] **duckdb 引擎优化**：Session 插入缓冲 + COPY FROM CSV 快速批量插入 + 事务包裹，100k 插入从 277s 降至 1.5s
+- [x] **readme文档拆分**：README 首页现在聚焦项目定位、安装与最小上手示例，详细说明已拆分到 `docs/api/` 与 `docs/guide/`，兼顾首页入口与可维护性
 
 ---
 
@@ -122,6 +125,11 @@
 ## 生态系统
 
 - [x] **Pytuck-view** - Web 数据浏览器（[GitHub](https://github.com/pytuck/pytuck-view) | [Gitee](https://gitee.com/pytuck/pytuck-view) | `pip install pytuck-view`）
+- [ ] pytuck only（名称未定）：将本库中`pytuck`引擎单独拆分，提供更有针对性的轻量级的数据库功能
+  + 和本库使用同一个格式的`pytuck v5+`引擎
+  + 免去众多选择，仅支持 `pytuck` 引擎，专为针对受限Python环境使用；只保留核心功能，不再需要tools等无关模块
+  + 优化 `pytuck` 引擎的使用，就像sqlite那样高性能读写，不再每次全量加载到内存、全量保存
+  + 对于基本的orm使用，最好能达到仅仅更改 import 语句就能从`pytuck`库切换到新库（比如readme中的`基础使用`章节）
 
 ---
 

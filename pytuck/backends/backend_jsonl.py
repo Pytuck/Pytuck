@@ -119,8 +119,26 @@ class JSONLBackend(StorageBackend):
 
     def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
         """保存所有表数据到 JSONL ZIP 文件"""
-        _ = changed_tables
-        metadata_bytes = self._dumps_func(self._build_metadata(tables)).encode('utf-8')
+        # 决定是否可以增量保存
+        can_incremental = (
+            changed_tables is not None
+            and self.file_path.exists()
+            and not self.options.password  # 加密 ZIP 不支持增量
+        )
+
+        if can_incremental:
+            assert changed_tables is not None  # 类型收窄
+            self._save_incremental(tables, changed_tables)
+        else:
+            self._save_full(tables)
+
+    def _build_metadata_bytes(self, tables: Dict[str, 'Table']) -> bytes:
+        """构建 metadata JSON bytes"""
+        return self._dumps_func(self._build_metadata(tables)).encode('utf-8')
+
+    def _save_full(self, tables: Dict[str, 'Table']) -> None:
+        """全量保存所有表数据到 JSONL ZIP 文件"""
+        metadata_bytes = self._build_metadata_bytes(tables)
 
         fd, temp_path_str = tempfile.mkstemp(
             dir=str(self.file_path.parent),
@@ -151,6 +169,65 @@ class JSONLBackend(StorageBackend):
             except (FileNotFoundError, OSError):
                 pass
             raise SerializationError(f'Failed to save JSONL archive: {e}')
+
+    def _save_incremental(self, tables: Dict[str, 'Table'], changed_tables: Set[str]) -> None:
+        """增量保存：仅重写变更的表，从旧 ZIP 复制未变更的表"""
+        fd, temp_path_str = tempfile.mkstemp(
+            dir=str(self.file_path.parent),
+            prefix=f'.{self.file_path.stem}.',
+            suffix='.tmp'
+        )
+        os.close(fd)
+        temp_path = Path(temp_path_str)
+
+        try:
+            # 重新生成 metadata（始终更新）
+            metadata_bytes = self._build_metadata_bytes(tables)
+
+            # 收集旧 ZIP 中的表名
+            old_table_names: Set[str] = set()
+
+            with zipfile.ZipFile(str(self.file_path), 'r') as old_zip:
+                for item in old_zip.infolist():
+                    if item.filename != '_metadata.json' and item.filename.endswith('.jsonl'):
+                        old_table_names.add(item.filename[:-6])  # 去掉 .jsonl 后缀
+
+                with zipfile.ZipFile(str(temp_path), 'w', zipfile.ZIP_DEFLATED) as new_zip:
+                    # 写入新 metadata
+                    new_zip.writestr('_metadata.json', metadata_bytes)
+
+                    # 复制未变更的表（从旧 ZIP 直接拷贝二进制数据）
+                    for item in old_zip.infolist():
+                        if item.filename == '_metadata.json':
+                            continue
+                        if not item.filename.endswith('.jsonl'):
+                            # 保留非 JSONL 条目（兼容性）
+                            data = old_zip.read(item.filename)
+                            new_zip.writestr(item, data)
+                            continue
+                        table_name = item.filename[:-6]  # 去掉 .jsonl 后缀
+                        if table_name not in changed_tables and table_name in tables:
+                            # 未变更且仍然存在：直接拷贝
+                            data = old_zip.read(item.filename)
+                            new_zip.writestr(item, data)
+
+                    # 写入变更的表和新增的表
+                    for table_name, table in tables.items():
+                        if table_name in changed_tables or table_name not in old_table_names:
+                            new_zip.writestr(
+                                f'{table_name}.jsonl',
+                                self._generate_jsonl_bytes(table)
+                            )
+
+            # 原子性替换
+            temp_path.replace(self.file_path)
+
+        except Exception as e:
+            try:
+                temp_path.unlink()
+            except (FileNotFoundError, OSError):
+                pass
+            raise SerializationError(f'Failed to save JSONL archive (incremental): {e}')
 
     def load(self) -> Dict[str, 'Table']:
         """从 JSONL ZIP 文件加载所有表数据"""

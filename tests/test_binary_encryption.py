@@ -35,6 +35,7 @@ class TestPytuckEncryptionLow:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='low', password='secret123'
             )
         )
@@ -57,6 +58,7 @@ class TestPytuckEncryptionLow:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='low', password='secret123'
             )
         )
@@ -73,6 +75,7 @@ class TestPytuckEncryptionLow:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='low', password='correct'
             )
         )
@@ -95,6 +98,7 @@ class TestPytuckEncryptionLow:
                 file_path=str(db_path),
                 engine='pytuck',
                 backend_options=BinaryBackendOptions(
+                lazy_load=False,
                     encryption='low', password='wrong'
                 )
             )
@@ -110,6 +114,7 @@ class TestPytuckEncryptionMedium:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='medium', password='mypass'
             )
         )
@@ -131,6 +136,7 @@ class TestPytuckEncryptionMedium:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='medium', password='mypass'
             )
         )
@@ -148,6 +154,7 @@ class TestPytuckEncryptionMedium:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='medium', password='correct'
             )
         )
@@ -169,6 +176,7 @@ class TestPytuckEncryptionMedium:
                 file_path=str(db_path),
                 engine='pytuck',
                 backend_options=BinaryBackendOptions(
+                lazy_load=False,
                     encryption='medium', password='wrong'
                 )
             )
@@ -184,6 +192,7 @@ class TestPytuckEncryptionHigh:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='high', password='strongpass!@#'
             )
         )
@@ -206,6 +215,7 @@ class TestPytuckEncryptionHigh:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='high', password='strongpass!@#'
             )
         )
@@ -222,6 +232,7 @@ class TestPytuckEncryptionHigh:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='high', password='correct'
             )
         )
@@ -243,6 +254,7 @@ class TestPytuckEncryptionHigh:
                 file_path=str(db_path),
                 engine='pytuck',
                 backend_options=BinaryBackendOptions(
+                lazy_load=False,
                     encryption='high', password='wrong'
                 )
             )
@@ -261,6 +273,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='low', password='secret'
             )
         )
@@ -312,8 +325,7 @@ class TestPytuckEncryptionCommon:
             engine='pytuck',
             backend_options=BinaryBackendOptions()
         )
-        table = db2.get_table('users')
-        assert len(table.data) == 1
+        assert db2.select('users', 1)['name'] == 'Alice'
         db2.close()
 
     def test_encrypted_data_integrity(self, temp_dir: Path) -> None:
@@ -323,6 +335,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='high', password='test'
             )
         )
@@ -355,6 +368,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='high', password='test'
             )
         )
@@ -388,6 +402,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='medium', password='multi'
             )
         )
@@ -419,6 +434,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='medium', password='multi'
             )
         )
@@ -443,6 +459,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='low', password='idx'
             )
         )
@@ -465,6 +482,7 @@ class TestPytuckEncryptionCommon:
             file_path=str(db_path),
             engine='pytuck',
             backend_options=BinaryBackendOptions(
+                lazy_load=False,
                 encryption='low', password='idx'
             )
         )
@@ -487,6 +505,7 @@ class TestPytuckEncryptionCommon:
                 file_path=str(db_path),
                 engine='pytuck',
                 backend_options=BinaryBackendOptions(
+                lazy_load=False,
                     encryption='high', password=None
                 )
             )
