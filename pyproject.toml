@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "pytuck"
 version = "1.1.0"
 description = "Lightweight Python document database - No SQL, multi-engine, pluggable persistence"
-version = "1.0.0"
 readme = "README.md"
 license = {text = "MIT"}
 authors = [
