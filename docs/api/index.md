@@ -13,11 +13,13 @@
 | [存储引擎](storage.md) | `Storage` 类的完整 API（CRUD、表管理、事务、持久化） |
 | [会话管理](session.md) | `Session` 类（执行语句、对象状态追踪、事务、Schema 操作） |
 | [查询系统](query.md) | `select`/`insert`/`update`/`delete` 语句、`Query` 构建器、`Result` 结果集、逻辑操作符 |
-| [引擎对比与特性](engines.md) | 七种引擎的特性、限制、选型建议、配置示例 |
+| [引擎对比与特性](engines.md) | 八种引擎的特性、限制、选型建议、配置示例 |
 | [配置选项](options.md) | 所有 `BackendOptions`、`SyncOptions`、`ConnectorOptions` 的字段说明 |
 | [异常体系](exceptions.md) | 异常层次结构与每个异常的触发场景 |
 | [工具与扩展](tools.md) | 数据迁移、事件钩子、关系预取、类型系统 |
 | [最佳实践](best-practices.md) | 持久化策略、引擎选型、性能优化、常见陷阱 |
+| [性能基准报告](../guide/benchmark.md) | 最新 benchmark 结果、测试环境与复现命令 |
+| [开发与发布指南](../guide/development.md) | 安装细节、uv 工作流、贡献开发与打包发布 |
 
 ## 快速导入参考
 
@@ -56,7 +58,7 @@ from pytuck.core.orm import Relationship
 
 ## 版本
 
-当前版本：`0.8.0`
+当前版本：`1.0.0`
 
 ## 支持的 Python 版本
 
