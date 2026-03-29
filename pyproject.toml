@@ -7,7 +7,7 @@ name = "pytuck"
 version = "1.1.0"
 description = "Lightweight Python document database - No SQL, multi-engine, pluggable persistence"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "go9sky"}
 ]
@@ -76,7 +76,15 @@ Issues = "https://github.com/Pytuck/Pytuck/issues"
 Changelog = "https://github.com/Pytuck/Pytuck/blob/master/CHANGELOG.md"
 
 [tool.setuptools]
-packages = ["pytuck", "pytuck.backends"]
+packages = [
+    "pytuck",
+    "pytuck.backends",
+    "pytuck.common",
+    "pytuck.connectors",
+    "pytuck.core",
+    "pytuck.query",
+    "pytuck.tools",
+]
 include-package-data = true
 
 [tool.setuptools.package-data]
