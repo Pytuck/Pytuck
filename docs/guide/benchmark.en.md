@@ -2,7 +2,7 @@
 
 This document keeps the latest benchmark results outside the README home page, so the README can stay focused on positioning and quick start guidance.
 
-> Test time: 2026-03-29 17:09:41
+> Test time: 2026-03-29 20:37:35
 >
 > Environment: Linux 6.18.7-76061807-generic / Python 3.12.3
 >
@@ -38,22 +38,22 @@ The extended mode includes:
 
 | Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |
 |--------|--------|---------|-------------|---------|-------|------|------|------|------|
-| Pytuck | 786.38ms | 1.83ms | 8.34s | 4568x | 430.40ms | 543.59ms | 321.59ms | 316.76ms | 6.09MB |
-| JSON | 878.75ms | 1.68ms | 8.49s | 5046x | 438.08ms | 290.43ms | 380.68ms | - | 10.70MB |
-| JSONL | 864.12ms | 1.81ms | 8.28s | 4583x | 422.87ms | 591.97ms | 531.75ms | - | 827.5KB |
-| CSV | 859.28ms | 1.76ms | 8.26s | 4702x | 435.74ms | 453.77ms | 571.33ms | - | 731.9KB |
-| SQLite | 2.10s | 4.27ms | 489.70ms | 115x | 525.26ms | 13.95ms | 348.5μs | - | 6.97MB |
-| DuckDB | 277.18s | 59.88ms | 190.30ms | 3x | 482.98ms | 18.39ms | 26.66ms | - | 4.76MB |
-| Excel | 789.34ms | 1.88ms | 8.49s | 4528x | 427.10ms | 5.56s | 7.49s | - | 2.84MB |
-| XML | 775.03ms | 1.78ms | 8.20s | 4617x | 432.99ms | 2.30s | 1.95s | - | 34.54MB |
+| Pytuck | 834.38ms | 1.88ms | 8.34s | 4568x | 430.40ms | 562.03ms | 337.28ms | 321.98ms | 6.09MB |
+| JSON | 899.31ms | 1.78ms | 8.49s | 5046x | 438.08ms | 310.39ms | 394.28ms | - | 10.70MB |
+| JSONL | 909.78ms | 1.76ms | 8.28s | 4583x | 422.87ms | 604.40ms | 570.72ms | - | 827.5KB |
+| CSV | 909.20ms | 1.79ms | 8.26s | 4702x | 435.74ms | 462.06ms | 524.71ms | - | 731.9KB |
+| SQLite | 1.53s | 4.25ms | 489.70ms | 115x | 525.26ms | 2.91ms | 389.5μs | - | 6.97MB |
+| DuckDB | 1.52s | 56.62ms | 190.30ms | 3x | 482.98ms | 7.52ms | 29.24ms | - | 12.0KB |
+| Excel | 785.61ms | 1.95ms | 8.49s | 4528x | 427.10ms | 5.81s | 7.64s | - | 2.84MB |
+| XML | 771.45ms | 1.77ms | 8.20s | 4617x | 432.99ms | 2.26s | 1.93s | - | 34.54MB |
 
 ## Notes
 
 ### Pytuck
 
-- At 100000 records, insert is about `786.38ms`, which keeps `pytuck` in the top tier among the pure Python file engines in this repository.
-- Lazy reopen is about `316.76ms`, and the first lazy query is only `121.6μs`, which is a good sign that the new default lazy reopen path is working as intended.
-- Non-indexed queries still scan, so `8.34s` is expected; once the query hits an index, 100 lookups take only `1.83ms`.
+- At 100000 records, insert is about `834.38ms`, which keeps `pytuck` in the top tier among the pure Python file engines in this repository.
+- Lazy reopen is about `321.98ms`, and the first lazy query is only `121.6μs`, which is a good sign that the new default lazy reopen path is working as intended.
+- Non-indexed queries still scan, so `8.34s` is expected; once the query hits an index, 100 lookups take only `1.88ms`.
 
 ### JSON / JSONL / CSV
 
@@ -69,9 +69,8 @@ The extended mode includes:
 
 ### DuckDB
 
-- `DuckDB` still reopens and queries quickly, but the current ORM / Session row-by-row write path performs very poorly for insert benchmark: `277.18s`.
-- That is why `TODO.md` still keeps the `duckdb` optimization task open.
-- In the current implementation, `duckdb` is better suited to analytical queries, existing DuckDB files, and native SQL workflows than high-frequency ORM bulk writes.
+- After Session insert buffering + COPY FROM CSV fast bulk insert + transaction wrapping optimizations, `DuckDB` 100k insert dropped dramatically from `277.18s` to `1.52s`, essentially on par with SQLite (`1.53s`).
+- Reopen and query capabilities remain strong — recommended for analytical queries, existing DuckDB file access, and native SQL workflows.
 
 ### Excel / XML
 
