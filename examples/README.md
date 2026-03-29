@@ -1,86 +1,49 @@
 # Pytuck 示例代码
 
-本目录包含 Pytuck 的各种使用示例。
+本目录包含 Pytuck 的各种使用示例，每个文件都是可独立运行的完整脚本。
 
 ## 示例列表
 
-### 1. new_api_demo.py - 新 API 完整演示 ⭐️ 推荐
+| 文件 | 主题 | 说明 |
+|------|------|------|
+| `session_api_demo.py` | Session + Statement API | **推荐起步示例**。展示 `declarative_base` + `Session` + `execute()` 的完整 CRUD、事务和查询用法 |
+| `active_record_demo.py` | Active Record 模式 | 展示 `CRUDBaseModel` 的 create/save/delete/filter 等模型级方法，无需 Session |
+| `data_model_demo.py` | 数据模型特性 | 展示模型实例在 Session/Storage 关闭后仍可访问、可序列化等独立数据容器特性 |
+| `transaction_demo.py` | 事务管理 | 展示成功提交、自动回滚、批量操作事务保护和上下文管理器 |
+| `relationship_demo.py` | 关联关系 | 展示一对多、一对一、多对多（中间表）、自引用和类型提示的 Relationship 用法 |
+| `type_validation_demo.py` | 类型验证与转换 | 展示宽松/严格模式、None 处理、布尔转换规则等 Column 类型行为 |
+| `typing_demo.py` | 泛型类型提示 | 展示 `Select[User]`、`Result[User]` 等泛型如何提升 IDE 补全和类型推断 |
+| `backend_options_demo.py` | 后端配置选项 | 展示各引擎的强类型 dataclass 选项（JSON/CSV/SQLite/Excel/XML/Pytuck） |
+| `json_impl_demo.py` | JSON 实现选择 | 展示 orjson/ujson 等多种 JSON 库切换、性能对比和自定义实现 |
+| `migration_tools_demo.py` | 数据迁移工具 | 展示 `migrate_engine()` 跨引擎迁移和 `import_from_database()` 外部导入 |
+| `_common.py` | 内部工具 | 提供临时目录等示例共用的辅助函数（不直接运行） |
 
-展示新的 SQLAlchemy 风格 API 的所有功能：
+## 运行方式
 
-- 使用 `declarative_base(db)` 创建声明式基类
-- 通过 `Session` 管理所有 CRUD 操作
-- 纯粹的模型定义（无业务方法）
-- 事务管理和回滚
-- 链式查询
-- 上下文管理器
-
-**运行方式：**
 ```bash
-uv run python examples/new_api_demo.py
+# 推荐起步
+uv run python examples/session_api_demo.py
+
+# Active Record 模式
+uv run python examples/active_record_demo.py
+
+# 运行任意示例
+uv run python examples/<文件名>.py
 ```
-
-**适合对象：**
-- 新用户学习 Pytuck
-- 从其他 ORM（如 SQLAlchemy）迁移过来的用户
-- 希望使用最佳实践的开发者
-
-### 2. transaction_demo.py - 事务功能演示
-
-展示事务的使用方法：
-
-- 成功的转账交易
-- 失败的交易自动回滚
-- 批量操作的事务保护
-- 数据一致性保证
-
-**运行方式：**
-```bash
-uv run python examples/transaction_demo.py
-```
-
-**适合对象：**
-- 需要使用事务功能的开发者
-- 关注数据一致性的场景
-
-### 3. all_engines_test.py - 多引擎测试
-
-测试所有存储引擎的功能：
-
-- pytuck: Pytuck 单文件引擎（默认）
-- json: JSON 引擎（人类可读）
-- jsonl: JSONL 引擎（ZIP 容器）
-- csv: CSV 引擎（ZIP 压缩）
-- sqlite: SQLite 引擎
-- duckdb: DuckDB 引擎（需要 duckdb）
-- excel: Excel 引擎（需要 openpyxl）
-- xml: XML 引擎（需要 lxml）
-
-**运行方式：**
-```bash
-uv run python examples/all_engines_test.py
-```
-
-**适合对象：**
-- 测试不同存储引擎的性能
-- 选择合适的存储格式
 
 ## API 选择指南
 
-### 使用新 API（推荐）
+### Session + Statement API（推荐）
 
-如果你是：
-- ✅ 新项目
-- ✅ 学习过 SQLAlchemy 或其他主流 ORM
-- ✅ 希望代码架构清晰、易维护
-- ✅ 需要使用保留字段名（如 save、delete、filter 等）
+适合新项目、团队开发、需要清晰架构的场景：
 
-**示例：**
 ```python
-from pytuck import Storage, declarative_base, Session, Column
+from pytuck import Storage, declarative_base, Session, Column, PureBaseModel
+from pytuck import select, insert, update, delete
+from typing import Type
 
 db = Storage('mydb.pytuck')
-Base = declarative_base(db)
+Base: Type[PureBaseModel] = declarative_base(db)
 
 class User(Base):
     __tablename__ = 'users'
@@ -88,81 +51,32 @@ class User(Base):
     name = Column(str)
 
 session = Session(db)
-user = User(name='Alice')
-session.add(user)
+session.execute(insert(User).values(name='Alice'))
 session.commit()
 ```
 
-### 使用旧 API（兼容）
+### Active Record 模式
 
-如果你是：
-- 🔄 现有项目迁移中
-- 🔄 希望快速上手（类似 Django ORM）
-- 🔄 暂时不想改变现有代码
+适合小型项目、快速原型、简单 CRUD：
 
-**注意：** 旧 API 已标记为兼容保留，建议逐步迁移到新 API。
+```python
+from pytuck import Storage, declarative_base, Column, CRUDBaseModel
+from typing import Type
 
-## 快速开始
+db = Storage('mydb.pytuck')
+Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
 
-1. 安装依赖：
-```bash
-# 基础功能无需额外依赖
+class User(Base):
+    __tablename__ = 'users'
+    id = Column(int, primary_key=True)
+    name = Column(str)
 
-# 如果要使用 Excel 引擎
-pip install openpyxl
-
-# 如果要使用 XML 引擎
-pip install lxml
+user = User.create(name='Alice')
 ```
-
-2. 运行新 API 示例：
-```bash
-uv run python examples/new_api_demo.py
-```
-
-3. 查看输出，理解新 API 的工作方式
-
-4. 参考 `MIGRATION_GUIDE.md` 了解新旧 API 对比和迁移方法
 
 ## 更多资源
 
-- **迁移指南**: `/MIGRATION_GUIDE.md` - 详细的新旧 API 对比和迁移步骤
-- **实现计划**: `/.claude/plans/inherited-giggling-rainbow.md` - 新架构的设计文档
-- **测试代码**: `/tests/` - 单元测试和集成测试
-
-## 常见问题
-
-### Q: 应该使用哪个 API？
-
-**A:** 推荐使用新 API（`new_api_demo.py`），它提供更清晰的架构和更好的可维护性。
-
-### Q: 旧代码还能继续使用吗？
-
-**A:** 可以。旧 API 完全兼容，但建议新功能使用新 API，并逐步迁移现有代码。
-
-### Q: 如何选择存储引擎？
-
-**A:**
-- **binary**: 默认选择，性能最好，适合大多数场景
-- **json**: 需要人类可读、调试方便时使用
-- **sqlite**: 需要 SQL 查询或与其他工具集成时使用
-- **csv**: 需要与 Excel 等工具交互时使用
-- **excel**: 直接生成 Excel 报表时使用
-
-### Q: Session 需要手动关闭吗？
-
-**A:** 建议使用上下文管理器：
-```python
-with Session(db) as session:
-    session.add(user)
-    # 自动 commit 和 close
-```
-
-## 贡献示例
-
-欢迎贡献新的示例！请确保：
-
-1. 代码清晰易懂，有充分注释
-2. 使用新 API（除非专门演示旧 API）
-3. 包含预期输出说明
-4. 更新本 README.md
+- [API 文档](../docs/api/index.md)
+- [引擎对比与配置](../docs/api/engines.md)
+- [最佳实践](../docs/api/best-practices.md)
+- [开发与发布指南](../docs/guide/development.md)
