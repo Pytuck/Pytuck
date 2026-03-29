@@ -970,18 +970,19 @@ uv run python examples/sqlalchemy20_api_demo.py
 ### Build and Publish
 
 ```bash
-# Install build tools
-pip install build twine
-
 # Build wheel and source distribution
-python -m build
+uv build
 
-# Upload to PyPI
-python -m twine upload dist/*
+# Publish to PyPI (use configured credentials or pass a token explicitly)
+uv publish
+# uv publish --token $PYPI_TOKEN
 
-# Upload to Test PyPI
-python -m twine upload --repository testpypi dist/*
+# Publish to TestPyPI (configure the index in pyproject.toml first)
+uv publish --index testpypi
+# uv publish --index testpypi --token $TEST_PYPI_TOKEN
 ```
+
+> `uv publish --index testpypi` requires a configured `[[tool.uv.index]]` entry with both `url` and `publish-url`.
 
 ## Data Migration
 

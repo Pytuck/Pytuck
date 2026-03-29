@@ -1167,18 +1167,19 @@ uv run python examples/sqlalchemy20_api_demo.py
 ### 打包与发布
 
 ```bash
-# 安装构建工具
-pip install build twine
-
 # 构建 wheel 和源码分发包
-python -m build
+uv build
 
-# 上传到 PyPI
-python -m twine upload dist/*
+# 上传到 PyPI（使用已配置凭证，或显式传入 token）
+uv publish
+# uv publish --token $PYPI_TOKEN
 
-# 上传到 Test PyPI
-python -m twine upload --repository testpypi dist/*
+# 上传到 TestPyPI（需先在 pyproject.toml 中配置对应 index）
+uv publish --index testpypi
+# uv publish --index testpypi --token $TEST_PYPI_TOKEN
 ```
+
+> `uv publish --index testpypi` 依赖已配置的 `[[tool.uv.index]]` 条目，其中应包含 `url` 和 `publish-url`。
 
 ## 示例代码
 
