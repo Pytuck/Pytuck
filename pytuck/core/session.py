@@ -72,6 +72,10 @@ class Session:
         # 事务状态
         self._in_transaction = False
 
+        # 原生 SQL 插入缓冲区：{table_name: (model_class, [validated_data_dicts])}
+        # 用于在 commit/flush 时批量提交，避免逐条 INSERT 的性能问题
+        self._insert_buffer: Dict[str, Tuple[Type[PureBaseModel], List[Dict[str, Any]]]] = {}
+
     def add(self, instance: PureBaseModel) -> None:
         """
         添加对象到会话（标记为待插入）
@@ -113,10 +117,29 @@ class Session:
         if self.autocommit:
             self.commit()
 
+    def _flush_insert_buffer(self) -> None:
+        """
+        刷新原生 SQL 插入缓冲区，批量提交到 Storage
+
+        将缓冲的逐条 INSERT 数据通过 storage.bulk_insert() 一次性写入，
+        利用 COPY FROM CSV（DuckDB）或 executemany 实现高性能批量插入。
+        """
+        if not self._insert_buffer:
+            return
+
+        for table_name, (model_class, records) in self._insert_buffer.items():
+            if records:
+                self.storage.bulk_insert(table_name, records)
+
+        self._insert_buffer.clear()
+
     def flush(self) -> None:
         """
         将待处理的修改刷新到数据库（不提交事务）
         """
+        # 0. 先刷新原生 SQL 插入缓冲区
+        self._flush_insert_buffer()
+
         # 1. 处理待插入对象
         for instance in self._new_objects:
             table_name = instance.__tablename__
@@ -235,6 +258,10 @@ class Session:
         """
         self.flush()
 
+        # 原生 SQL 模式：提交连接器事务
+        if self.storage._native_sql_mode:
+            self.storage._native_sql_commit_transaction()
+
         # 如果启用了 auto_flush，触发持久化
         if self.storage.auto_flush:
             self.storage.flush()
@@ -243,6 +270,13 @@ class Session:
         """
         回滚事务（清空所有待处理修改）
         """
+        # 清空插入缓冲区（不提交到 Storage）
+        self._insert_buffer.clear()
+
+        # 原生 SQL 模式：回滚连接器事务
+        if self.storage._native_sql_mode:
+            self.storage._native_sql_rollback_transaction()
+
         self._new_objects.clear()
         self._dirty_objects.clear()
         self._deleted_objects.clear()
@@ -410,6 +444,9 @@ class Session:
         if instance is not None:
             return instance
 
+        # 刷新插入缓冲区，确保能查到刚插入的数据
+        self._flush_insert_buffer()
+
         # 从数据库查询
         table_name = model_class.__tablename__
         assert table_name is not None, f"Model {model_class.__name__} must have __tablename__ defined"
@@ -536,10 +573,14 @@ class Session:
                           options=getattr(statement, '_options', []))
 
         elif isinstance(statement, Insert):
-            pk = statement._execute(self.storage)
-            # 标记为新对象（用于事务管理）
-            # 注意：这里不创建实例，只记录操作
-            return CursorResult(1, statement.model_class, 'insert', inserted_pk=pk)
+            result_pk = statement._execute(self.storage)
+            # values_list 返回列表，单条返回标量
+            if isinstance(result_pk, list):
+                first_pk = result_pk[0] if result_pk else None
+                return CursorResult(
+                    len(result_pk), statement.model_class, 'insert', inserted_pk=first_pk
+                )
+            return CursorResult(1, statement.model_class, 'insert', inserted_pk=result_pk)
 
         elif isinstance(statement, Update):
             count = statement._execute(self.storage)
@@ -577,6 +618,9 @@ class Session:
         connector = self.storage._connector
 
         if isinstance(statement, Select):
+            # SELECT 前先刷新插入缓冲区，确保能查到刚插入的数据
+            self._flush_insert_buffer()
+
             # 编译并执行 SELECT
             if compiler.can_compile(statement):
                 table = self.storage.get_table(statement.model_class.__tablename__)
@@ -601,6 +645,30 @@ class Session:
             # 编译并执行 INSERT
             table = self.storage.get_table(statement.model_class.__tablename__)
 
+            # 批量插入路径（values_list）
+            if statement._values_list is not None:
+                validated_records: List[Dict[str, Any]] = []
+                for record in statement._values_list:
+                    validated_data_batch: Dict[str, Any] = {}
+                    for attr_name, value in record.items():
+                        if attr_name in statement.model_class.__columns__:
+                            model_column = statement.model_class.__columns__[attr_name]
+                            db_col_name = model_column.name if model_column.name else attr_name
+                            if db_col_name in table.columns:
+                                column = table.columns[db_col_name]
+                                validated_data_batch[db_col_name] = column.validate(value)
+                    validated_records.append(validated_data_batch)
+
+                pks = self.storage.bulk_insert(
+                    statement.model_class.__tablename__,
+                    validated_records
+                )
+                first_pk = pks[0] if pks else None
+                return CursorResult(
+                    len(pks), statement.model_class, 'insert', inserted_pk=first_pk
+                )
+
+            # 单条插入路径
             # 验证和序列化值（使用 Column.name 作为存储键）
             validated_data = {}
             for attr_name, value in statement._values.items():
@@ -612,14 +680,41 @@ class Session:
                         column = table.columns[db_col_name]
                         validated_data[db_col_name] = column.validate(value)
 
-            pk = self.storage.insert(
-                statement.model_class.__tablename__,
-                validated_data
-            )
+            # 判断是否可以缓冲：仅自增 PK（用户未显式提供）时缓冲
+            # 用户显式提供 PK 时直接插入（可能触发 DuplicateKeyError）
+            pk_col = table.primary_key
+            pk = None
+            can_buffer = False
+            if pk_col and pk_col in table.columns:
+                pk_column_obj = table.columns[pk_col]
+                if pk_column_obj.col_type == int and validated_data.get(pk_col) is None:
+                    # 自增 PK，客户端预分配，可以安全缓冲
+                    validated_data[pk_col] = pk_column_obj.validate(table.next_id)
+                    table.next_id += 1
+                    self.storage._dirty = True
+                    can_buffer = True
+                pk = validated_data.get(pk_col)
 
-            return CursorResult(1, statement.model_class, 'insert', inserted_pk=pk)
+            if can_buffer:
+                # 缓冲到 _insert_buffer，commit 时批量提交
+                tbl_name = statement.model_class.__tablename__
+                assert tbl_name is not None
+                if tbl_name not in self._insert_buffer:
+                    self._insert_buffer[tbl_name] = (statement.model_class, [])
+                self._insert_buffer[tbl_name][1].append(validated_data)
+                return CursorResult(1, statement.model_class, 'insert', inserted_pk=pk)
+            else:
+                # 用户显式 PK 或无 PK 表：立即插入（可能抛出 DuplicateKeyError）
+                pk = self.storage.insert(
+                    statement.model_class.__tablename__,
+                    validated_data
+                )
+                return CursorResult(1, statement.model_class, 'insert', inserted_pk=pk)
 
         elif isinstance(statement, Update):
+            # UPDATE 前先刷新插入缓冲区
+            self._flush_insert_buffer()
+
             # 编译并执行 UPDATE
             table = self.storage.get_table(statement.model_class.__tablename__)
             pk_attr_name = statement.model_class.__primary_key__
@@ -665,6 +760,9 @@ class Session:
                 return CursorResult(count, statement.model_class, 'update')
 
         elif isinstance(statement, Delete):
+            # DELETE 前先刷新插入缓冲区
+            self._flush_insert_buffer()
+
             # 编译并执行 DELETE
             pk_attr_name = statement.model_class.__primary_key__
 

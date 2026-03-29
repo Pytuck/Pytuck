@@ -255,28 +255,62 @@ class Insert(Statement[T]):
     def __init__(self, model_class: Type[T]) -> None:
         super().__init__(model_class)
         self._values: Dict[str, Any] = {}
+        self._values_list: Optional[List[Dict[str, Any]]] = None
 
     def values(self, **kwargs: Any) -> 'Insert[T]':
-        """设置要插入的值"""
+        """设置要插入的值（单条）"""
         self._values.update(kwargs)
         return self
 
+    def values_list(self, records: List[Dict[str, Any]]) -> 'Insert[T]':
+        """
+        设置要批量插入的值
+
+        Args:
+            records: 数据字典列表
+
+        Example:
+            stmt = insert(User).values_list([
+                {'name': 'Alice', 'age': 20},
+                {'name': 'Bob', 'age': 21},
+            ])
+            result = session.execute(stmt)
+        """
+        self._values_list = records
+        return self
+
     def _execute(self, storage: 'Storage') -> Any:
-        """执行插入，返回插入的主键"""
+        """执行插入，返回插入的主键（或主键列表）"""
         table_name = self.model_class.__tablename__
         assert table_name is not None, f"Model {self.model_class.__name__} must have __tablename__ defined"
 
+        # 批量插入
+        if self._values_list is not None:
+            validated_records: List[Dict[str, Any]] = []
+            for record in self._values_list:
+                validated_data: Dict[str, Any] = {}
+                for attr_name, column in self.model_class.__columns__.items():
+                    db_col_name = column.name if column.name else attr_name
+                    if attr_name in record:
+                        validated_data[db_col_name] = column.validate(record[attr_name])
+                    elif column.has_default():
+                        validated_data[db_col_name] = column.resolve_default()
+                validated_records.append(validated_data)
+            pks = storage.bulk_insert(table_name, validated_records)
+            return pks
+
+        # 单条插入
         # 验证和转换值（使用 Column.name 作为存储键）
-        validated_data: Dict[str, Any] = {}
+        validated_data_single: Dict[str, Any] = {}
         for attr_name, column in self.model_class.__columns__.items():
             db_col_name = column.name if column.name else attr_name
             if attr_name in self._values:
-                validated_data[db_col_name] = column.validate(self._values[attr_name])
+                validated_data_single[db_col_name] = column.validate(self._values[attr_name])
             elif column.has_default():
-                validated_data[db_col_name] = column.resolve_default()
+                validated_data_single[db_col_name] = column.resolve_default()
 
         # 插入
-        pk = storage.insert(table_name, validated_data)
+        pk = storage.insert(table_name, validated_data_single)
         return pk
 
 
