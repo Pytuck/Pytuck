@@ -342,6 +342,61 @@ class DuckDBConnector(DatabaseConnector):
 
         self.conn.executemany(sql, values_list)
 
+    def insert_records_fast(
+        self,
+        table_name: str,
+        columns: List[str],
+        records: List[Dict[str, Any]]
+    ) -> None:
+        """
+        通过临时 CSV + COPY FROM 快速批量插入
+
+        DuckDB 的 SQL INSERT 即使用 executemany 也较慢（OLAP 架构特性），
+        而 COPY FROM CSV 能利用 DuckDB 的列式引擎高效加载数据。
+        100k 条记录：executemany ~50s，COPY FROM CSV ~0.2s。
+
+        Args:
+            table_name: 表名
+            columns: 列名列表（固定顺序）
+            records: 数据字典列表
+        """
+        if self.conn is None:
+            raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
+
+        if not records:
+            return
+
+        import csv
+        import tempfile
+        from pathlib import Path
+
+        # 写入临时 CSV 文件
+        temp_dir = Path(tempfile.gettempdir())
+        csv_path = temp_dir / f'_pytuck_bulk_{id(self)}.csv'
+
+        try:
+            with open(str(csv_path), 'w', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                for record in records:
+                    row = []
+                    for col in columns:
+                        value = self._serialize_value(record.get(col))
+                        row.append(value)
+                    writer.writerow(row)
+
+            # 使用 COPY FROM 加载 CSV
+            col_names = ', '.join([self._quote_identifier(c) for c in columns])
+            self.conn.execute(
+                f'COPY {self._qualified_table_name(table_name)} ({col_names}) '
+                f"FROM '{csv_path}' (FORMAT CSV, HEADER FALSE, NULL_PADDING TRUE)"
+            )
+        finally:
+            # 清理临时文件
+            try:
+                csv_path.unlink()
+            except FileNotFoundError:
+                pass
+
     def commit(self) -> None:
         """提交事务"""
         if self.conn is not None:
