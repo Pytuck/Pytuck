@@ -20,6 +20,7 @@ from examples._common import get_project_temp_dir
 from pytuck import Storage, declarative_base, Session, Column, PureBaseModel
 from pytuck import select, insert
 from pytuck.common.options import JsonBackendOptions
+from pytuck.common.exceptions import ConfigurationError
 from pytuck.backends.backend_json import JSONBackend
 
 
@@ -425,7 +426,7 @@ def demo_error_handling():
             db = Storage(file_path=os.path.join(temp_dir, 'error3.json'),
                         engine='json', backend_options=opts)
             print("   ❌ 应该抛出验证错误")
-        except ValueError as e:
+        except (ValueError, ConfigurationError) as e:
             print(f"   ✓ 正确检测到属性缺失")
             print(f"   错误信息: {str(e)}")
         finally:

@@ -11,4 +11,4 @@ def get_project_temp_dir() -> Path:
 
 def mktemp_dir_project(suffix: str = None, prefix: str = None) -> Path:
     temp_dir = get_project_temp_dir()
-    return temp_dir / Path(tempfile.mkdtemp(suffix=suffix, prefix=prefix, dir=temp_dir))
+    return Path(tempfile.mkdtemp(suffix=suffix, prefix=prefix, dir=str(temp_dir)))
