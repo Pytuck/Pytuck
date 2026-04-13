@@ -8,25 +8,28 @@ Pytuck 支持 8 种存储引擎，每种引擎有不同的特性、限制和适�
 |------|--------|------|-------|-----|--------|--------|-------|-----|
 | 文件扩展名 | `.pytuck` | `.json` | `.zip` | `.zip` | `.sqlite` / `.db` | `.duckdb` | `.xlsx` | `.xml` |
 | 外部依赖 | 无 | 无 | 无 | 无 | 无 | `duckdb` | `openpyxl` | `lxml` |
-| 懒加载 | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
-| 加密支持 | ✅ | ❌ | ✅（ZIP 密码） | ✅（ZIP 密码） | ❌ | ❌ | ❌ | ❌ |
+| 按需读取 | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| 加密支持 | ✅（当前新写入支持无加密 / `low`） | ❌ | ✅（ZIP 密码） | ✅（ZIP 密码） | ❌ | ❌ | ❌ | ❌ |
 | 原生 SQL | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | 服务端分页 | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | ❌ |
 | 类型精确保留 | ✅ | ⚠️ 部分 | ⚠️ 部分 | ⚠️ 有限 | ⚠️ 部分 | ⚠️ 部分 | ⚠️ 部分 | ⚠️ 部分 |
 | 人类可读 | ❌ | ✅ | ✅（解压后） | ✅（解压后） | ❌ | ❌ | ✅ | ✅ |
 | 大文件性能 | ✅ 优秀 | ⚠️ 一般 | ⚠️ 一般 | ⚠️ 一般 | ✅ 优秀 | ✅ 优秀 | ⚠️ 一般 | ⚠️ 一般 |
-| 核心优势 | 默认首选、类型最完整 | 最易调试、可手改 | 逐行文本、多表归档 | 文件体积最小、便于交换 | 通用 SQL、事务稳定 | 分析查询、多 schema | 办公软件直开 | 标准化结构交换 |
+| 核心优势 | 默认单文件引擎、类型最完整、适合零依赖嵌入式场景 | 最易调试、可手改 | 逐行文本、多表归档 | 文件体积最小、便于交换 | 通用 SQL、事务稳定 | 分析查询、多 schema | 办公软件直开 | 标准化结构交换 |
 
 ---
 
 ## Pytuck 引擎（默认）
 
-Pytuck 自定义的 `.pytuck` 单文件格式，性能最优。
+Pytuck 使用自定义的 `.pytuck` 单文件格式，适合零依赖、嵌入式和受限环境中的本地数据持久化。
+
+> [!IMPORTANT]
+> `BinaryBackendOptions.lazy_load` 与 `sidecar_wal` 仍保留在 API 中，但仅用于兼容旧配置对象；新代码不需要把它们当成开启按需读取的开关。当前单文件新写入支持无加密与 `low`。
 
 ### 特性
-- **懒加载**：只加载 schema 和索引，按需读取数据记录
-- **WAL（Write-Ahead Log）**：PTK5 使用隐藏的 sidecar WAL 文件，兼顾崩溃恢复与 checkpoint
-- **加密**：支持三级加密（low / medium / high）
+- **默认按需读取**：打开文件时优先恢复结构与索引目录，记录内容按需读取
+- **单文件持久化**：使用单文件保存，写入采用重写 + 原子替换
+- **加密支持**：当前新写入支持无加密与 `low`
 - **类型精确保留**：所有 Python 类型完整往返
 
 ### 配置
@@ -38,40 +41,20 @@ db = Storage(
     file_path='data.pytuck',
     engine='pytuck',
     backend_options=BinaryBackendOptions(
-        lazy_load=True,             # 启用懒加载
-        encryption='medium',        # 加密等级
-        password='my_password',     # 加密密码
+        encryption='low',         # 当前新写入支持 None / low
+        password='my_password',   # 使用 low 时提供密码
     )
 )
 ```
 
-### 加密 + 懒加载
+### 兼容字段
 
-加密和懒加载可以同时启用。加载时仅解密索引区获取记录偏移表，读取具体记录时按需解密对应偏移的数据，无需将整个数据区解密到内存：
-
-```python
-db = Storage(
-    file_path='large_secure.pytuck',
-    engine='pytuck',
-    backend_options=BinaryBackendOptions(
-        lazy_load=True,
-        encryption='medium',
-        password='my_password',
-    )
-)
-# 只加载 schema 和索引（索引区在加载时解密）
-# 按 get(pk) 访问时，仅解密该记录对应的字节片段
-```
-
-三种加密算法均支持随机位置解密（`decrypt_at`）：
-- **XOR**：256 字节周期循环密钥流，偏移取模
-- **LCG**：O(log N) 快进算法跳到任意偏移
-- **ChaCha20**：天然支持随机访问（基于块计数器）
-
-> **注意**：sidecar WAL 文件当前仍为明文。加密仅覆盖主文件中的数据区和索引区。
+`BinaryBackendOptions.lazy_load` 和 `sidecar_wal` 仍然保留在 API 中，主要用于兼容旧配置对象；新代码不应依赖它们切换主行为。
 
 ### 限制
 - 文件格式不可人工阅读或编辑
+- 当前新写入仅支持无加密与 `low`
+- 如果更看重原生 SQL、服务端分页或超大数据集，优先考虑 SQLite / DuckDB
 
 ---
 
@@ -355,15 +338,15 @@ pip install lxml
 
 | 场景 | 推荐引擎 | 理由 |
 |------|----------|------|
-| 生产环境（通用） | Pytuck | 性能最优，支持懒加载和加密 |
+| 生产环境（通用） | Pytuck | 默认单文件引擎，类型保留最完整，适合零依赖与受限环境 |
 | 需要 SQL 查询能力 | SQLite / DuckDB | 都支持原生 SQL；SQLite 更偏通用事务写入，DuckDB 更偏分析查询 |
 | 分析型查询 / 多 schema | DuckDB | 原生 DuckDB 后端，支持多 schema 与服务端分页 |
 | 需要人类可读 | JSON / JSONL | JSON 适合单文件直读；JSONL 适合多表归档后解压查看 |
 | 需要逐行文本交换 | JSONL | 每表一份 `.jsonl`，便于逐行处理 |
 | 需要 Excel 打开 | Excel / CSV | 兼容办公软件 |
 | 数据交换格式 | CSV / JSONL / JSON | 按体积、逐行文本、单文件可读性分别取舍 |
-| 数据需要加密 | Pytuck | 三级加密支持 |
+| 数据需要加密 | Pytuck | 当前单文件新写入支持无加密 / `low` |
 | 数据需要密码保护 | CSV / JSONL | 都支持 ZIP 密码保护；CSV 更偏体积优先，JSONL 更偏逐行文本交换 |
-| 嵌入式场景（如 Ren'Py） | Pytuck | 无外部依赖，文件格式紧凑 |
+| 嵌入式场景（如 Ren'Py） | Pytuck | 无外部依赖，单文件使用简单 |
 | 开发调试 | JSON | 直接查看和编辑最方便 |
 | 结构化数据交换 | XML | 标准 XML 格式 |

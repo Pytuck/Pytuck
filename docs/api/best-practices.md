@@ -42,9 +42,9 @@
 | 场景 | 推荐 | 备选 |
 |------|------|------|
 | 通用生产环境 | Pytuck | SQLite |
-| 大数据量（单表 > 10 万条） | DuckDB / SQLite | Pytuck（懒加载） |
+| 大数据量（单表 > 10 万条） | DuckDB / SQLite | Pytuck（需先验证大文件场景性能） |
 | 分析型查询 / 多 schema | DuckDB | SQLite |
-| 需要加密保护 | Pytuck（加密） | CSV（ZIP 密码） |
+| 需要加密保护 | Pytuck | CSV / JSONL |
 | 开发调试 | JSON | JSONL |
 | 逐行文本归档 / 多表交换 | JSONL | JSON / CSV |
 | 与 Excel 互操作 | Excel | CSV |
@@ -291,7 +291,7 @@ class MyMixin(Base):
 ### 建议
 
 - 如果业务逻辑依赖 `None` 和 `''` 的区分，避免使用 CSV、Excel、XML 引擎
-- Pytuck、JSON、JSONL、SQLite 和 DuckDB 都能稳定区分 `None` 与 `''`；其中 Pytuck 的类型保留最完整
+- Pytuck、JSON、JSONL、SQLite 和 DuckDB 都能稳定区分 `None` 与 `''`；其中 Pytuck 的类型保留最完整，适合需要完整 Python 类型往返的场景
 
 ---
 
@@ -434,32 +434,30 @@ for user in users:
     print(user.orders)  # 从缓存读取，无查询
 ```
 
-### 懒加载（Pytuck）
+### 按需读取（Pytuck）
 
 ```python
 # 大数据量场景
 db = Storage(
     file_path='large_data.pytuck',
     engine='pytuck',
-    backend_options=BinaryBackendOptions(lazy_load=True),
 )
-# 只加载 schema 和索引，按需读取数据
+# 打开时优先恢复结构与索引目录，记录按需读取
 ```
 
-懒加载同样支持加密文件——加载时仅解密索引区，读取记录时按需解密对应偏移的数据片段：
+`BinaryBackendOptions.lazy_load` 与 `sidecar_wal` 仍保留在 API 中，但主要用于兼容旧配置对象；新代码不应依赖它们切换主行为。
+
+如果需要当前公开支持的加密写入，可使用 `low`：
 
 ```python
-# 加密 + 懒加载
 db = Storage(
     file_path='large_secure.pytuck',
     engine='pytuck',
     backend_options=BinaryBackendOptions(
-        lazy_load=True,
-        encryption='medium',
+        encryption='low',
         password='my_password',
     ),
 )
-# 索引区在加载时解密；数据记录在 get(pk) 时按需解密
 ```
 
 ### 增量保存（CSV）

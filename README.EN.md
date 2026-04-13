@@ -45,11 +45,11 @@ The README home page now focuses on project positioning, installation, and minim
 |----------|---------|
 | [API docs index](./docs/api/index.md) | API overview and entry point |
 | [Engine comparison & configuration](./docs/api/engines.md) | Engine features, configuration, limits, and selection advice |
-| [Best practices](./docs/api/best-practices.md) | Persistence, indexing, transactions, lazy loading, performance tuning |
+| [Best practices](./docs/api/best-practices.md) | Persistence, indexing, transactions, performance tuning |
 | [Storage API](./docs/api/storage.md) | `Storage` / `Table` / `flush()` / `transaction()` |
 | [Session API](./docs/api/session.md) | `Session`, transactions, object state management |
 | [Query system](./docs/api/query.md) | `select` / `insert` / `update` / `delete` and result handling |
-| [Tools & migration](./docs/api/tools.md) | `migrate_engine()`, benchmark scripts, hooks, prefetch |
+| [Tools & migration](./docs/api/tools.md) | `migrate_engine()`, `import_from_database()`, benchmark scripts, hooks, prefetch |
 | [Benchmark report](./docs/guide/benchmark.en.md) | Latest benchmark results and reproduction commands |
 | [Development & release guide](./docs/guide/development.en.md) | Installation details, uv workflow, contributing, build & release |
 | [Development TODO](./TODO.md) | Current roadmap and development tasks |
@@ -149,7 +149,7 @@ db.close()
 
 ## Storage Engines at a Glance
 
-- **Pytuck**: Default choice, zero dependencies, encryption, lazy loading, on-demand reads
+- **Pytuck**: Default single-file engine, zero dependencies, a good fit for embedded and restricted environments, with current new writes supporting `None` / `low`
 - **JSON**: Best when readability and debugging matter most
 - **JSONL**: Good for multi-table text archives and line-oriented exchange
 - **CSV**: Good for minimum size and spreadsheet-style interchange
@@ -162,13 +162,13 @@ db.close()
 
 ## Performance & Benchmarking
 
-- The latest 100,000-row extended benchmark has been moved to [docs/guide/benchmark.en.md](./docs/guide/benchmark.en.md) so the README stays focused
+- The latest multi-engine benchmark results are in [docs/guide/benchmark.en.md](./docs/guide/benchmark.en.md)
+- The benchmark guide gives a direct comparison across engines for insert, indexed query, non-indexed query, range query, save, load, and file size
 - Benchmark script documentation lives in [docs/api/tools.md](./docs/api/tools.md#benchmark-脚本)
 - To reproduce locally:
 
 ```bash
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
-uv run python tests/benchmark/benchmark_encryption.py
 ```
 
 ## Data Migration
@@ -189,6 +189,8 @@ migrate_engine(
     target_options=json_opts,
 )
 ```
+
+You can also import existing databases from SQLite / DuckDB into any supported Pytuck target engine.
 
 For more migration and import details, see [docs/api/tools.md](./docs/api/tools.md#数据迁移工具).
 

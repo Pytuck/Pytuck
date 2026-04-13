@@ -1,8 +1,8 @@
 # Pytuck 性能基准报告
 
-本文档汇总当前仓库最新一次 benchmark 结果，作为 README 首页之外的详细性能参考。
+本文档汇总当前仓库最新一次多引擎 benchmark 结果，作为 README 首页之外的详细性能参考。
 
-> 测试时间：2026-03-29 20:37:35
+> 测试时间：2026-04-13 23:26:40
 >
 > 测试环境：Linux 6.18.7-76061807-generic / Python 3.12.3
 >
@@ -21,104 +21,83 @@
 - `excel`
 - `xml`
 
-扩展模式包含以下指标：
+主表统计的指标包括：
 
 - 插入
-- 全表查询
+- 主键查询（100 次）
 - 索引查询（100 次）
 - 非索引查询（100 次）
+- 索引加速比
 - 范围查询
-- 批量读取（1000 条）
-- 更新 / 删除
-- 保存 / 加载
-- `pytuck` 懒加载打开与首次查询
-- 文件体积
+- 保存
+- 加载
+- 重开
+- 重开后首次查询
+- 文件大小
+
+> [!IMPORTANT]
+> README 与本页主表都以 `tests/benchmark/benchmark.py` 的多引擎结果为准。`benchmark_encryption.py` 仅用于补充观察加密路径，不参与这张多引擎主表。
 
 ## 100000 条记录扩展 benchmark
 
-| 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |
-|------|------|----------|------------|----------|----------|------|------|--------|----------|
-| Pytuck | 834.38ms | 1.88ms | 8.34s | 4568x | 430.40ms | 562.03ms | 337.28ms | 321.98ms | 6.09MB |
-| JSON | 899.31ms | 1.78ms | 8.49s | 5046x | 438.08ms | 310.39ms | 394.28ms | - | 10.70MB |
-| JSONL | 909.78ms | 1.76ms | 8.28s | 4583x | 422.87ms | 604.40ms | 570.72ms | - | 827.5KB |
-| CSV | 909.20ms | 1.79ms | 8.26s | 4702x | 435.74ms | 462.06ms | 524.71ms | - | 731.9KB |
-| SQLite | 1.53s | 4.25ms | 489.70ms | 115x | 525.26ms | 2.91ms | 389.5μs | - | 6.97MB |
-| DuckDB | 1.52s | 56.62ms | 190.30ms | 3x | 482.98ms | 86.23ms | 29.24ms | - | 6.76MB |
-| Excel | 785.61ms | 1.95ms | 8.49s | 4528x | 427.10ms | 5.81s | 7.64s | - | 2.84MB |
-| XML | 771.45ms | 1.77ms | 8.20s | 4617x | 432.99ms | 2.26s | 1.93s | - | 34.54MB |
+| 引擎 | 插入 | 主键查询 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 重开 | 首次查询 | 文件大小 |
+|------|------|----------|----------|------------|----------|----------|------|------|------|----------|----------|
+| Pytuck | 864.88ms | 1.67ms | 1.86ms | 7.99s | 4295x | 431.08ms | 617.42ms | 126.97ms | 131.55ms | 51.7μs | 9.51MB |
+| JSON | 839.62ms | 137.8μs | 1.91ms | 8.15s | 4263x | 418.37ms | 287.07ms | 326.25ms | 388.65ms | 9.5μs | 10.70MB |
+| JSONL | 837.14ms | 140.4μs | 1.80ms | 8.10s | 4504x | 426.50ms | 579.55ms | 488.79ms | 545.59ms | 8.5μs | 827.5KB |
+| CSV | 858.79ms | 126.0μs | 1.85ms | 8.29s | 4490x | 425.67ms | 445.29ms | 467.82ms | 532.19ms | 7.1μs | 731.9KB |
+| SQLite | 1.39s | 997.6μs | 4.20ms | 489.44ms | 116x | 511.72ms | 3.01ms | 286.4μs | 279.4μs | 41.5μs | 6.97MB |
+| DuckDB | 1.45s | 52.88ms | 55.34ms | 93.91ms | 2x | 482.28ms | 85.50ms | 26.04ms | 15.69ms | 864.8μs | 6.76MB |
+| Excel | 784.91ms | 152.1μs | 1.85ms | 8.41s | 4543x | 450.76ms | 5.47s | 7.48s | 7.27s | 9.2μs | 2.84MB |
+| XML | 769.28ms | 154.4μs | 1.83ms | 8.13s | 4447x | 430.64ms | 2.34s | 1.94s | 1.97s | 10.9μs | 34.54MB |
 
 ## 结果解读
 
 ### Pytuck
 
-- 在 100000 条记录下，插入约 `786.38ms`，整体仍保持在纯 Python 文件引擎中的第一梯队。
-- 懒加载打开约 `316.76ms`，首次懒查询仅 `121.6μs`，说明默认 lazy reopen 路径已经具备较好的按需读取能力。
-- 非索引查询仍需要扫描，`8.34s` 属于正常表现；一旦命中索引，100 次查询仅 `1.83ms`。
+- 作为默认单文件引擎，`insert` 为 `864.88ms`，`load` 为 `126.97ms`，`reopen` 为 `131.55ms`，在纯 Python 文件引擎里保持了比较均衡的表现。
+- `主键查询` 与 `索引查询` 都维持在毫秒级，适合需要完整类型保留和零依赖单文件存储的场景。
+- 代价是文件体积达到 `9.51MB`，明显大于 `CSV` / `JSONL` 这类交换型格式。
 
 ### JSON / JSONL / CSV
 
-- 三者在内存查询阶段表现接近，因为主要差异集中在序列化格式与持久化路径。
-- `CSV` / `JSONL` 文件体积明显更小，适合交换和归档场景。
-- `JSON` 保存更快，但体积最大，优势主要是可读性与调试便利。
+- 这三类文本引擎在 `insert`、`索引查询`、`范围查询` 上表现接近，适合可读性、交换和归档场景。
+- `JSON` 的 `save` 最快，但文件体积也最大（`10.70MB`）。
+- `JSONL` 与 `CSV` 的体积最小，尤其适合交换与归档；代价是 `load` / `reopen` 明显慢于 Pytuck、SQLite 和 DuckDB。
 
 ### SQLite
 
-- `SQLite` 的磁盘保存和重新加载速度明显领先，适合强调稳定 SQL 写路径和快速 reopen 的场景。
-- 非索引查询远快于纯内存扫描型引擎，因为原生 SQL 路径能更高效地处理过滤。
-- 插入性能仍慢于 `pytuck` / `json` / `csv` 等纯内存写入后统一落盘的路径。
+- `save`、`load`、`reopen` 都明显领先：分别为 `3.01ms`、`286.4μs`、`279.4μs`。
+- `非索引查询` 仅 `489.44ms`，显著快于纯扫描型文件引擎，适合需要原生 SQL、事务和快速 reopen 的场景。
+- `insert` 为 `1.39s`，比 Pytuck / JSON / CSV 略慢，但整体读写体验非常稳定。
 
 ### DuckDB
 
-- `DuckDB` 经过 Session 插入缓冲 + COPY FROM CSV 快速批量插入 + 事务包裹优化后，100k 插入从 `277.18s` 大幅降至 `1.52s`，与 SQLite (`1.53s`) 基本持平。
-- reopen 和查询能力依旧很强，推荐用于分析查询、已有 DuckDB 文件接入和原生 SQL 场景。
+- `非索引查询` 为 `93.91ms`，`load` 为 `26.04ms`，`reopen` 为 `15.69ms`，很适合分析型查询和已有 DuckDB 工作流。
+- 在这组 benchmark 中，`索引查询` 与 `主键查询` 并不是它的强项，因此更适合作为分析与 SQL 引擎，而不是小对象高频点查引擎。
 
 ### Excel / XML
 
-- `Excel` 和 `XML` 作为交换 / 办公 / 可读性导向格式仍可用，但大数据量持久化和加载成本明显更高。
-- `Excel` 的保存与加载都较慢；`XML` 文件体积最大。
+- `Excel` 与 `XML` 更偏向办公互操作和结构化交换，而不是高频持久化。
+- `Excel` 的 `save` / `load` / `reopen` 分别达到 `5.47s` / `7.48s` / `7.27s`；`XML` 也有 `2.34s` / `1.94s` / `1.97s`，更适合导出、交付和集成场景。
 
-## 加密 benchmark
+## 如何阅读这张表
 
-下表保留本次重新运行的加密 benchmark 结果，用于观察 `pytuck` 不同加密等级与 CSV ZIP 密码保护的成本变化。
-
-### 1000 条记录
-
-| 场景 | 保存 | 加载 | 文件大小 |
-|------|------|------|----------|
-| Pytuck none | 22.64ms | 24.76ms | 131.7KB |
-| Pytuck low | 21.18ms | 38.92ms | 131.7KB |
-| Pytuck medium | 55.12ms | 89.72ms | 131.7KB |
-| Pytuck high | 212.14ms | 416.48ms | 131.7KB |
-| CSV none | 12.73ms | 15.15ms | 13.9KB |
-| CSV password | 24.55ms | 25.08ms | 13.9KB |
-
-### 5000 条记录
-
-| 场景 | 保存 | 加载 | 文件大小 |
-|------|------|------|----------|
-| Pytuck none | 170.94ms | 121.90ms | 679.2KB |
-| Pytuck low | 334.89ms | 204.17ms | 679.2KB |
-| Pytuck medium | 845.87ms | 457.10ms | 679.2KB |
-| Pytuck high | 3.25s | 2.10s | 679.2KB |
-| CSV none | 73.99ms | 98.42ms | 78.4KB |
-| CSV password | 165.96ms | 142.43ms | 78.4KB |
-
-### 10000 条记录
-
-| 场景 | 保存 | 加载 | 文件大小 |
-|------|------|------|----------|
-| Pytuck none | 402.87ms | 257.25ms | 1.33MB |
-| Pytuck low | 1.07s | 400.37ms | 1.33MB |
-| Pytuck medium | 2.96s | 938.03ms | 1.33MB |
-| Pytuck high | 11.74s | 4.26s | 1.33MB |
-| CSV none | 177.89ms | 233.68ms | 207.1KB |
-| CSV password | 413.95ms | 400.64ms | 207.2KB |
+- 如果你更看重**默认单文件体验、类型保留、零依赖**，优先看 `Pytuck`。
+- 如果你更看重**可读性与调试便利**，优先看 `JSON`。
+- 如果你更看重**小体积归档或交换**，优先看 `JSONL` / `CSV`。
+- 如果你更看重**原生 SQL、事务与快速重开**，优先看 `SQLite`。
+- 如果你更看重**分析查询和 DuckDB 生态**，优先看 `DuckDB`。
+- 如果你需要**办公软件交付或标准化结构交换**，再考虑 `Excel` / `XML`。
 
 ## 复现命令
 
 ```bash
-uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
-uv run python tests/benchmark/benchmark_encryption.py
+# 跑完整多引擎扩展 benchmark
+uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite duckdb excel xml --extended --output-json /tmp/pytuck-benchmark.json
+
+# 只看单个引擎
+uv run python tests/benchmark/benchmark.py -e pytuck -n 100000 --extended --output-json /tmp/pytuck.json
 ```
 
 ## 相关文档
@@ -126,4 +105,4 @@ uv run python tests/benchmark/benchmark_encryption.py
 - [README 首页](../../README.md)
 - [引擎对比与特性](../api/engines.md)
 - [最佳实践](../api/best-practices.md)
-- [开发与发布指南](./development.md)
+- [工具与扩展 API](../api/tools.md)

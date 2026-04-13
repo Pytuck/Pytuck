@@ -2,7 +2,7 @@
 
 ## 数据迁移工具
 
-迁移工具不从根包导出，需单独导入：
+通用迁移函数从 `pytuck.tools.migrate` 导入：
 
 ```python
 from pytuck.tools.migrate import migrate_engine, import_from_database, get_available_engines
@@ -93,7 +93,7 @@ def import_from_database(
 | `source_path` | 源数据库文件路径 |
 | `target_path` | 目标 Pytuck 文件路径 |
 | `target_engine` | 目标引擎名称（默认 `'pytuck'`） |
-| `source_type` | 源数据库类型（目前仅 `'sqlite'`） |
+| `source_type` | 源数据库类型（`'sqlite'` 或 `'duckdb'`） |
 | `tables` | 要导入的表名列表（`None` = 全部） |
 | `primary_key_map` | 表名到主键列名的映射 |
 | `exclude_tables` | 要排除的表名列表 |
@@ -146,21 +146,24 @@ engines = get_available_engines()
 
 ### benchmark 脚本
 
-性能 benchmark 脚本位于 `tests/benchmark/` 目录下：
+`tests/benchmark/benchmark.py` 用于多引擎性能对比：
+
+> [!IMPORTANT]
+> README 与 benchmark 主表中的多引擎对比以 `tests/benchmark/benchmark.py` 为准。`benchmark_encryption.py` 仅用于补充观察加密路径，不作为多引擎主表口径。
 
 ```bash
 # 通用性能 benchmark
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
 
-# 指定引擎（包含 JSONL）
-uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite duckdb excel xml --extended
+# 只看单个引擎
+uv run python tests/benchmark/benchmark.py -e pytuck -n 100000 --extended --output-json /tmp/pytuck.json
 
-# 加密专项 benchmark（仅 Pytuck / CSV）
-uv run python tests/benchmark/benchmark_encryption.py
+# 指定多引擎（包含 JSONL）
+uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite duckdb excel xml --extended
 ```
 
-- `benchmark.py` 会输出可直接拷贝到 `README.md` / `README.EN.md` 的 Markdown 表格
-- `benchmark_encryption.py` 只覆盖加密相关路径，不替代通用引擎 benchmark
+- `benchmark.py` 主表通常关注 `insert`、`query_indexed`、`query_non_indexed`、`range_query`、`save`、`load`、`file_size`
+- 如需补充观察某个引擎的特有指标，可在扩展结果中查看对应字段
 
 ---
 

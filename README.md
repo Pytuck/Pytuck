@@ -45,11 +45,11 @@ README 首页现在只保留项目定位、安装与最小上手示例；详细�
 |------|------|
 | [API 文档索引](./docs/api/index.md) | API 总览与文档入口 |
 | [引擎对比与配置](./docs/api/engines.md) | 各引擎特性、配置、限制与选型建议 |
-| [最佳实践](./docs/api/best-practices.md) | 持久化、索引、事务、懒加载、性能优化 |
+| [最佳实践](./docs/api/best-practices.md) | 持久化、索引、事务、性能优化 |
 | [Storage API](./docs/api/storage.md) | `Storage` / `Table` / `flush()` / `transaction()` |
 | [Session API](./docs/api/session.md) | `Session`、事务、对象状态管理 |
 | [查询系统](./docs/api/query.md) | `select` / `insert` / `update` / `delete` 与结果集 |
-| [工具与迁移](./docs/api/tools.md) | `migrate_engine()`、benchmark 脚本、事件钩子、prefetch |
+| [工具与迁移](./docs/api/tools.md) | `migrate_engine()`、`import_from_database()`、benchmark 脚本、事件钩子、prefetch |
 | [性能基准报告](./docs/guide/benchmark.md) | 最新 benchmark 结果与复现命令 |
 | [开发与发布指南](./docs/guide/development.md) | 安装细节、uv 工作流、贡献开发、打包发布 |
 | [开发 TODO](./TODO.md) | 当前开发计划与路线图 |
@@ -149,7 +149,7 @@ db.close()
 
 ## 存储引擎速览
 
-- **Pytuck**：默认推荐，零依赖、支持加密、支持懒加载与按需读取
+- **Pytuck**：默认单文件引擎，零依赖，适合嵌入式与受限环境，当前新写入支持无加密 / `low`
 - **JSON**：适合调试、配置存储、可读性优先
 - **JSONL**：适合多表文本归档、逐行交换、ZIP 容器分发表
 - **CSV**：适合最小体积、表格交换、与其他工具共享
@@ -162,13 +162,13 @@ db.close()
 
 ## 性能与 benchmark
 
-- 最新 100,000 条记录扩展 benchmark 已单独拆分到 [docs/guide/benchmark.md](./docs/guide/benchmark.md)，避免 README 首页继续膨胀
+- 最新多引擎 benchmark 结果见 [docs/guide/benchmark.md](./docs/guide/benchmark.md)
+- benchmark 文档汇总了各引擎在插入、索引查询、非索引查询、范围查询、保存、加载与文件体积上的直观对比
 - benchmark 脚本说明见 [docs/api/tools.md](./docs/api/tools.md#benchmark-脚本)
 - 如需在本机复现：
 
 ```bash
 uv run python tests/benchmark/benchmark.py -n 100000 --extended --output-json /tmp/pytuck-benchmark.json
-uv run python tests/benchmark/benchmark_encryption.py
 ```
 
 ## 数据迁移
@@ -189,6 +189,8 @@ migrate_engine(
     target_options=json_opts,
 )
 ```
+
+也支持从 SQLite / DuckDB 等外部数据库导入现有数据到 Pytuck 支持的目标引擎。
 
 更多迁移与导入说明见 [docs/api/tools.md](./docs/api/tools.md#数据迁移工具)。
 
