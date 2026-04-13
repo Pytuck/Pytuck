@@ -1,7 +1,7 @@
 """
 懒加载默认值测试
 
-验证 pytuck 引擎默认以 lazy 模式重新打开文件，且显式关闭 lazy 时仍保持 eager 行为。
+验证 pytuck 引擎默认以 lazy 模式重新打开文件，且显式传入 lazy_load=False 时仍沿用 PTK7 的统一 reopen 语义。
 """
 
 from pathlib import Path
@@ -44,8 +44,8 @@ class TestLazyDefaults:
 
         db.close()
 
-    def test_explicit_lazy_false_still_uses_eager_path(self, temp_dir: Path) -> None:
-        """显式 lazy_load=False 时仍应保持 eager 行为"""
+    def test_explicit_lazy_false_still_uses_reopen_path(self, temp_dir: Path) -> None:
+        """显式 lazy_load=False 时仍应沿用 PTK7 的统一 reopen 语义"""
         db_path = self._create_users_db(temp_dir, 'lazy_explicit_false.pytuck')
         db = Storage(
             file_path=str(db_path),
@@ -54,8 +54,9 @@ class TestLazyDefaults:
         )
 
         table = db.tables['users']
-        assert table._lazy_loaded is False
-        assert set(table.data.keys()) == {1}
+        # PTK7 reopen 语义：lazy_load=False 仅为兼容字段，reopen 仍为目录级 lazy 行为
+        assert table._lazy_loaded is True
+        assert table.data == {}
         assert db.select('users', 1)['name'] == 'Alice'
 
         db.close()

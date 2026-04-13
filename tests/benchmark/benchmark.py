@@ -31,7 +31,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from pytuck import Storage, declarative_base, Session, Column, PureBaseModel
 from pytuck import select, insert, update, delete
-from pytuck.common.options import BinaryBackendOptions
 
 
 # ============== 配置 ==============
@@ -373,63 +372,38 @@ class EngineBenchmark:
         db.close()
         return t.elapsed
 
-    def benchmark_lazy_load(self) -> Optional[float]:
-        """测试懒加载性能（仅 Pytuck 引擎）"""
-        if self.engine_name != 'pytuck':
-            return None
-
-        options = BinaryBackendOptions(lazy_load=True)
+    def benchmark_reopen(self) -> float:
+        """测试重新打开数据库性能"""
         with Timer() as t:
-            db = Storage(file_path=self.file_path, engine='pytuck', backend_options=options)
+            db = Storage(file_path=self.file_path, engine=self.engine_name)
         db.close()
         return t.elapsed
 
-    def benchmark_lazy_query(self, count: int) -> Optional[Tuple[float, float]]:
-        """
-        测试懒加载模式下的查询性能（仅 Pytuck 引擎）
+    def benchmark_reopen_first_query(self, count: int) -> float:
+        """测试重新打开后的首次主键查询性能"""
+        sample_id = min(count, max(1, (count + 1) // 2))
+        db = Storage(file_path=self.file_path, engine=self.engine_name)
+        try:
+            with Timer() as t:
+                row = db.select('benchmark_users', sample_id)
+                _ = row.get('name')
+            return t.elapsed
+        finally:
+            db.close()
 
-        在懒加载模式下，数据按需从磁盘读取。
-        测试：首次查询特定记录的耗时。
-
-        Returns:
-            Tuple[首次查询耗时, 后续查询耗时] 或 None（非 Pytuck 引擎）
-        """
-        if self.engine_name != 'pytuck':
-            return None
-
-        options = BinaryBackendOptions(lazy_load=True)
-        db = Storage(file_path=self.file_path, engine='pytuck', backend_options=options)
-        Base = declarative_base(db)
-
-        class BenchmarkUser(Base):
-            __tablename__ = 'benchmark_users'
-            id = Column(int, primary_key=True)
-            name = Column(str, nullable=False, index=True)
-            email = Column(str, nullable=True)
-            age = Column(int, nullable=True)
-            score = Column(float, nullable=True)
-            active = Column(bool, nullable=True)
-
-        session = Session(db)
-
-        # 首次查询（冷查询，需要从磁盘读取）
-        query_idx = min(count // 2, 5000)  # 查询中间位置的记录
-        with Timer() as t1:
-            stmt = select(BenchmarkUser).filter_by(name=f'User_{query_idx}')
-            result = session.execute(stmt)
-            record = result.first()
-
-        # 后续查询（热查询，可能命中缓存）
-        with Timer() as t2:
-            for i in range(10):
-                idx = (query_idx + i * 100) % count
-                stmt = select(BenchmarkUser).filter_by(name=f'User_{idx}')
-                result = session.execute(stmt)
-                record = result.first()
-
-        session.close()
-        db.close()
-        return t1.elapsed, t2.elapsed
+    def benchmark_pk_query(self, count: int) -> float:
+        """测试主键查询性能（100次查询）"""
+        query_count = min(100, count)
+        db = Storage(file_path=self.file_path, engine=self.engine_name)
+        try:
+            with Timer() as t:
+                for index in range(query_count):
+                    pk = ((index * 9973) % count) + 1
+                    row = db.select('benchmark_users', pk)
+                    _ = row.get('name')
+            return t.elapsed
+        finally:
+            db.close()
 
     def benchmark_memory_usage(self, record_count: int) -> int:
         """
@@ -505,6 +479,9 @@ class EngineBenchmark:
 
             # 获取文件大小（删除前）
             results['file_size'] = get_file_size(self.file_path)
+            results['reopen'] = self.benchmark_reopen()
+            results['reopen_first_query'] = self.benchmark_reopen_first_query(record_count)
+            results['pk_query'] = self.benchmark_pk_query(record_count)
 
             # 删除测试
             results['delete'] = self.benchmark_delete(session, Model, record_count)
@@ -513,18 +490,6 @@ class EngineBenchmark:
             session.close()
             db.close()
             results['load'] = self.benchmark_load()
-
-            # 懒加载测试（仅 Pytuck 引擎）
-            lazy_load_time = self.benchmark_lazy_load()
-            if lazy_load_time is not None:
-                results['lazy_load'] = lazy_load_time
-
-            # 懒加载查询测试（仅 Pytuck 引擎，扩展测试）
-            if self.extended_tests:
-                lazy_query_result = self.benchmark_lazy_query(record_count)
-                if lazy_query_result is not None:
-                    results['lazy_query_first'] = lazy_query_result[0]
-                    results['lazy_query_batch'] = lazy_query_result[1]
 
             # 内存测试（可选，在独立环境中测试）
             if self.memtest:
@@ -565,15 +530,12 @@ def _print_result(result: Dict[str, Any], record_count: int, extended: bool, mem
         print(f"  删除 (50次):       {format_time(result['delete'])}")
         print(f"  保存到磁盘:        {format_time(result['save'])}")
         print(f"  从磁盘加载:        {format_time(result['load'])}")
-
-        if 'lazy_load' in result:
-            print(f"  懒加载:            {format_time(result['lazy_load'])}")
-
-        # 懒加载查询测试（扩展测试）
-        if extended:
-            if 'lazy_query_first' in result:
-                print(f"  懒加载首次查询:    {format_time(result['lazy_query_first'])}")
-                print(f"  懒加载后续查询 (10次): {format_time(result['lazy_query_batch'])}")
+        if 'reopen' in result:
+            print(f"  重新打开:          {format_time(result['reopen'])}")
+        if 'reopen_first_query' in result:
+            print(f"  重开后首次查询:    {format_time(result['reopen_first_query'])}")
+        if 'pk_query' in result:
+            print(f"  主键查询 (100次):  {format_time(result['pk_query'])}")
 
         # 内存测试结果
         if memtest and 'memory_delta' in result:
@@ -648,7 +610,7 @@ def run_benchmarks(
         print(f"日期: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"测试数据量: {record_count} 条记录")
         if extended:
-            print("模式: 扩展测试（包含索引对比、范围查询、批量读取、懒加载查询）")
+            print("模式: 扩展测试（包含索引对比、范围查询、批量读取、reopen 与主键查询）")
         if memtest:
             print("模式: 内存测试")
         if parallel:
@@ -720,44 +682,39 @@ def generate_markdown_table(results: List[Dict[str, Any]], record_count: int,
     lines.append(f"测试数据量: {record_count} 条记录\n")
 
     if extended:
-        # 扩展表格：包含索引加速比、懒加载等
+        # 扩展表格：包含主键查询与 reopen 等指标
         if memtest:
-            lines.append("| 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 保存 | 加载 | 懒加载 | 内存占用 | 文件大小 |")
-            lines.append("|------|------|----------|------------|----------|------|------|--------|----------|----------|")
+            lines.append("| 引擎 | 插入 | 主键查询 | 索引查询 | 非索引查询 | 索引加速 | 保存 | 加载 | 重开 | 首次查询 | 内存占用 | 文件大小 |")
+            lines.append("|------|------|----------|----------|------------|----------|------|------|------|----------|----------|----------|")
         else:
-            lines.append("| 引擎 | 插入 | 索引查询 | 非索引查询 | 索引加速 | 范围查询 | 保存 | 加载 | 懒加载 | 文件大小 |")
-            lines.append("|------|------|----------|------------|----------|----------|------|------|--------|----------|")
+            lines.append("| 引擎 | 插入 | 主键查询 | 索引查询 | 非索引查询 | 索引加速 | 保存 | 加载 | 重开 | 首次查询 | 文件大小 |")
+            lines.append("|------|------|----------|----------|------------|----------|------|------|------|----------|----------|")
 
         for r in filtered:
             engine = DISPLAY_ENGINE_NAMES.get(r['engine'], r['engine'].capitalize())
 
-            # 计算索引加速比
             speedup = '-'
             if 'query_non_indexed' in r and r['query_indexed'] > 0:
                 speedup = f"{r['query_non_indexed'] / r['query_indexed']:.0f}x"
 
-            # 懒加载时间
-            lazy = format_time(r['lazy_load']) if 'lazy_load' in r else '-'
-
-            # 非索引查询
+            pk_query = format_time(r['pk_query']) if 'pk_query' in r else '-'
+            reopen = format_time(r['reopen']) if 'reopen' in r else '-'
+            reopen_first = format_time(r['reopen_first_query']) if 'reopen_first_query' in r else '-'
             non_indexed = format_time(r['query_non_indexed']) if 'query_non_indexed' in r else '-'
-
-            # 范围查询
-            range_q = format_time(r['range_query']) if 'range_query' in r else '-'
-
-            # 内存占用
             memory = format_size(r['memory_delta']) if 'memory_delta' in r else '-'
 
             if memtest:
                 lines.append(
                     f"| {engine} | "
                     f"{format_time(r['insert'])} | "
+                    f"{pk_query} | "
                     f"{format_time(r['query_indexed'])} | "
                     f"{non_indexed} | "
                     f"{speedup} | "
                     f"{format_time(r['save'])} | "
                     f"{format_time(r['load'])} | "
-                    f"{lazy} | "
+                    f"{reopen} | "
+                    f"{reopen_first} | "
                     f"{memory} | "
                     f"{format_size(r['file_size'])} |"
                 )
@@ -765,13 +722,14 @@ def generate_markdown_table(results: List[Dict[str, Any]], record_count: int,
                 lines.append(
                     f"| {engine} | "
                     f"{format_time(r['insert'])} | "
+                    f"{pk_query} | "
                     f"{format_time(r['query_indexed'])} | "
                     f"{non_indexed} | "
                     f"{speedup} | "
-                    f"{range_q} | "
                     f"{format_time(r['save'])} | "
                     f"{format_time(r['load'])} | "
-                    f"{lazy} | "
+                    f"{reopen} | "
+                    f"{reopen_first} | "
                     f"{format_size(r['file_size'])} |"
                 )
     else:
@@ -832,11 +790,11 @@ def generate_english_table(results: List[Dict[str, Any]], record_count: int,
     if extended:
         # Extended table
         if memtest:
-            lines.append("| Engine | Insert | Indexed | Non-Indexed | Speedup | Save | Load | Lazy | Memory | Size |")
-            lines.append("|--------|--------|---------|-------------|---------|------|------|------|--------|------|")
+            lines.append("| Engine | Insert | PK Query | Indexed | Non-Indexed | Speedup | Save | Load | Reopen | First Query | Memory | Size |")
+            lines.append("|--------|--------|----------|---------|-------------|---------|------|------|--------|-------------|--------|------|")
         else:
-            lines.append("| Engine | Insert | Indexed | Non-Indexed | Speedup | Range | Save | Load | Lazy | Size |")
-            lines.append("|--------|--------|---------|-------------|---------|-------|------|------|------|------|")
+            lines.append("| Engine | Insert | PK Query | Indexed | Non-Indexed | Speedup | Save | Load | Reopen | First Query | Size |")
+            lines.append("|--------|--------|----------|---------|-------------|---------|------|------|--------|-------------|------|")
 
         for r in filtered:
             engine = DISPLAY_ENGINE_NAMES.get(r['engine'], r['engine'].capitalize())
@@ -845,21 +803,24 @@ def generate_english_table(results: List[Dict[str, Any]], record_count: int,
             if 'query_non_indexed' in r and r['query_indexed'] > 0:
                 speedup = f"{r['query_non_indexed'] / r['query_indexed']:.0f}x"
 
-            lazy = format_time(r['lazy_load']) if 'lazy_load' in r else '-'
+            pk_query = format_time(r['pk_query']) if 'pk_query' in r else '-'
+            reopen = format_time(r['reopen']) if 'reopen' in r else '-'
+            reopen_first = format_time(r['reopen_first_query']) if 'reopen_first_query' in r else '-'
             non_indexed = format_time(r['query_non_indexed']) if 'query_non_indexed' in r else '-'
-            range_q = format_time(r['range_query']) if 'range_query' in r else '-'
             memory = format_size(r['memory_delta']) if 'memory_delta' in r else '-'
 
             if memtest:
                 lines.append(
                     f"| {engine} | "
                     f"{format_time(r['insert'])} | "
+                    f"{pk_query} | "
                     f"{format_time(r['query_indexed'])} | "
                     f"{non_indexed} | "
                     f"{speedup} | "
                     f"{format_time(r['save'])} | "
                     f"{format_time(r['load'])} | "
-                    f"{lazy} | "
+                    f"{reopen} | "
+                    f"{reopen_first} | "
                     f"{memory} | "
                     f"{format_size(r['file_size'])} |"
                 )
@@ -867,13 +828,14 @@ def generate_english_table(results: List[Dict[str, Any]], record_count: int,
                 lines.append(
                     f"| {engine} | "
                     f"{format_time(r['insert'])} | "
+                    f"{pk_query} | "
                     f"{format_time(r['query_indexed'])} | "
                     f"{non_indexed} | "
                     f"{speedup} | "
-                    f"{range_q} | "
                     f"{format_time(r['save'])} | "
                     f"{format_time(r['load'])} | "
-                    f"{lazy} | "
+                    f"{reopen} | "
+                    f"{reopen_first} | "
                     f"{format_size(r['file_size'])} |"
                 )
     else:
@@ -961,7 +923,7 @@ def parse_args():
     parser.add_argument(
         '--extended',
         action='store_true',
-        help='执行扩展测试（索引对比、范围查询、批量读取、懒加载查询）'
+        help='执行扩展测试（索引对比、范围查询、批量读取、reopen 与主键查询）'
     )
     parser.add_argument(
         '--memtest',

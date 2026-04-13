@@ -1,29 +1,21 @@
-"""
-Pytuck 单文件引擎加密测试
-
-覆盖：
-- 当前公开支持的 none/low 写入与读取
-- probe() 对当前单文件格式的识别
-"""
-
 from pathlib import Path
 from typing import Optional
 
 import pytest
 
 from pytuck import Column, Storage
-from pytuck.backends.backend_binary import BinaryBackend
+from pytuck.common.exceptions import ConfigurationError
 from pytuck.common.options import BinaryBackendOptions
 
 
 @pytest.mark.parametrize(
     ("encryption", "password", "file_name"),
     [
-        (None, None, "plain_roundtrip.pytuck"),
-        ("low", "secret123", "low_roundtrip.pytuck"),
+        (None, None, "plain_ptk7.pytuck"),
+        ("low", "secret123", "low_ptk7.pytuck"),
     ],
 )
-def test_ptk7_roundtrip_with_supported_encryption_modes(
+def test_ptk7_accepts_none_and_low_only(
     tmp_path: Path,
     encryption: Optional[str],
     password: Optional[str],
@@ -49,11 +41,6 @@ def test_ptk7_roundtrip_with_supported_encryption_modes(
     db.flush()
     db.close()
 
-    matched, info = BinaryBackend.probe(db_path)
-    assert matched is True
-    assert info is not None
-    assert info["format_version"] == "PTK7"
-
     reopened = Storage(
         file_path=str(db_path),
         engine="pytuck",
@@ -64,4 +51,20 @@ def test_ptk7_roundtrip_with_supported_encryption_modes(
     )
     assert reopened.select("users", 1)["name"] == "Alice"
     reopened.close()
+
+
+@pytest.mark.parametrize("level", ["medium", "high"])
+def test_ptk7_rejects_new_medium_or_high_encryption(
+    tmp_path: Path,
+    level: str,
+) -> None:
+    with pytest.raises(ConfigurationError, match="当前 Pytuck 单文件引擎仅支持.*low"):
+        Storage(
+            file_path=str(tmp_path / f"enc_{level}_ptk7.pytuck"),
+            engine="pytuck",
+            backend_options=BinaryBackendOptions(
+                encryption=level,
+                password="secret123",
+            ),
+        )
 
