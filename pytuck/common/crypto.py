@@ -436,6 +436,9 @@ class ChaCha20Cipher:
 CipherType = Union[XORCipher, LCGCipher, ChaCha20Cipher]
 
 
+from typing import cast
+
+
 def get_cipher(level: str, key: bytes) -> CipherType:
     """
     获取对应等级的加密器
@@ -460,7 +463,8 @@ def get_cipher(level: str, key: bytes) -> CipherType:
             f"Invalid encryption level: {level}. Must be one of {ENCRYPTION_LEVELS}",
             details={'level': level, 'valid_levels': ENCRYPTION_LEVELS}
         )
-    return ciphers[level](key)
+    # 类型提示：告诉 mypy 我们返回的是 CipherType
+    return cast(CipherType, ciphers[level](key))
 
 
 def get_encryption_level_code(level: str) -> int:

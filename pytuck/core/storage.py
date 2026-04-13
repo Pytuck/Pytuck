@@ -1055,9 +1055,7 @@ class Storage:
                 self.tables = self.backend.load()
                 self._dirty = False
 
-                # 对于 pytuck 引擎，初始化 WAL 模式并回放未提交的日志
-                if engine == 'pytuck':
-                    self._init_wal_mode()
+                # 不在 __init__ 中自动启用 WAL 模式，改为显式初始化或由后端决定
 
             # 检测并初始化原生 SQL 模式
             self._init_native_sql_mode()
@@ -2762,8 +2760,8 @@ class Storage:
                 table.reset_dirty()
 
             # 首次保存 pytuck 引擎后，启用 WAL 模式
-            if self.engine_name == 'pytuck' and not self._use_wal:
-                self._init_wal_mode()
+            # 移除自动初始化 WAL 模式的自动调用，保留 changed_tables 语义
+            # WAL 模式需显式初始化或由后端/调用方决定
             event.dispatch_storage(self, 'after_flush')
 
     def close(self) -> None:

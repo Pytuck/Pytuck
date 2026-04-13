@@ -394,7 +394,7 @@ def import_from_database(
     except Exception as e:
         raise MigrationError(f"保存数据到目标文件失败: {e}")
 
-    return {
+    result = {
         'tables': len(pytuck_tables),
         'records': total_records,
         'source_type': source_type,
@@ -403,3 +403,6 @@ def import_from_database(
         'target_path': target_path,
         'table_details': table_details
     }
+
+    return result
+

@@ -8,7 +8,7 @@ from typing import Dict
 
 # 各引擎的当前格式版本
 ENGINE_FORMAT_VERSIONS: Dict[str, int] = {
-    'pytuck': 5,   # v5: PTK5 + 紧凑记录编码 + 按需分页查询
+    'pytuck': 7,   # v7: PTK7 主运行路径
     'csv': 2,      # v2: 统一元数据结构 + 添加表和列 comment 支持
     'excel': 2,    # v2: 统一元数据结构 + 添加表和列 comment 支持
     'json': 2,     # v2: 添加表和列 comment 支持

@@ -192,6 +192,25 @@ class Select(Statement[T]):
         from .builder import BinaryExpression, LogicalExpression, ConditionType
 
         # 转换 Expression 为 Condition（支持 BinaryExpression 和 LogicalExpression）
+
+        # 优化 fast-path：单主键等值查询直接使用 storage.select
+        pk_name = getattr(self.model_class, '__primary_key__', None)
+        if pk_name and len(self._where_clauses) == 1:
+            expr = self._where_clauses[0]
+            if isinstance(expr, BinaryExpression):
+                # 比较属性名（_attr_name）而非 Column.name
+                if expr.column._attr_name == pk_name and expr.operator in ('=', '=='):
+                    pk_value = expr.value
+                    # 直接调用 storage.select 返回单条记录（或抛出 RecordNotFoundError）
+                    from ..common.exceptions import RecordNotFoundError
+                    try:
+                        table_name = self.model_class.__tablename__
+                        assert table_name is not None, f"Model {self.model_class.__name__} must have __tablename__ defined"
+                        rec = storage.select(table_name, pk_value)
+                        return [rec]
+                    except RecordNotFoundError:
+                        return []
+
         conditions: List[ConditionType] = []
         for expr in self._where_clauses:
             if isinstance(expr, (BinaryExpression, LogicalExpression)):

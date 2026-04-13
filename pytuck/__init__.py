@@ -10,51 +10,8 @@ Pytuck - 轻量级 Python 文档数据库
 - 类型安全
 
 两种使用模式：
-
-1. 纯模型模式（默认，推荐）- 通过 Session 操作数据：
-    from typing import Type
-    from pytuck import Storage, declarative_base, Session, Column
-    from pytuck import PureBaseModel, select, insert, update, delete
-
-    db = Storage(file_path='mydb.pytuck')
-    Base: Type[PureBaseModel] = declarative_base(db)
-
-    class User(Base):
-        __tablename__ = 'users'
-        id = Column(int, primary_key=True)
-        name = Column(str)
-        age = Column(int)
-
-    session = Session(db)
-
-    # 插入
-    stmt = insert(User).values(name='Alice', age=20)
-    session.execute(stmt)
-    session.commit()
-
-    # 查询
-    stmt = select(User).where(User.age >= 18)
-    result = session.execute(stmt)
-    users = result.all()
-
-2. Active Record 模式 - 模型自带 CRUD 方法：
-    from typing import Type
-    from pytuck import Storage, declarative_base, Column
-    from pytuck import CRUDBaseModel
-
-    db = Storage(file_path='mydb.pytuck')
-    Base: Type[CRUDBaseModel] = declarative_base(db, crud=True)
-
-    class User(Base):
-        __tablename__ = 'users'
-        id = Column(int, primary_key=True)
-        name = Column(str)
-
-    # 直接在模型上操作
-    user = User.create(name='Alice')
-    user.name = 'Bob'
-    user.save()
-    user.delete()
+1. 纯模型模式（默认，推荐）
+2. Active Record 模式
 """
 
 from .core import (
