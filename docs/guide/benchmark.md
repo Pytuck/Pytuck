@@ -51,6 +51,18 @@
 | Excel | 784.91ms | 152.1μs | 1.85ms | 8.41s | 4543x | 450.76ms | 5.47s | 7.48s | 7.27s | 9.2μs | 2.84MB |
 | XML | 769.28ms | 154.4μs | 1.83ms | 8.13s | 4447x | 430.64ms | 2.34s | 1.94s | 1.97s | 10.9μs | 34.54MB |
 
+## Session 写入路径补充 benchmark
+
+> 同机 / Python 3.12.3 / 内存模式 / 100000 条记录
+
+| 路径 | 耗时 | 说明 |
+|------|------|------|
+| `session.add_all() + session.commit()` | 0.72s | 保留逐条 `before_insert` / `after_insert` 语义，适合需要模型事件、identity map 注册和逐实例状态回写的批量新增 |
+| `session.bulk_insert()` | 0.41s | 吞吐最高，不触发逐条 insert 事件，适合纯写入吞吐场景 |
+
+- 同口径优化前，`session.add_all() + commit()` 约为 `47.59s`；当前约为 `0.72s`
+- 主要收益来自两点：修复 `Session.add()` 对 `_new_objects` 的 O(N²) 去重瓶颈，以及让 `Session.flush()` 对新对象按模型类分组复用 `storage.bulk_insert()`
+
 ## 结果解读
 
 ### Pytuck

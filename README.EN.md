@@ -164,6 +164,7 @@ db.close()
 
 - The latest multi-engine benchmark results are in [docs/guide/benchmark.en.md](./docs/guide/benchmark.en.md)
 - The benchmark guide gives a direct comparison across engines for insert, indexed query, non-indexed query, range query, save, load, and file size
+- For Session write paths on the same local 100k in-memory benchmark, `session.add_all() + commit()` is about `0.72s` and `session.bulk_insert()` is about `0.41s`; the former keeps per-row `before_insert` / `after_insert` semantics, while the latter gives the highest throughput
 - Benchmark script documentation lives in [docs/api/tools.md](./docs/api/tools.md#benchmark-脚本)
 - To reproduce locally:
 

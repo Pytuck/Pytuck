@@ -58,7 +58,7 @@ from pytuck.core.orm import Relationship
 
 ## 版本
 
-当前版本：`1.2.0`
+当前版本：`1.2.1`
 
 ## 支持的 Python 版本
 

@@ -117,6 +117,26 @@ class TestSessionInsertEvents:
         assert found is not None
         assert found.age == 18
 
+    def test_add_all_commit_keeps_single_insert_events(self, session_setup: Any) -> None:
+        """add_all + commit 仍应使用逐条 insert 事件语义"""
+        db, User, session = session_setup
+        single_events: List[tuple[str, Any]] = []
+        bulk_events: List[str] = []
+
+        event.listen(User, 'before_insert', lambda inst: single_events.append(('before', getattr(inst, 'id', None))))
+        event.listen(User, 'after_insert', lambda inst: single_events.append(('after', getattr(inst, 'id', None))))
+        event.listen(User, 'before_bulk_insert', lambda instances: bulk_events.append(f'before:{len(instances)}'))
+        event.listen(User, 'after_bulk_insert', lambda instances: bulk_events.append(f'after:{len(instances)}'))
+
+        session.add_all([User(name='Alice', age=20), User(name='Bob', age=22)])
+        session.commit()
+
+        assert bulk_events == []
+        assert [kind for kind, _ in single_events].count('before') == 2
+        assert [kind for kind, _ in single_events].count('after') == 2
+        assert all(pk is None for kind, pk in single_events if kind == 'before')
+        assert all(pk is not None for kind, pk in single_events if kind == 'after')
+
 
 class TestSessionUpdateEvents:
     """Session 模式下 update 事件测试"""

@@ -164,6 +164,7 @@ db.close()
 
 - 最新多引擎 benchmark 结果见 [docs/guide/benchmark.md](./docs/guide/benchmark.md)
 - benchmark 文档汇总了各引擎在插入、索引查询、非索引查询、范围查询、保存、加载与文件体积上的直观对比
+- 对 Session 写入路径，当前同机 100k 内存基线约为：`session.add_all() + commit()` `0.72s`，`session.bulk_insert()` `0.41s`；前者保留逐条 `before_insert` / `after_insert` 语义，后者提供最高吞吐
 - benchmark 脚本说明见 [docs/api/tools.md](./docs/api/tools.md#benchmark-脚本)
 - 如需在本机复现：
 

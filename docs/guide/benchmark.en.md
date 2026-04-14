@@ -51,6 +51,18 @@ The main comparison table includes:
 | Excel | 784.91ms | 152.1μs | 1.85ms | 8.41s | 4543x | 450.76ms | 5.47s | 7.48s | 7.27s | 9.2μs | 2.84MB |
 | XML | 769.28ms | 154.4μs | 1.83ms | 8.13s | 4447x | 430.64ms | 2.34s | 1.94s | 1.97s | 10.9μs | 34.54MB |
 
+## Supplementary Session write-path benchmark
+
+> Same machine / Python 3.12.3 / in-memory mode / 100000 records
+
+| Path | Time | Notes |
+|------|------|-------|
+| `session.add_all() + session.commit()` | 0.72s | Keeps per-row `before_insert` / `after_insert` semantics, suitable when you need model hooks, identity-map registration, and per-instance state refresh |
+| `session.bulk_insert()` | 0.41s | Highest throughput, does not trigger per-row insert events, suitable for pure write-throughput workloads |
+
+- Before the optimization, the same `session.add_all() + commit()` path took about `47.59s`; it is now about `0.72s`
+- The gain mainly comes from two fixes: removing the O(N²) duplicate-check bottleneck in `Session.add()`, and batching new objects in `Session.flush()` via `storage.bulk_insert()` grouped by model class
+
 ## Notes
 
 ### Pytuck

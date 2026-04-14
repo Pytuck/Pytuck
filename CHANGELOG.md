@@ -8,7 +8,7 @@
 
 ---
 
-## [1.2.0] - 2026-04-14
+## [1.2.1] - 2026-04-14
 
 ### 变更
 
@@ -20,14 +20,26 @@
   - README、API 文档和根包说明回到“当前产品能力”的叙事
   - PTK5 专用的公开迁移入口已移除，保留通用迁移工具路径
 
+### 性能
+
+- **Session 批量写入路径收敛**
+  - 修复 `Session.add()` 对 `_new_objects` 的 O(N²) 去重瓶颈，100k `session.add_all() + commit()` 从 `47.59s` 降到 `0.72s`
+  - `Session.flush()` 现在按模型类分组复用 `storage.bulk_insert()`；内存模式移除冗余 readback，仍保留逐条 `before_insert` / `after_insert` 语义
+  - `Session.bulk_insert()` 在同口径下保持 `0.41s`，未出现性能回退
+
 ### 文档
 
 - **文档结构回归当前用户视角**
   - README、API 与 benchmark 文档重新聚焦安装、用法、引擎对比、最佳实践和当前 benchmark 结果
-  - 多引擎 benchmark 总表已恢复，并集中放在 `docs/guide/benchmark.md`
+  - README、benchmark 与最佳实践新增 `session.add_all() + commit()` / `session.bulk_insert()` 的写入路径对比和选型建议
+  - 对外版本统一更新为 `1.2.1`，本次直接在根级 changelog 收口，不新增历史归档文件
 
 ### 测试
 
 - **公开契约同步到 PTK7**
   - 单文件引擎相关测试与用户可见错误口径已调整到当前 PTK7 行为
   - 保持懒加载、持久化完整性与多引擎兼容路径的测试覆盖
+
+- **新增写入路径保护测试**
+  - 覆盖 `add_all()` 去重复杂度、`flush()` 批量插入路径、mixed model classes 分组处理，以及 `add_all() + commit()` 的逐条事件语义
+  - 全量测试 `1114` 项通过

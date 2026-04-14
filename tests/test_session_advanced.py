@@ -8,7 +8,7 @@ Session 高级功能测试
 - 自动提交模式（autocommit）
 """
 
-from typing import Type
+from typing import Any, List, Type
 
 import pytest
 
@@ -354,6 +354,111 @@ class TestIdentityMapAdvanced:
         session.flush()
         assert len(session._identity_map) == 1  # flush 后在 map 中
         assert user.id is not None  # pk 已被设置
+
+        db.close()
+
+
+class TestFlushInsertOptimization:
+    """测试 add_all/flush 优化路径"""
+
+    def test_add_all_avoids_quadratic_membership_checks(self) -> None:
+        """add_all 不应通过 list 线性扫描导致 O(N^2) 比较"""
+        db = Storage(in_memory=True)
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'perf_users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+            comparison_count = 0
+            __hash__ = object.__hash__
+
+            def __eq__(self, other: object) -> bool:
+                type(self).comparison_count += 1
+                return self is other
+
+        session = Session(db)
+        users = [User(name=f'user{i}') for i in range(200)]
+        User.comparison_count = 0
+
+        session.add_all(users)
+
+        assert User.comparison_count < 1000
+        assert len(session._new_objects) == 200
+
+        db.close()
+
+    def test_flush_uses_bulk_insert_for_new_objects(self) -> None:
+        """flush 新对象路径应走 bulk_insert 而不是逐条 insert"""
+        db = Storage(in_memory=True)
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'bulk_flush_users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        session = Session(db)
+        users = [User(name='Alice'), User(name='Bob')]
+
+        bulk_calls: List[tuple[str, int]] = []
+        insert_calls: List[str] = []
+        original_bulk_insert = db.bulk_insert
+        original_insert = db.insert
+
+        def tracked_bulk_insert(table_name: str, records: List[dict]) -> List[Any]:
+            bulk_calls.append((table_name, len(records)))
+            return original_bulk_insert(table_name, records)
+
+        def tracked_insert(table_name: str, data: dict) -> Any:
+            insert_calls.append(table_name)
+            return original_insert(table_name, data)
+
+        db.bulk_insert = tracked_bulk_insert  # type: ignore[assignment]
+        db.insert = tracked_insert  # type: ignore[assignment]
+
+        session.add_all(users)
+        session.commit()
+
+        assert bulk_calls == [('bulk_flush_users', 2)]
+        assert insert_calls == []
+        assert len(session._identity_map) == 2
+        assert all(user.id is not None for user in users)
+
+        db.close()
+
+    def test_flush_groups_bulk_insert_by_model_class(self) -> None:
+        """混合模型的新增对象应按模型类分组批量插入"""
+        db = Storage(in_memory=True)
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'group_users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        class Log(Base):
+            __tablename__ = 'group_logs'
+            id = Column(int, primary_key=True)
+            message = Column(str)
+
+        session = Session(db)
+        bulk_calls: List[tuple[str, int]] = []
+        original_bulk_insert = db.bulk_insert
+
+        def tracked_bulk_insert(table_name: str, records: List[dict]) -> List[Any]:
+            bulk_calls.append((table_name, len(records)))
+            return original_bulk_insert(table_name, records)
+
+        db.bulk_insert = tracked_bulk_insert  # type: ignore[assignment]
+
+        session.add(User(name='Alice'))
+        session.add(Log(message='started'))
+        session.add(User(name='Bob'))
+        session.commit()
+
+        assert bulk_calls == [('group_users', 2), ('group_logs', 1)]
 
         db.close()
 

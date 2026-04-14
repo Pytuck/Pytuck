@@ -4,7 +4,8 @@ Session - 会话管理器
 提供类似 SQLAlchemy 的 Session 模式，统一管理数据库操作。
 """
 
-from typing import Any, Dict, List, Optional, Type, Tuple, Union, Generator, overload
+from collections import OrderedDict
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Type, Union, overload
 from contextlib import contextmanager
 
 from ..common.typing import T
@@ -63,6 +64,7 @@ class Session:
 
         # 对象状态追踪
         self._new_objects: List[PureBaseModel] = []      # 待插入对象
+        self._new_object_ids: Set[int] = set()           # 待插入对象 id，用于 O(1) 去重
         self._dirty_objects: List[PureBaseModel] = []    # 待更新对象
         self._deleted_objects: List[PureBaseModel] = []  # 待删除对象
 
@@ -83,8 +85,10 @@ class Session:
         Args:
             instance: 模型实例
         """
-        if instance not in self._new_objects:
+        instance_id = id(instance)
+        if instance_id not in self._new_object_ids:
             self._new_objects.append(instance)
+            self._new_object_ids.add(instance_id)
 
         if self.autocommit:
             self.commit()
@@ -107,8 +111,10 @@ class Session:
             instance: 模型实例
         """
         # 从新增列表中移除（如果还未持久化）
-        if instance in self._new_objects:
-            self._new_objects.remove(instance)
+        instance_id = id(instance)
+        if instance_id in self._new_object_ids:
+            self._new_objects = [obj for obj in self._new_objects if obj is not instance]
+            self._new_object_ids.discard(instance_id)
         else:
             # 已持久化的对象标记为待删除
             if instance not in self._deleted_objects:
@@ -141,46 +147,83 @@ class Session:
         self._flush_insert_buffer()
 
         # 1. 处理待插入对象
-        for instance in self._new_objects:
-            table_name = instance.__tablename__
-            assert table_name is not None, f"Model {instance.__class__.__name__} must have __tablename__ defined"
+        if self._new_objects:
+            groups: "OrderedDict[Type[PureBaseModel], List[PureBaseModel]]" = OrderedDict()
+            for instance in self._new_objects:
+                model_class = instance.__class__
+                if model_class not in groups:
+                    groups[model_class] = []
+                groups[model_class].append(instance)
 
-            # 触发 before_insert 事件（可在回调中修改实例字段）
-            event.dispatch_model(instance.__class__, 'before_insert', instance)
+            for model_class, instances in groups.items():
+                table_name = model_class.__tablename__
+                assert table_name is not None, f"Model {model_class.__name__} must have __tablename__ defined"
 
-            # 构建要插入的数据（使用 Column.name 作为存储键）
-            data = {}
-            for attr_name, column in instance.__columns__.items():
-                value = getattr(instance, attr_name, None)
-                if value is not None:
-                    # 使用 Column.name 作为存储键
-                    db_col_name = column.name if column.name else attr_name
-                    data[db_col_name] = value
+                records: List[Dict[str, Any]] = []
+                for instance in instances:
+                    # 触发 before_insert 事件（可在回调中修改实例字段）
+                    event.dispatch_model(model_class, 'before_insert', instance)
 
-            # 插入到数据库
-            pk = self.storage.insert(table_name, data)
+                    # 构建要插入的数据（使用 Column.name 作为存储键）
+                    data: Dict[str, Any] = {}
+                    for attr_name, column in instance.__columns__.items():
+                        value = getattr(instance, attr_name, None)
+                        if value is not None:
+                            db_col_name = column.name if column.name else attr_name
+                            data[db_col_name] = value
+                    records.append(data)
 
-            # 设置主键（或隐式 rowid）
-            pk_name = instance.__primary_key__
-            if pk_name:
-                setattr(instance, pk_name, pk)
-            else:
-                # 无主键时，使用隐式 rowid
-                setattr(instance, '_pytuck_rowid', pk)
+                use_bulk_path = not (self.storage.is_native_sql_mode and not model_class.__primary_key__)
+                if use_bulk_path:
+                    pks = self.storage.bulk_insert(table_name, records)
+                    if len(pks) != len(instances):
+                        raise TransactionError(
+                            f"Storage.bulk_insert returned {len(pks)} primary keys for {len(instances)} instances in table '{table_name}'"
+                        )
+                    table = None if self.storage.is_native_sql_mode else self.storage.get_table(table_name)
 
-            # 从数据库重新读取并更新实例（刷新所有字段，类似 SQLAlchemy）
-            db_record = self.storage.select(table_name, pk)
-            for db_col_name, value in db_record.items():
-                if db_col_name != PSEUDO_PK_NAME:
-                    # 将 Column.name 转换回属性名
-                    attr_name = instance._column_to_attr_name(db_col_name) or db_col_name
-                    object.__setattr__(instance, attr_name, value)
+                    pk_name = model_class.__primary_key__
+                    for i, instance in enumerate(instances):
+                        pk = pks[i]
+                        if pk_name:
+                            setattr(instance, pk_name, pk)
+                        else:
+                            setattr(instance, '_pytuck_rowid', pk)
 
-            # 注册到标识映射（使用统一的方法，设置 session 引用）
-            self._register_instance(instance)
+                        if self.storage.is_native_sql_mode:
+                            db_record = self.storage.select(table_name, pk)
+                        else:
+                            assert table is not None
+                            db_record = table.data.get(pk, {})
+                            if not pk_name:
+                                db_record = db_record.copy()
+                                db_record[PSEUDO_PK_NAME] = pk
 
-            # 触发 after_insert 事件（实例已有 pk，已刷新）
-            event.dispatch_model(instance.__class__, 'after_insert', instance)
+                        for db_col_name, value in db_record.items():
+                            if db_col_name != PSEUDO_PK_NAME:
+                                attr_name = instance._column_to_attr_name(db_col_name) or db_col_name
+                                object.__setattr__(instance, attr_name, value)
+
+                        self._register_instance(instance)
+                        event.dispatch_model(model_class, 'after_insert', instance)
+                else:
+                    for instance, data in zip(instances, records):
+                        pk = self.storage.insert(table_name, data)
+
+                        pk_name = instance.__primary_key__
+                        if pk_name:
+                            setattr(instance, pk_name, pk)
+                        else:
+                            setattr(instance, '_pytuck_rowid', pk)
+
+                        db_record = self.storage.select(table_name, pk)
+                        for db_col_name, value in db_record.items():
+                            if db_col_name != PSEUDO_PK_NAME:
+                                attr_name = instance._column_to_attr_name(db_col_name) or db_col_name
+                                object.__setattr__(instance, attr_name, value)
+
+                        self._register_instance(instance)
+                        event.dispatch_model(model_class, 'after_insert', instance)
 
         # 2. 处理待更新对象
         for instance in self._dirty_objects:
@@ -249,6 +292,7 @@ class Session:
 
         # 清空待处理列表
         self._new_objects.clear()
+        self._new_object_ids.clear()
         self._dirty_objects.clear()
         self._deleted_objects.clear()
 
@@ -259,7 +303,7 @@ class Session:
         self.flush()
 
         # 原生 SQL 模式：提交连接器事务
-        if self.storage._native_sql_mode:
+        if self.storage.is_native_sql_mode:
             self.storage._native_sql_commit_transaction()
 
         # 如果启用了 auto_flush，触发持久化
@@ -274,10 +318,11 @@ class Session:
         self._insert_buffer.clear()
 
         # 原生 SQL 模式：回滚连接器事务
-        if self.storage._native_sql_mode:
+        if self.storage.is_native_sql_mode:
             self.storage._native_sql_rollback_transaction()
 
         self._new_objects.clear()
+        self._new_object_ids.clear()
         self._dirty_objects.clear()
         self._deleted_objects.clear()
         self._identity_map.clear()
@@ -334,6 +379,10 @@ class Session:
 
         # 批量插入到 Storage
         pks = self.storage.bulk_insert(table_name, records)
+        if len(pks) != len(instances):
+            raise TransactionError(
+                f"Storage.bulk_insert returned {len(pks)} primary keys for {len(instances)} instances in table '{table_name}'"
+            )
 
         # 设置主键到实例 + 注册到 identity map
         pk_name = model_class.__primary_key__
@@ -453,7 +502,7 @@ class Session:
 
         try:
             # 原生 SQL 模式：直接从数据库查询
-            if self.storage._native_sql_mode:
+            if self.storage.is_native_sql_mode:
                 record = self.storage.select(table_name, pk)
             else:
                 # 内存模式：从 Table.data 获取
@@ -880,7 +929,7 @@ class Session:
         Args:
             instance: 模型实例
         """
-        if instance not in self._dirty_objects and instance not in self._new_objects:
+        if instance not in self._dirty_objects and id(instance) not in self._new_object_ids:
             self._dirty_objects.append(instance)
 
     def merge(self, instance: PureBaseModel) -> PureBaseModel:

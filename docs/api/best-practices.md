@@ -407,16 +407,19 @@ def list_users():
 ### 批量操作
 
 ```python
-# ❌ 逐条插入（慢）
-for i in range(10000):
-    session.add(User(name=f'User_{i}'))
+# ✅ 需要逐条 insert 事件 / 实例状态回写
+users = [User(name=f'User_{i}') for i in range(10000)]
+session.add_all(users)
 session.commit()
 
-# ✅ 批量插入（快）
+# ✅ 追求最高吞吐
 users = [User(name=f'User_{i}') for i in range(10000)]
 session.bulk_insert(users)
 session.commit()
 ```
+
+- `session.add_all() + commit()` 现在已经移除历史 O(N²) 去重瓶颈，适合需要 `before_insert` / `after_insert` 钩子、identity map 注册和逐实例状态回写的批量新增。
+- `session.bulk_insert()` 仍然是最高吞吐路径，但不会触发逐条 insert 事件；更适合纯写入吞吐场景。
 
 ### 关系预取
 
