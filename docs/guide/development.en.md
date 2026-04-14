@@ -71,6 +71,45 @@ uv publish --index testpypi
 
 > `uv publish --index testpypi` requires a configured `[[tool.uv.index]]` entry with both `url` and `publish-url`.
 
+## Release Checklist
+
+Before publishing, run through this short checklist in order:
+
+1. Get the actual release date from the system instead of typing it manually:
+
+   ```bash
+   date '+%Y-%m-%d'
+   ```
+
+2. Confirm the version and changelog layout:
+   - Update the version in `pyproject.toml`
+   - Update `CHANGELOG.md` and `CHANGELOG.EN.md`
+   - If the previous release should be archived out of the root changelog, move it to `docs/changelog/{version}.md`
+
+3. Sync every user-visible document:
+   - `README.md` / `README.EN.md`
+   - `CHANGELOG.md` / `CHANGELOG.EN.md`
+   - If the development guide, benchmark docs, or other public docs changed, update the matching English file as well
+
+4. Run pre-release verification:
+
+   ```bash
+   uv run pytest tests/ -v
+   uv run python examples/session_api_demo.py
+   uv run python examples/active_record_demo.py
+   uv build
+   ```
+
+5. Publish only after verification succeeds:
+
+   ```bash
+   uv publish
+   # Or publish to TestPyPI
+   uv publish --index testpypi
+   ```
+
+> If this release adds new docs, examples, or other user-visible behavior, finish the Chinese and English updates before building and publishing.
+
 ## Related Docs
 
 - [README home](../../README.EN.md)

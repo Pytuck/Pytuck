@@ -71,6 +71,45 @@ uv publish --index testpypi
 
 > `uv publish --index testpypi` 依赖已配置的 `[[tool.uv.index]]` 条目，其中应包含 `url` 和 `publish-url`。
 
+## 发布检查清单
+
+在正式发布前，建议按下面顺序执行：
+
+1. 获取当天实际日期，避免手写错误：
+
+   ```bash
+   date '+%Y-%m-%d'
+   ```
+
+2. 确认版本号与 changelog 组织方式：
+   - 更新 `pyproject.toml` 中的版本号
+   - 更新 `CHANGELOG.md` 与 `CHANGELOG.EN.md`
+   - 如果要把上一版从根级 changelog 归档，放到 `docs/changelog/{version}.md`
+
+3. 同步所有用户可见文档：
+   - `README.md` / `README.EN.md`
+   - `CHANGELOG.md` / `CHANGELOG.EN.md`
+   - 如果开发指南、benchmark 或其他公开文档有变动，也要同步对应英文文件
+
+4. 运行发布前验证：
+
+   ```bash
+   uv run pytest tests/ -v
+   uv run python examples/session_api_demo.py
+   uv run python examples/active_record_demo.py
+   uv build
+   ```
+
+5. 验证通过后再发布：
+
+   ```bash
+   uv publish
+   # 或发布到 TestPyPI
+   uv publish --index testpypi
+   ```
+
+> 如果这次变更涉及新文档、新示例或新的用户可见行为，先补齐中英文内容，再执行构建与发布。
+
 ## 相关文档
 
 - [README 首页](../../README.md)
