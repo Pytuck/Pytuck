@@ -68,7 +68,8 @@ The main comparison table includes:
 ### Pytuck
 
 - As the default single-file engine, `insert` is `864.88ms`, `load` is `126.97ms`, and `reopen` is `131.55ms`, which makes it one of the more balanced pure-Python file engines in this repository.
-- Both primary-key lookup and indexed lookup stay in the millisecond range, which makes it a strong fit when you want full Python type fidelity and zero-dependency single-file storage.
+- Both primary-key lookup and indexed lookup stay in the millisecond range, which makes it a strong fit when you want full Python type fidelity, zero-dependency single-file storage, and a faster open / reopen experience.
+- The current default single-file path mainly targets long-term format stability, a simpler implementation path, and read-path experience; this table should not be read as `Pytuck` leading every benchmark dimension.
 - The trade-off is file size: `9.51MB`, clearly larger than exchange-oriented formats such as `CSV` and `JSONL`.
 
 ### JSON / JSONL / CSV
