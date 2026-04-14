@@ -7,7 +7,8 @@ Pytuck 二进制存储引擎 façade。
 from pathlib import Path
 from typing import Any, Dict, Optional, Set, Tuple, TYPE_CHECKING, Union, cast
 
-from ..common.exceptions import MigrationError
+from ..common.crypto import ENCRYPTION_LEVELS
+from ..common.exceptions import ConfigurationError, MigrationError
 from ..common.options import BackendOptions, BinaryBackendOptions
 from .legacy_ptk5 import (
     BinaryBackend,
@@ -34,12 +35,12 @@ def _binary_backend_init(
     assert isinstance(options, BinaryBackendOptions), "options must be an instance of BinaryBackendOptions"
     _legacy_binary_backend_init(self, file_path, options)
     self.options = cast(BinaryBackendOptions, options)
-    # PTK7 不允许在新写入路径上使用 medium/high 加密等级，主动拒绝以避免产生不可写入的 PTK7 文件。
-    from ..common.exceptions import ConfigurationError
-    if getattr(self.options, 'encryption', None) in {"medium", "high"}:
-        raise ConfigurationError(
-            "当前 Pytuck 单文件引擎仅支持无加密或 low 加密的新写入。"
-        )
+    encryption = getattr(self.options, 'encryption', None)
+    if encryption is not None:
+        if encryption not in ENCRYPTION_LEVELS:
+            raise ConfigurationError(f"无效的加密等级: {encryption}")
+        if not getattr(self.options, 'password', None):
+            raise ConfigurationError("加密需要提供密码")
     self.store = StorePTK7(self.file_path, self.options)
 
     # PTK7 主路径不启用 WAL；保留这些属性仅用于兼容 Storage 的旧检查逻辑。

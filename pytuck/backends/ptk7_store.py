@@ -12,13 +12,23 @@ import struct
 import tempfile
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
-from ..common.exceptions import MigrationError, RecordNotFoundError, SerializationError, TableNotFoundError
+from ..common.crypto import CryptoProvider, ENCRYPTION_LEVELS, CipherType, get_cipher
+from ..common.exceptions import (
+    ConfigurationError,
+    EncryptionError,
+    MigrationError,
+    RecordNotFoundError,
+    SerializationError,
+    TableNotFoundError,
+)
 from ..common.options import BinaryBackendOptions
 from ..core.orm import Column
 from ..core.storage import Table
 from ..core.types import TypeRegistry
 from .legacy_ptk5 import probe_ptk5
 from .ptk7_format import (
+    CRYPTO_META_STRUCT,
+    CryptoMetadataV7,
     FileHeaderV7,
     HEADER_STRUCT,
     MAGIC_V7,
@@ -30,7 +40,7 @@ from .ptk7_format import (
     decode_row,
     encode_row,
 )
-from .ptk7_index import encode_sorted_pairs, decode_sorted_pairs
+from .ptk7_index import decode_sorted_pairs, encode_sorted_pairs
 from ..core.index import BaseIndex, HashIndex, SortedIndex
 
 
@@ -134,7 +144,6 @@ class _LazyHashIndex(HashIndex):
         return HashIndex.__len__(self)
 
 
-
 RECORD_LENGTH_STRUCT = struct.Struct("<I")
 
 
@@ -162,6 +171,8 @@ class StorePTK7:
         self.file_path: Path = Path(file_path).expanduser()
         self.options: BinaryBackendOptions = options or BinaryBackendOptions()
         self._tables: Dict[str, TableState] = {}
+        self._cipher: Optional[CipherType] = None
+        self._payload_offset: int = 0
         if self.file_path.exists():
             self.open()
 
@@ -174,6 +185,8 @@ class StorePTK7:
         except FileNotFoundError:
             pass
         self._tables = {}
+        self._cipher = None
+        self._payload_offset = 0
 
     def create_table(
         self,
@@ -221,6 +234,27 @@ class StorePTK7:
             )
 
         header = self._read_header()
+        self._cipher = None
+        self._payload_offset = 0
+
+        if header.is_encrypted():
+            if not self.options.password:
+                raise EncryptionError("文件已加密，需要提供密码")
+            if header.schema_offset < HEADER_STRUCT.size + CRYPTO_META_STRUCT.size:
+                raise SerializationError("PTK7 encrypted metadata is incomplete")
+
+            encryption_level = header.get_encryption_level()
+            if not encryption_level:
+                raise EncryptionError("无法识别加密等级")
+
+            metadata_blob = self._read_region(HEADER_STRUCT.size, CRYPTO_META_STRUCT.size)
+            metadata = CryptoMetadataV7.unpack(metadata_blob)
+            key = CryptoProvider.derive_key(self.options.password, metadata.salt, encryption_level)
+            if not CryptoProvider.verify_key(key, metadata.key_check):
+                raise EncryptionError("密码错误")
+            self._cipher = get_cipher(encryption_level, key)
+            self._payload_offset = header.table_ref_offset + header.table_ref_size
+
         schema_blob = self._read_region(header.schema_offset, header.schema_size)
         schema_doc = _decode_schema_document(schema_blob)
         ref_blob = self._read_region(header.table_ref_offset, header.table_ref_size)
@@ -247,31 +281,26 @@ class StorePTK7:
             table._backend = self
             table._pk_offsets = {pk: offset for pk, (offset, _length) in pk_index.items()}
 
-            # restore indexes if present
             if ref.index_meta_size and ref.index_data_size:
-                meta_blob = self._read_region(ref.index_meta_offset, ref.index_meta_size)
-                data_blob = self._read_region(ref.index_data_offset, ref.index_data_size)
+                meta_blob = self._read_payload_region(ref.index_meta_offset, ref.index_meta_size)
+                data_blob = self._read_payload_region(ref.index_data_offset, ref.index_data_size)
                 try:
-                    meta = json.loads(meta_blob.decode('utf-8'))
-                except Exception:
-                    raise SerializationError('Invalid PTK7 index meta')
+                    meta = json.loads(meta_blob.decode("utf-8"))
+                except Exception as exc:
+                    raise SerializationError("Invalid PTK7 index meta") from exc
                 for entry in meta:
-                    col = entry.get('column')
-                    itype = entry.get('type')
-                    off = int(entry.get('offset', 0))
-                    size = int(entry.get('size', 0))
+                    col = entry.get("column")
+                    itype = entry.get("type")
+                    off = int(entry.get("offset", 0))
+                    size = int(entry.get("size", 0))
                     if size == 0:
                         continue
                     blob = data_blob[off: off + size]
-                    # decode pairs
                     column = table.columns.get(col)
                     if column is None:
                         continue
-                    # 延迟解码：创建 LazyIndex 占位符，实际解码在首次访问时进行
-                    # blob 已经截取为对应索引的数据段
-                    # instantiate lazy placeholder of correct subclass so isinstance checks work
                     lazy: BaseIndex
-                    if itype == 'sorted':
+                    if itype == "sorted":
                         lazy = _LazySortedIndex(col, blob, column, table)
                     else:
                         lazy = _LazyHashIndex(col, blob, column, table)
@@ -307,15 +336,14 @@ class StorePTK7:
         columns: Dict[str, Column],
         pk: Any = None,
     ) -> Dict[str, Any]:
-        with open(file_path, "rb") as handle:
-            handle.seek(offset)
-            length_data = handle.read(RECORD_LENGTH_STRUCT.size)
-            if len(length_data) < RECORD_LENGTH_STRUCT.size:
-                raise SerializationError("PTK7 record length prefix is incomplete")
-            payload_length = RECORD_LENGTH_STRUCT.unpack(length_data)[0]
-            payload = handle.read(payload_length)
-            if len(payload) < payload_length:
-                raise SerializationError("PTK7 record payload is incomplete")
+        del file_path
+        length_data = self._read_payload_region(offset, RECORD_LENGTH_STRUCT.size)
+        if len(length_data) < RECORD_LENGTH_STRUCT.size:
+            raise SerializationError("PTK7 record length prefix is incomplete")
+        payload_length = RECORD_LENGTH_STRUCT.unpack(length_data)[0]
+        payload = self._read_payload_region(offset + RECORD_LENGTH_STRUCT.size, payload_length)
+        if len(payload) < payload_length:
+            raise SerializationError("PTK7 record payload is incomplete")
 
         ordered_columns = list(columns.values())
         pk_name = _find_primary_key(ordered_columns)
@@ -327,13 +355,30 @@ class StorePTK7:
     def flush(self, *, changed_tables: Optional[Set[str]] = None) -> None:
         del changed_tables
 
+        encryption_level = self.options.encryption
+        cipher: Optional[CipherType] = None
+        crypto_metadata: Optional[CryptoMetadataV7] = None
+        metadata_size = 0
+        if encryption_level is not None:
+            if encryption_level not in ENCRYPTION_LEVELS:
+                raise ConfigurationError(f"无效的加密等级: {encryption_level}")
+            if not self.options.password:
+                raise ConfigurationError("加密需要提供密码")
+            salt = os.urandom(16)
+            key = CryptoProvider.derive_key(self.options.password, salt, encryption_level)
+            key_check = CryptoProvider.compute_key_check(key)
+            cipher = get_cipher(encryption_level, key)
+            crypto_metadata = CryptoMetadataV7(salt=salt, key_check=key_check)
+            metadata_size = CRYPTO_META_STRUCT.size
+
         schema_bytes = _encode_schema_document(list(self._tables.values()))
         table_layouts = [_build_table_layout(state) for state in self._tables.values()]
 
-        table_ref_offset = HEADER_STRUCT.size + len(schema_bytes)
         table_ref_size = sum(layout.ref_size for layout in table_layouts)
+        schema_offset = HEADER_STRUCT.size + metadata_size
+        table_ref_offset = schema_offset + len(schema_bytes)
+        payload_offset = table_ref_offset + table_ref_size
 
-        # Precompute index meta/data blobs per table (depends only on table.indexes and columns)
         index_meta_blobs: List[bytes] = []
         index_data_blobs: List[bytes] = []
         for state in self._tables.values():
@@ -344,27 +389,23 @@ class StorePTK7:
                 pairs = []
                 if isinstance(index, (_LazyHashIndex, _LazySortedIndex)):
                     index._materialize()
-                # 使用 isinstance 判断索引类型以获得更稳健的类型信息
                 if isinstance(index, HashIndex):
-                    # HashIndex: map -> value -> set(pk)
-                    map_obj = getattr(index, 'map', {})
+                    map_obj = getattr(index, "map", {})
                     for value, pk_set in map_obj.items():
                         for pk in pk_set:
                             pairs.append((value, pk))
-                    index_type = 'hash'
+                    index_type = "hash"
                 elif isinstance(index, SortedIndex):
-                    # SortedIndex: sorted_values and value_to_pks
-                    for value in getattr(index, 'sorted_values', []):
-                        pks = getattr(index, 'value_to_pks', {}).get(value, set())
+                    for value in getattr(index, "sorted_values", []):
+                        pks = getattr(index, "value_to_pks", {}).get(value, set())
                         for pk in pks:
                             pairs.append((value, pk))
-                    index_type = 'sorted'
+                    index_type = "sorted"
                 else:
-                    # 未知类型：尝试按通用结构读取
-                    for value, pk_set in getattr(index, 'map', {}).items():
+                    for value, pk_set in getattr(index, "map", {}).items():
                         for pk in pk_set:
                             pairs.append((value, pk))
-                    index_type = 'hash'
+                    index_type = "hash"
 
                 if not pairs:
                     continue
@@ -375,35 +416,35 @@ class StorePTK7:
                 offset = len(data_buf)
                 data_buf.extend(encoded)
                 size = len(encoded)
-                meta_entries.append({
-                    'column': col_name,
-                    'type': index_type,
-                    'offset': offset,
-                    'size': size,
-                })
-            meta_bytes = json.dumps(meta_entries, ensure_ascii=False).encode('utf-8')
+                meta_entries.append(
+                    {
+                        "column": col_name,
+                        "type": index_type,
+                        "offset": offset,
+                        "size": size,
+                    }
+                )
+            meta_bytes = json.dumps(meta_entries, ensure_ascii=False).encode("utf-8")
             index_meta_blobs.append(meta_bytes)
             index_data_blobs.append(bytes(data_buf))
 
-        # Now compute offsets and build TableBlockRef entries
-        cursor = table_ref_offset + table_ref_size
+        payload_buffer = bytearray()
         resolved_refs: List[TableBlockRef] = []
-        resolved_pk_dirs: List[bytes] = []
         for layout, meta_blob, data_blob in zip(table_layouts, index_meta_blobs, index_data_blobs):
-            data_offset = cursor
-            cursor += len(layout.data_bytes)
+            data_offset = payload_offset + len(payload_buffer)
+            payload_buffer.extend(layout.data_bytes)
 
-            pk_dir_offset = cursor
+            pk_dir_offset = payload_offset + len(payload_buffer)
             pk_dir_bytes = _encode_pk_dir(layout.records, data_offset)
-            cursor += len(pk_dir_bytes)
+            payload_buffer.extend(pk_dir_bytes)
 
-            index_meta_offset = cursor
+            index_meta_offset = payload_offset + len(payload_buffer)
             index_meta_size = len(meta_blob)
-            cursor += index_meta_size
+            payload_buffer.extend(meta_blob)
 
-            index_data_offset = cursor
+            index_data_offset = payload_offset + len(payload_buffer)
             index_data_size = len(data_blob)
-            cursor += index_data_size
+            payload_buffer.extend(data_blob)
 
             ref = TableBlockRef(
                 name=layout.table_name,
@@ -419,17 +460,22 @@ class StorePTK7:
                 index_data_size=index_data_size,
             )
             resolved_refs.append(ref)
-            resolved_pk_dirs.append(pk_dir_bytes)
 
         table_ref_bytes = b"".join(ref.pack() for ref in resolved_refs)
+        payload_bytes = bytes(payload_buffer)
+        if cipher is not None:
+            payload_bytes = cipher.encrypt(payload_bytes)
+
         header = FileHeaderV7(
             table_count=len(resolved_refs),
-            schema_offset=HEADER_STRUCT.size,
+            schema_offset=schema_offset,
             schema_size=len(schema_bytes),
             table_ref_offset=table_ref_offset,
             table_ref_size=len(table_ref_bytes),
-            file_size=cursor,
+            file_size=payload_offset + len(payload_bytes),
         )
+        if encryption_level is not None:
+            header = header.set_encryption(encryption_level)
 
         fd, temp_path_str = tempfile.mkstemp(
             dir=str(self.file_path.parent),
@@ -440,17 +486,14 @@ class StorePTK7:
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(header.pack())
+                if crypto_metadata is not None:
+                    handle.write(crypto_metadata.pack())
                 handle.write(schema_bytes)
                 handle.write(table_ref_bytes)
-                for layout, pk_dir_bytes, meta_blob, data_blob in zip(table_layouts, resolved_pk_dirs, index_meta_blobs, index_data_blobs):
-                    handle.write(layout.data_bytes)
-                    handle.write(pk_dir_bytes)
-                    handle.write(meta_blob)
-                    handle.write(data_blob)
+                handle.write(payload_bytes)
             temp_path.replace(self.file_path)
-            # Do not call self.open() here — opening the file (and decoding indexes) should be
-            # deferred until the Storage/consumer requests it. Re-opening here doubles reopen cost.
-            # The backend file has been atomically replaced; leave in-memory structures as-is.
+            self._cipher = cipher
+            self._payload_offset = payload_offset if cipher is not None else 0
         except Exception:
             try:
                 temp_path.unlink()
@@ -473,10 +516,20 @@ class StorePTK7:
             )
         return data
 
+    def _read_payload_region(self, offset: int, size: int) -> bytes:
+        if size == 0:
+            return b""
+        data = self._read_region(offset, size)
+        if self._cipher is None:
+            return data
+        if offset < self._payload_offset:
+            raise SerializationError("PTK7 encrypted payload offset is invalid")
+        return self._cipher.decrypt_at(offset - self._payload_offset, data)
+
     def _read_pk_index(self, ref: TableBlockRef) -> Dict[Any, Tuple[int, int]]:
         if ref.pk_dir_size == 0:
             return {}
-        blob = self._read_region(ref.pk_dir_offset, ref.pk_dir_size)
+        blob = self._read_payload_region(ref.pk_dir_offset, ref.pk_dir_size)
         if len(blob) % PK_DIR_INT_STRUCT.size != 0:
             raise SerializationError("PTK7 pk directory size is invalid")
 
@@ -493,9 +546,7 @@ class StorePTK7:
         if payload_length < 0:
             raise SerializationError("PTK7 record length is invalid")
 
-        with open(self.file_path, "rb") as handle:
-            handle.seek(offset)
-            raw = handle.read(length)
+        raw = self._read_payload_region(offset, length)
         if len(raw) < length:
             raise SerializationError("PTK7 record entry is incomplete")
 

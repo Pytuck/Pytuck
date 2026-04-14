@@ -4,10 +4,11 @@ from __future__ import annotations
 PTK7 二进制格式低层原语。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import struct
 from typing import Any, Dict, List, Optional
 
+from ..common.crypto import get_encryption_level_code, get_encryption_level_name
 from ..common.exceptions import SerializationError
 from ..core.orm import Column
 from ..core.types import TypeRegistry
@@ -15,6 +16,7 @@ from ..core.types import TypeRegistry
 
 MAGIC_V7 = b"PTK7"
 HEADER_STRUCT = struct.Struct("<4sHHIQQQQQQI")
+CRYPTO_META_STRUCT = struct.Struct("<16s4s")
 TABLE_REF_PREFIX_STRUCT = struct.Struct("<H")
 TABLE_REF_BODY_STRUCT = struct.Struct("<QQQQQQQQQQ")
 PK_DIR_INT_STRUCT = struct.Struct("<qQI")
@@ -22,7 +24,32 @@ NULL_BITMAP_STRUCT = struct.Struct("<I")
 
 
 @dataclass(frozen=True)
+class CryptoMetadataV7:
+    salt: bytes = b"\x00" * 16
+    key_check: bytes = b"\x00" * 4
+
+    def pack(self) -> bytes:
+        return CRYPTO_META_STRUCT.pack(
+            self.salt[:16].ljust(16, b"\x00"),
+            self.key_check[:4].ljust(4, b"\x00"),
+        )
+
+    @classmethod
+    def unpack(cls, data: bytes) -> "CryptoMetadataV7":
+        if len(data) < CRYPTO_META_STRUCT.size:
+            raise SerializationError(
+                f"Not enough data to decode CryptoMetadataV7 (need {CRYPTO_META_STRUCT.size}, got {len(data)})"
+            )
+        salt, key_check = CRYPTO_META_STRUCT.unpack(data[: CRYPTO_META_STRUCT.size])
+        return cls(salt=salt, key_check=key_check)
+
+
+@dataclass(frozen=True)
 class FileHeaderV7:
+    FLAG_ENCRYPTION_ENABLED = 0x02
+    FLAG_ENCRYPTION_LEVEL_MASK = 0x0C
+    FLAG_ENCRYPTION_LEVEL_SHIFT = 2
+
     magic: bytes = MAGIC_V7
     version: int = 7
     flags: int = 0
@@ -49,6 +76,23 @@ class FileHeaderV7:
             self.checksum,
             self.reserved,
         )
+
+    def is_encrypted(self) -> bool:
+        return (self.flags & self.FLAG_ENCRYPTION_ENABLED) != 0
+
+    def get_encryption_level(self) -> Optional[str]:
+        if not self.is_encrypted():
+            return None
+        level_code = (self.flags & self.FLAG_ENCRYPTION_LEVEL_MASK) >> self.FLAG_ENCRYPTION_LEVEL_SHIFT
+        return get_encryption_level_name(level_code)
+
+    def set_encryption(self, level: str) -> "FileHeaderV7":
+        level_code = get_encryption_level_code(level)
+        if level_code == 0:
+            raise SerializationError(f"Invalid PTK7 encryption level: {level}")
+        flags = self.flags | self.FLAG_ENCRYPTION_ENABLED
+        flags = (flags & ~self.FLAG_ENCRYPTION_LEVEL_MASK) | (level_code << self.FLAG_ENCRYPTION_LEVEL_SHIFT)
+        return replace(self, flags=flags)
 
     @classmethod
     def unpack(cls, data: bytes) -> "FileHeaderV7":
@@ -183,7 +227,9 @@ def decode_row(columns: List[Column], payload: bytes, pk_name: Optional[str] = N
 __all__ = [
     "MAGIC_V7",
     "HEADER_STRUCT",
+    "CRYPTO_META_STRUCT",
     "PK_DIR_INT_STRUCT",
+    "CryptoMetadataV7",
     "FileHeaderV7",
     "TableBlockRef",
     "PkDirEntry",
