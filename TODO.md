@@ -1,151 +1,41 @@
-# Pytuck 开发待办清单
+# Pytuck — 开发待办（可执行清单）
 
-本文件记录 Pytuck 项目的详细开发计划，供开发者参考。
+简短说明：本清单聚焦近期可交付项（发布前）与中期可验证改进，条目以产出/验收标准表述。
 
-> 版本发布记录请查看：[CHANGELOG.md](./CHANGELOG.md) | [历史版本](./docs/changelog/)
+优先级
+- 高：1.2.0 发布收尾与验证
+- 中：兼容性与性能改进
+- 低：生态协调与长期议题
 
----
+近期（发布前，可交付）
+- [ ] 完成 1.2.0 发布收尾：
+  - 输出：更新后的 CHANGELOG.md（含当前日期）、README.md、README.EN.md、示例脚本、pyproject.toml 的打包元数据
+  - 验收：本地构建通过（uv run python -m build 或等效），README 与 CHANGELOG 在中文/英文内容一致。
+- [ ] 运行并修复全量测试：
+  - 输出：所有 pytest tests/ 用例通过（在 uv 环境下运行）
+  - 验收：CI/本地测试运行无失败；记录修复的测试用例列表。
+- [ ] 精简并验证示例：
+  - 输出：examples/ 中至少两个示例脚本展示推荐用法（declarative_base + Session，crud=True）并能在 uv 下运行
+  - 验收：示例脚本在示例目录下执行成功。
 
-## 已完成
+中期（可验证改进）
+- [ ] 明确并文档化持久化语义：更新 docs 中对应段落，示例展示 flush()/close() 行为与 auto_flush=True 的差异。
+  - 验收：文档和示例能说明何时需要调用 flush()/close()，并添加一条测试或示例验证磁盘写入。
+- [ ] 性能回归修正（读写路径）：
+  - 输出：列出 1-3 个主要回归点并实现修复（例如：索引加载、增量写入、懒加载改进）
+  - 验收：基准脚本显示改进或未退化（提供基准结果对比）。
+- [ ] 保留并清理兼容代码：保留 tools/migrate.py，删除可安全移除的历史分支代码并在变更时更新 CHANGELOG 记录。
 
-- [x] 核心 ORM 和内存存储
-- [x] 插件化多引擎持久化（Pytuck、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
-- [x] Pytuck 单文件引擎正式更名与格式切换（`binary` → `pytuck`、`.db` → `.pytuck`、仅支持 PTK5）
-- [x] DuckDB 原生后端（多 schema、原生 SQL、原生注释、服务端分页）
-- [x] JSONL 文件后端（ZIP 容器、每表 `.jsonl`、统一 `_metadata.json`）
-- [x] SQLAlchemy 2.0 风格 API（select、insert、update、delete）
-- [x] 基础事务支持
-- [x] Identity Map（对象唯一性管理）
-- [x] 自动脏跟踪（Dirty Tracking）
-- [x] merge() 操作
-- [x] 统一数据库连接器架构（pytuck/connectors/）
-- [x] 数据迁移工具（migrate_engine、import_from_database）
-- [x] 统一引擎版本管理（pytuck/backends/versions.py）
-- [x] 表和列备注支持（comment 参数）
-- [x] 泛型类型提示系统
-- [x] 强类型配置选项系统（dataclass 替代 **kwargs）
-- [x] Schema 同步与迁移功能（SyncOptions、SyncResult、三层 API）
-- [x] Excel 行号映射功能（row_number_mapping）
-- [x] SQLite 原生 SQL 模式优化
-- [x] 异常系统重构（统一异常层次结构）
-- [x] 后端自动注册机制（__init_subclass__）
-- [x] 查询结果 API 简化（移除 scalars() 中间层）
-- [x] 迁移工具延迟加载后端支持
-- [x] 无主键模型支持（使用内部隐式 `_pytuck_rowid`）
-- [x] 逻辑组合查询 OR/AND/NOT（`or_()`, `and_()`, `not_()`）
-- [x] 外部文件加载功能 load_table（CSV/Excel → 模型对象列表）
-- [x] ORM 事件钩子（Model 级 + Storage 级事件回调）
-- [x] 关系预取 API（prefetch，批量加载关联数据解决 N+1 问题）
-- [x] 查询索引优化（SortedIndex 范围查询加速 + order_by 索引排序 + Column 索引类型指定）
-- [x] 批量操作优化（`bulk_insert` / `bulk_update`，批量主键分配 + 批量索引更新 + 批量事件）
+生态与长期（方向性、非发布必需）
+- [ ] 与 pytucky 对齐基准与实验方法：输出一份对比表和 1 个对齐后的基准脚本。
+- [ ] 保持 examples/ 中可运行示例，移除重复或失效的示例文件。
 
----
+文档 / 发行流程
+- [ ] 将发布流程写成短检查表并加入 docs/release.md：包含获取日期的命令、CHANGELOG 归档步骤、发布前的测试项。
+- [ ] 在发布流程中明确必须同步中文/英文文档的步骤。
 
-## 近期计划
+保留项（审阅/非即时执行）
+- [ ] 回顾并裁剪长期未使用的后端适配器（在进行破坏性删除前列出影响范围与迁移方案）。
+- [ ] 评估将非核心功能提取到独立仓库的可行性，输出建议文档。
 
-- [x] **Pytuck 单文件引擎按需查询优化**
-  - 以 PTK5 / `.pytuck` 作为稳定格式继续演进，不再维护 v4 兼容分支
-  - 在现有懒加载基础上继续强化按需查询 / 非全量加载能力
-  - 优先保证数据准确与安全，其次性能，最后才是体积
-  - 持续评估 data / index / WAL 的体积优化空间
-- [x] **jsonl 文件读写性能优化**：参考 CSV 引擎增量保存方案，未变更表直接从旧 ZIP 复制压缩字节
-- [x] **duckdb 引擎优化**：Session 插入缓冲 + COPY FROM CSV 快速批量插入 + 事务包裹，100k 插入从 277s 降至 1.5s
-- [x] **readme文档拆分**：README 首页现在聚焦项目定位、安装与最小上手示例，详细说明已拆分到 `docs/api/` 与 `docs/guide/`，兼顾首页入口与可维护性
-
----
-
-## 中期计划
-
-- [ ] **Pytuck 单格式精简库**
-  - 复用同一 PTK5 / `.pytuck` 文件格式
-  - 保留与 Pytuck ORM 兼容的核心 API 面
-  - 舍弃多引擎、tools 等无关代码
-  - 目标是尽量只改 import 即可切换
-
-- [x] **to_dict() 增强**
-  - 支持 `include` / `exclude` 字段筛选
-  - 支持控制关联数据的序列化深度（`depth=1` 只展开一层 relationship）
-  - 对接 JSON 序列化的常见需求（`to_json()` 方法）
-
-- [x] **Column 级数据校验器（validator）**
-  - 比 `strict` 模式更灵活：自定义校验函数、值范围约束
-  - API：`Column(str, validator=lambda x: len(x) <= 100)`
-  - 支持单个函数或函数列表，在类型转换后执行校验
-
-- [x] **模型继承支持**
-  - 允许模型类继承以复用列定义（当前每个模型必须独立定义所有列）
-  - 应用场景：基类定义 `created_at` / `updated_at` 等公共字段，子类继承复用
-
-- [x] **非 Pytuck 后端增量保存**
-  - Table 级别脏标记（`_data_dirty`、`_schema_dirty`）
-  - Storage.flush() 传递 `changed_tables` 给后端
-  - CSV 后端增量 ZIP 写入：未变更表直接从旧 ZIP 复制，仅重写变更表
-  - 其他后端签名已扩展，行为不变（全量写入）
-
-- [x] **Pytuck 加密懒加载兼容**
-  - 三种 cipher（XOR/LCG/ChaCha20）均新增 `decrypt_at()` 方法，支持随机位置解密
-  - 加密文件现在支持懒加载：加载时仅解密索引区获取 pk_offsets，读取记录时按需解密
-  - 文件格式和写入流程完全不变，纯读路径优化
-
-- [x] **临时文件安全改进**
-  - 使用 `tempfile.mkstemp` 替代手动构造临时文件路径
-  - 临时文件创建在目标文件同目录下，确保原子 `replace()` 在同一文件系统
-  - 移除不必要的 `unlink()` + `replace()` 模式，直接用 `replace()` 原子替换
-
----
-
-## 计划增加的引擎
-
-（暂无。当前文件后端矩阵已包含 Pytuck、JSON、JSONL、CSV、SQLite、DuckDB、Excel、XML）
-
----
-
-## 远期 / 可选
-
-- [ ] **复合主键支持**（视用户需求，当前显式禁止多主键）
-- [ ] **查询结果缓存**（可选的缓存机制，减少重复查询开销）
-- [ ] **Pytuck-CLI** - 命令行工具（数据库管理、导入导出、Schema 迁移）
-- [ ] **FastAPI 集成示例/插件**
-- [ ] **Pandas DataFrame 互操作**
-- [ ] **异步 API 支持**（基于 asyncio 的异步查询和事务）
-- [ ] **SQLite/DuckDB 支持同时读写**：允许多个进程同时读写同一个数据库文件，避免锁冲突。
-  + 示例场景：嵌入式程序正在运行，使用pytuck读写数据，另外的进程使用pytuck来对该数据库提供对外的数据读写服务，此时该服务的读写不能影响程序正常读写
-
----
-
-## 技术债务
-
-- [x] 完善单元测试覆盖率（特别是 WAL、lazy load、索引、关联关系场景）
-- [x] 基准测试自动化（CI 集成，检测性能回归）
-- [x] API 参考文档生成
-- [x] 最佳实践指南（持久化策略选择、引擎对比建议）
-
----
-
-## 生态系统
-
-- [x] **Pytuck-view** - Web 数据浏览器（[GitHub](https://github.com/pytuck/pytuck-view) | [Gitee](https://gitee.com/pytuck/pytuck-view) | `pip install pytuck-view`）
-- [ ] pytuck only（名称未定）：将本库中`pytuck`引擎单独拆分，提供更有针对性的轻量级的数据库功能
-  + 和本库使用同一个格式的`pytuck v5+`引擎
-  + 免去众多选择，仅支持 `pytuck` 引擎，专为针对受限Python环境使用；只保留核心功能，不再需要tools等无关模块
-  + 优化 `pytuck` 引擎的使用，就像sqlite那样高性能读写，不再每次全量加载到内存、全量保存
-  + 对于基本的orm使用，最好能达到仅仅更改 import 语句就能从`pytuck`库切换到新库（比如readme中的`基础使用`章节）
-
----
-
-## 不做的事（设计决策）
-
-以下功能经过评估，不纳入 Pytuck 核心开发计划：
-
-| 功能 | 理由 |
-|------|------|
-| **JOIN（多表关联查询）** | 已有 Relationship 实现关联查询（延迟加载+缓存），文档数据库不需要 SQL JOIN |
-| **聚合函数（COUNT/SUM/AVG 等）** | Pytuck 定位是数据读写，不做计算引擎。用户可用 Python 原生 `len()` / `sum()` / `min()` / `max()` 处理查询结果 |
-| **TinyDB / PyDbLite3 / diskcache 引擎** | 与 Pytuck 功能高度重叠或偏离核心定位 |
-| **Django ORM 兼容层** | 维护成本高，需求不明确 |
-| **SQLite 连接池** | Pytuck 定位嵌入式单进程，连接池意义不大 |
-| **跨进程文件锁 / 并发访问** | 定位单进程嵌入式数据库，受限环境（如 Ren'Py）无法使用平台特定 API |
-
----
-
-**注意**：此文档为开发者内部使用，功能优先级可能根据实际情况调整。
+说明：条目以“输出 + 验收”格式表述，便于分配与验证。

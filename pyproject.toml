@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pytuck"
-version = "1.1.0"
+version = "1.2.0"
 description = "Lightweight Python document database - No SQL, multi-engine, pluggable persistence"
 readme = "README.md"
 license = {text = "MIT"}
@@ -73,7 +73,7 @@ Homepage = "https://github.com/Pytuck/Pytuck"
 Documentation = "https://github.com/Pytuck/Pytuck#readme"
 Repository = "https://github.com/Pytuck/Pytuck.git"
 Issues = "https://github.com/Pytuck/Pytuck/issues"
-Changelog = "https://github.com/Pytuck/Pytuck/blob/master/CHANGELOG.md"
+Changelog = "https://github.com/Pytuck/Pytuck/blob/main/CHANGELOG.md"
 
 [tool.setuptools]
 packages = [
