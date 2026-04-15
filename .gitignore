@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .vscode/
+.worktrees/
 .DS_Store
 tmp
 docs/superpowers/
