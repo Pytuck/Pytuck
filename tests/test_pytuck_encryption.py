@@ -2,7 +2,7 @@
 Pytuck 单文件引擎加密测试
 
 覆盖：
-- PTK7 的 none/low/medium/high 写入与读取
+- Pytuck 单文件格式的 none/low/medium/high 写入与读取
 - 加密模式不会把记录明文直接写入文件
 - probe() 对当前单文件格式的识别
 - 错误密码 / 缺少密码时的打开失败
@@ -14,12 +14,12 @@ from typing import Optional
 import pytest
 
 from pytuck import Column, Storage
-from pytuck.backends.backend_binary import BinaryBackend
+from pytuck.backends.backend_pytuck import PytuckBackend
 from pytuck.common.exceptions import EncryptionError
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 
-_SECRET_NAME = "Alice-PTK7-Secret"
+_SECRET_NAME = "Alice-Pytuck-Secret"
 
 
 @pytest.mark.parametrize(
@@ -31,7 +31,7 @@ _SECRET_NAME = "Alice-PTK7-Secret"
         ("high", "secret123", "high_roundtrip.pytuck", False),
     ],
 )
-def test_ptk7_roundtrip_with_supported_encryption_modes(
+def test_pytuck_roundtrip_with_supported_encryption_modes(
     tmp_path: Path,
     encryption: Optional[str],
     password: Optional[str],
@@ -42,7 +42,7 @@ def test_ptk7_roundtrip_with_supported_encryption_modes(
     db = Storage(
         file_path=str(db_path),
         engine="pytuck",
-        backend_options=BinaryBackendOptions(
+        backend_options=PytuckBackendOptions(
             encryption=encryption,
             password=password,
         ),
@@ -64,12 +64,12 @@ def test_ptk7_roundtrip_with_supported_encryption_modes(
     else:
         assert _SECRET_NAME.encode("utf-8") not in raw_bytes
 
-    matched, info = BinaryBackend.probe(db_path)
+    matched, info = PytuckBackend.probe(db_path)
     assert matched is True
     assert info is not None
     assert info["format_version"] == "PTK7"
 
-    reopen_options = BinaryBackendOptions(password=password) if encryption else BinaryBackendOptions()
+    reopen_options = PytuckBackendOptions(password=password) if encryption else PytuckBackendOptions()
     reopened = Storage(
         file_path=str(db_path),
         engine="pytuck",
@@ -80,7 +80,7 @@ def test_ptk7_roundtrip_with_supported_encryption_modes(
 
 
 @pytest.mark.parametrize("encryption", ["low", "medium", "high"])
-def test_ptk7_encrypted_file_requires_password_on_reopen(
+def test_pytuck_encrypted_file_requires_password_on_reopen(
     tmp_path: Path,
     encryption: str,
 ) -> None:
@@ -88,7 +88,7 @@ def test_ptk7_encrypted_file_requires_password_on_reopen(
     db = Storage(
         file_path=str(db_path),
         engine="pytuck",
-        backend_options=BinaryBackendOptions(
+        backend_options=PytuckBackendOptions(
             encryption=encryption,
             password="secret123",
         ),
@@ -108,12 +108,12 @@ def test_ptk7_encrypted_file_requires_password_on_reopen(
         Storage(
             file_path=str(db_path),
             engine="pytuck",
-            backend_options=BinaryBackendOptions(),
+            backend_options=PytuckBackendOptions(),
         )
 
 
 @pytest.mark.parametrize("encryption", ["low", "medium", "high"])
-def test_ptk7_encrypted_file_rejects_wrong_password(
+def test_pytuck_encrypted_file_rejects_wrong_password(
     tmp_path: Path,
     encryption: str,
 ) -> None:
@@ -121,7 +121,7 @@ def test_ptk7_encrypted_file_rejects_wrong_password(
     db = Storage(
         file_path=str(db_path),
         engine="pytuck",
-        backend_options=BinaryBackendOptions(
+        backend_options=PytuckBackendOptions(
             encryption=encryption,
             password="secret123",
         ),
@@ -141,5 +141,5 @@ def test_ptk7_encrypted_file_rejects_wrong_password(
         Storage(
             file_path=str(db_path),
             engine="pytuck",
-            backend_options=BinaryBackendOptions(password="wrong-password"),
+            backend_options=PytuckBackendOptions(password="wrong-password"),
         )

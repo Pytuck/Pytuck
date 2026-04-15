@@ -1,7 +1,7 @@
 """
 懒加载测试
 
-覆盖 pytuck/backends/backend_binary.py 的懒加载功能：
+覆盖 pytuck/backends/backend_pytuck.py 的懒加载功能：
 - 启用懒加载后表标记为 _lazy_loaded
 - 懒加载模式下按主键查询单条记录
 - 索引字段在懒加载下工作
@@ -17,8 +17,8 @@ import pytest
 
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, insert, select
-from pytuck.common.options import BinaryBackendOptions
-from pytuck.backends.backend_binary import BinaryBackend
+from pytuck.common.options import PytuckBackendOptions
+from pytuck.backends.backend_pytuck import PytuckBackend
 
 
 # ---------- 懒加载基础测试 ----------
@@ -33,7 +33,7 @@ class TestLazyLoadBasic:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions()
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -57,7 +57,7 @@ class TestLazyLoadBasic:
         """启用懒加载后 table._lazy_loaded=True"""
         db_path = self._create_and_populate(temp_dir)
 
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
 
         assert 'users' in tables
@@ -73,7 +73,7 @@ class TestLazyLoadBasic:
         """懒加载模式下按主键查询单条记录"""
         db_path = self._create_and_populate(temp_dir)
 
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
         table = tables['users']
 
@@ -92,7 +92,7 @@ class TestLazyLoadBasic:
 
         db_path = self._create_and_populate(temp_dir)
 
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
         table = tables['users']
 
@@ -105,7 +105,7 @@ class TestLazyLoadBasic:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions()
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -123,7 +123,7 @@ class TestLazyLoadBasic:
         db.close()
 
         # 懒加载打开
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
         table = tables['users']
 
@@ -133,13 +133,10 @@ class TestLazyLoadBasic:
         names = [r['name'] for r in table.data.values()]
         assert names.count('Alice') == 2
 
-    def test_lazy_load_supports_flag(self, temp_dir: Path) -> None:
-        """supports_lazy_loading 返回正确值"""
-        backend_lazy = BinaryBackend('test.pytuck', BinaryBackendOptions(lazy_load=True))
-        assert backend_lazy.supports_lazy_loading() is True
-
-        backend_normal = BinaryBackend('test.pytuck', BinaryBackendOptions(lazy_load=False))
-        assert backend_normal.supports_lazy_loading() is False
+    def test_pytuck_backend_reports_lazy_loading_support(self, temp_dir: Path) -> None:
+        """PytuckBackend 应显式声明支持 lazy loading"""
+        backend = PytuckBackend('test.pytuck', PytuckBackendOptions())
+        assert backend.supports_lazy_loading() is True
 
 
 # ---------- 填充数据测试 ----------
@@ -154,7 +151,7 @@ class TestPopulateTablesWithData:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions()
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -171,7 +168,7 @@ class TestPopulateTablesWithData:
         db.close()
 
         # 懒加载打开
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
 
         # 数据未加载
@@ -191,7 +188,7 @@ class TestPopulateTablesWithData:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions()
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -206,7 +203,7 @@ class TestPopulateTablesWithData:
         db.flush()
         db.close()
 
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
 
         backend.populate_tables_with_data(tables)
@@ -216,13 +213,13 @@ class TestPopulateTablesWithData:
         backend.populate_tables_with_data(tables)
         assert len(tables['users'].data) == 1
 
-    def test_populate_non_lazy_noop(self, temp_dir: Path) -> None:
-        """非懒加载模式下 populate 是 no-op"""
-        db_path = temp_dir / 'non_lazy.pytuck'
+    def test_populate_materializes_reopened_tables(self, temp_dir: Path) -> None:
+        """重新打开后的 pytuck 表可通过 populate 一次性 materialize"""
+        db_path = temp_dir / 'lazy_reopen_populate.pytuck'
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions()
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -237,17 +234,14 @@ class TestPopulateTablesWithData:
         db.flush()
         db.close()
 
-        # 非懒加载模式
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=False))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
-        # 默认 reopen 语义：load 后 data 为空，直到 materialize
-        assert len(tables['users'].data) == 0  # 数据尚未加载
+        assert len(tables['users'].data) == 0
 
-        # populate 是 no-op，但可以按需 materialize
         backend.populate_tables_with_data(tables)
-        # 按需读取任一主键以 materialize
-        record = tables['users'].get(1)
-        assert record['name'] == 'Alice'
+
+        assert len(tables['users'].data) == 1
+        assert tables['users'].data[1]['name'] == 'Alice'
 
 
 # ---------- 加密与懒加载交互 ----------
@@ -261,7 +255,7 @@ class TestLazyLoadWithEncryption:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(
+            backend_options=PytuckBackendOptions(
                 encryption=level, password=password
             )
         )
@@ -286,9 +280,9 @@ class TestLazyLoadWithEncryption:
         db_path = temp_dir / 'enc_lazy_low.pytuck'
         self._create_encrypted_db(db_path, level='low')
 
-        backend = BinaryBackend(
+        backend = PytuckBackend(
             str(db_path),
-            BinaryBackendOptions(lazy_load=True, encryption='low', password='test')
+            PytuckBackendOptions(encryption='low', password='test')
         )
         tables = backend.load()
         table = tables['users']
@@ -308,18 +302,19 @@ class TestLazyLoadWithEncryption:
         db_path = temp_dir / 'enc_lazy_match.pytuck'
         self._create_encrypted_db(db_path)
 
-        # 全量加载
-        backend_full = BinaryBackend(
+        # 先 materialize 出完整数据，作为对照组
+        backend_full = PytuckBackend(
             str(db_path),
-            BinaryBackendOptions(lazy_load=False, encryption='low', password='test')
+            PytuckBackendOptions(encryption='low', password='test')
         )
         tables_full = backend_full.load()
+        backend_full.populate_tables_with_data(tables_full)
         full_data = dict(tables_full['users'].data)
 
         # 懒加载
-        backend_lazy = BinaryBackend(
+        backend_lazy = PytuckBackend(
             str(db_path),
-            BinaryBackendOptions(lazy_load=True, encryption='low', password='test')
+            PytuckBackendOptions(encryption='low', password='test')
         )
         tables_lazy = backend_lazy.load()
         table_lazy = tables_lazy['users']
@@ -334,9 +329,9 @@ class TestLazyLoadWithEncryption:
         db_path = temp_dir / 'enc_lazy_populate.pytuck'
         self._create_encrypted_db(db_path)
 
-        backend = BinaryBackend(
+        backend = PytuckBackend(
             str(db_path),
-            BinaryBackendOptions(lazy_load=True, encryption='low', password='test')
+            PytuckBackendOptions(encryption='low', password='test')
         )
         tables = backend.load()
 
@@ -357,7 +352,7 @@ class TestLazyLoadWithEncryption:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(encryption='low', password='secret')
+            backend_options=PytuckBackendOptions(encryption='low', password='secret')
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -381,9 +376,9 @@ class TestLazyLoadWithEncryption:
         db.close()
 
         # 加密懒加载
-        backend = BinaryBackend(
+        backend = PytuckBackend(
             str(db_path),
-            BinaryBackendOptions(lazy_load=True, encryption='low', password='secret')
+            PytuckBackendOptions(encryption='low', password='secret')
         )
         tables = backend.load()
 
@@ -497,7 +492,7 @@ class TestLazyLoadMultipleTables:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions()
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -520,7 +515,7 @@ class TestLazyLoadMultipleTables:
         db.close()
 
         # 懒加载
-        backend = BinaryBackend(str(db_path), BinaryBackendOptions(lazy_load=True))
+        backend = PytuckBackend(str(db_path), PytuckBackendOptions())
         tables = backend.load()
 
         assert 'users' in tables

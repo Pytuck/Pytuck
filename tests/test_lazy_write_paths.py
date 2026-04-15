@@ -10,7 +10,7 @@ from typing import Type
 import pytest
 
 from pytuck import Storage, Column, PureBaseModel, declarative_base, DuplicateKeyError
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 
 class TestLazyWritePaths:
@@ -40,7 +40,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.tables['users'].data == {}
@@ -56,7 +56,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.tables['users'].data == {}
@@ -75,7 +75,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.tables['users'].data == {}
@@ -94,7 +94,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.tables['users'].data == {}
@@ -110,7 +110,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.tables['users'].data == {}
@@ -137,7 +137,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         users = db.tables['users']
@@ -156,7 +156,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=False)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.select('users', 1)['name'] == 'Alice2'
@@ -170,7 +170,7 @@ class TestLazyWritePaths:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']

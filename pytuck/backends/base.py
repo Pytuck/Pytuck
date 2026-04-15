@@ -200,7 +200,7 @@ class StorageBackend(ABC):
             例如 SQLite 后端在 use_native_sql=True 时返回 True。
 
         后端实现说明：
-            - BinaryBackend（ENGINE_NAME='pytuck', lazy_load=True）: 通过 _pk_offsets 遍历主键，逐条读取文件
+            - PytuckBackend（ENGINE_NAME='pytuck'）: 通过 _pk_offsets 遍历主键，逐条读取文件
             - SQLiteBackend (use_native_sql=True): 通过 SQL 查询获取全部数据
             - 其他数据库后端: 根据具体实现决定
         """

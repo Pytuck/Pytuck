@@ -41,7 +41,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from pytuck import Storage, declarative_base, Session, Column, insert, select
 from pytuck import PureBaseModel
-from pytuck.common.options import BinaryBackendOptions, CsvBackendOptions
+from pytuck.common.options import PytuckBackendOptions, CsvBackendOptions
 
 # 从 benchmark.py 导入工具函数，避免重复定义
 from benchmark import format_time, format_size, get_file_size
@@ -93,11 +93,11 @@ def benchmark_one(
     if engine == 'pytuck':
         ext = '.pytuck'
         if level:
-            write_opts: Any = BinaryBackendOptions(encryption=level, password='benchmark123')
-            read_opts: Any = BinaryBackendOptions(encryption=level, password='benchmark123')
+            write_opts: Any = PytuckBackendOptions(encryption=level, password='benchmark123')
+            read_opts: Any = PytuckBackendOptions(encryption=level, password='benchmark123')
         else:
-            write_opts = BinaryBackendOptions()
-            read_opts = BinaryBackendOptions()
+            write_opts = PytuckBackendOptions()
+            read_opts = PytuckBackendOptions()
     elif engine == 'csv':
         ext = '.zip'
         if level == 'password':

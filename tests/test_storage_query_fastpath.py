@@ -11,7 +11,7 @@ import pytest
 
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, insert, select
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 from pytuck.common.exceptions import RecordNotFoundError
 
 
@@ -21,7 +21,7 @@ from pytuck.common.exceptions import RecordNotFoundError
 def test_select_pk_fastpath(temp_dir: Path) -> None:
     """测试通过 Select 按主键查询能返回单条记录（为后续 fastpath 实现预期行为）"""
     db_path = temp_dir / 'fastpath.pytuck'
-    db = Storage(file_path=str(db_path), engine='pytuck', backend_options=BinaryBackendOptions())
+    db = Storage(file_path=str(db_path), engine='pytuck', backend_options=PytuckBackendOptions())
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class User(Base):
@@ -37,7 +37,7 @@ def test_select_pk_fastpath(temp_dir: Path) -> None:
     db.close()
 
     # 以默认 reopen 语义打开 backend
-    backend = db.backend.__class__(str(db_path), BinaryBackendOptions(lazy_load=True))
+    backend = db.backend.__class__(str(db_path), PytuckBackendOptions())
     tables = backend.load()
     table = tables['users']
 
@@ -46,7 +46,7 @@ def test_select_pk_fastpath(temp_dir: Path) -> None:
     assert record['name'] == 'Alice'
 
     # 也使用查询 API
-    db2 = Storage(file_path=str(db_path), engine='pytuck', backend_options=BinaryBackendOptions(lazy_load=True))
+    db2 = Storage(file_path=str(db_path), engine='pytuck', backend_options=PytuckBackendOptions())
     Base2: Type[PureBaseModel] = declarative_base(db2)
     session2 = Session(db2)
     stmt = select(User).where(User.id == 1)
@@ -70,10 +70,10 @@ def test_select_pk_fastpath(temp_dir: Path) -> None:
     db2.close()
 
 
-def test_reopen_does_not_init_wal(temp_dir: Path) -> None:
-    """reopen 一个已 flush 的 pytuck 文件时，不应自动调用 Storage._init_wal_mode()"""
+def test_reopen_and_select_returns_item(temp_dir: Path) -> None:
+    """reopen 一个已 flush 的 pytuck 文件后，能正确 select 到记录（fastpath reopen 主路径）"""
     db_path = temp_dir / 'wal_init.pytuck'
-    db = Storage(file_path=str(db_path), engine='pytuck', backend_options=BinaryBackendOptions())
+    db = Storage(file_path=str(db_path), engine='pytuck', backend_options=PytuckBackendOptions())
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class Item(Base):
@@ -85,22 +85,15 @@ def test_reopen_does_not_init_wal(temp_dir: Path) -> None:
     session.execute(insert(Item).values(name='one'))
     session.commit()
     db.flush()
-    # 确保文件已关闭
     db.close()
 
-    # 重新打开时，包装 _init_wal_mode 以计数
-    call_count = {'init_wal': 0}
-    orig_init = Storage._init_wal_mode
-    def counted_init(self):
-        call_count['init_wal'] += 1
-        return orig_init(self)
-    Storage._init_wal_mode = counted_init
-
-    # reopen 已存在文件
-    db2 = Storage(file_path=str(db_path), engine='pytuck', backend_options=BinaryBackendOptions(lazy_load=True))
-
-    # 不应调用 _init_wal_mode
-    assert call_count['init_wal'] == 0
+    # reopen 已存在文件并按默认主路径打开
+    db2 = Storage(file_path=str(db_path), engine='pytuck', backend_options=PytuckBackendOptions())
+    Base2: Type[PureBaseModel] = declarative_base(db2)
+    session2 = Session(db2)
+    res = session2.execute(select(Item).where(Item.id == 1)).all()
+    assert len(res) == 1
+    assert getattr(res[0], 'name') == 'one'
     db2.close()
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Type
 
 from pytuck import Storage, Column, PureBaseModel, declarative_base
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 
 class TestLazySchema:
@@ -39,7 +39,7 @@ class TestLazySchema:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -59,7 +59,7 @@ class TestLazySchema:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -80,7 +80,7 @@ class TestLazySchema:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -99,7 +99,7 @@ class TestLazySchema:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -119,7 +119,7 @@ class TestLazySchema:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -141,7 +141,7 @@ class TestLazySchema:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -161,11 +161,10 @@ class TestLazySchema:
     def test_reorder_columns_marks_dirty_and_reorders_record_keys(self, temp_dir: Path) -> None:
         """lazy 模式下 reorder_columns 应设置脏标志并更新记录字段顺序"""
         db_path = self._create_users_db(temp_dir)
-        from pytuck.common.options import BinaryBackendOptions
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']

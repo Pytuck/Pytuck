@@ -5,7 +5,7 @@ import pytest
 
 from pytuck import Column, Storage
 from pytuck.common.exceptions import ConfigurationError
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 
 @pytest.mark.parametrize(
@@ -17,7 +17,7 @@ from pytuck.common.options import BinaryBackendOptions
         ("high", "secret123", "high_ptk7.pytuck"),
     ],
 )
-def test_ptk7_accepts_none_low_medium_and_high(
+def test_pytuck_accepts_none_low_medium_and_high(
     tmp_path: Path,
     encryption: Optional[str],
     password: Optional[str],
@@ -27,7 +27,7 @@ def test_ptk7_accepts_none_low_medium_and_high(
     db = Storage(
         file_path=str(db_path),
         engine="pytuck",
-        backend_options=BinaryBackendOptions(
+        backend_options=PytuckBackendOptions(
             encryption=encryption,
             password=password,
         ),
@@ -43,7 +43,7 @@ def test_ptk7_accepts_none_low_medium_and_high(
     db.flush()
     db.close()
 
-    reopen_options = BinaryBackendOptions(password=password) if encryption else BinaryBackendOptions()
+    reopen_options = PytuckBackendOptions(password=password) if encryption else PytuckBackendOptions()
     reopened = Storage(
         file_path=str(db_path),
         engine="pytuck",
@@ -54,7 +54,7 @@ def test_ptk7_accepts_none_low_medium_and_high(
 
 
 @pytest.mark.parametrize("level", ["low", "medium", "high"])
-def test_ptk7_rejects_configured_encryption_without_password(
+def test_pytuck_rejects_configured_encryption_without_password(
     tmp_path: Path,
     level: str,
 ) -> None:
@@ -62,14 +62,14 @@ def test_ptk7_rejects_configured_encryption_without_password(
         Storage(
             file_path=str(tmp_path / f"enc_{level}_ptk7.pytuck"),
             engine="pytuck",
-            backend_options=BinaryBackendOptions(
+            backend_options=PytuckBackendOptions(
                 encryption=level,
             ),
         )
 
 
 @pytest.mark.parametrize("level", ["ultra", "legacy"])
-def test_ptk7_rejects_invalid_encryption_level(
+def test_pytuck_rejects_invalid_encryption_level(
     tmp_path: Path,
     level: str,
 ) -> None:
@@ -77,7 +77,7 @@ def test_ptk7_rejects_invalid_encryption_level(
         Storage(
             file_path=str(tmp_path / f"enc_{level}_ptk7.pytuck"),
             engine="pytuck",
-            backend_options=BinaryBackendOptions(
+            backend_options=PytuckBackendOptions(
                 encryption=level,
                 password="secret123",
             ),

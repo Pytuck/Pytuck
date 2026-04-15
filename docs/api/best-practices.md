@@ -448,15 +448,17 @@ db = Storage(
 # 打开时优先恢复结构与索引目录，记录按需读取
 ```
 
-`BinaryBackendOptions.lazy_load` 与 `sidecar_wal` 仍保留在 API 中，但主要用于兼容旧配置对象；新代码不应依赖它们切换主行为。
+Pytuck 重新打开 `.pytuck` 文件时默认走按需读取路径，无需额外开关。
 
-如果需要当前公开支持的加密写入，可使用 `low`：
+如果需要加密写入，可直接使用 `PytuckBackendOptions`：
 
 ```python
+from pytuck.common.options import PytuckBackendOptions
+
 db = Storage(
     file_path='large_secure.pytuck',
     engine='pytuck',
-    backend_options=BinaryBackendOptions(
+    backend_options=PytuckBackendOptions(
         encryption='low',
         password='my_password',
     ),

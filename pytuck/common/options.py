@@ -119,17 +119,10 @@ class XmlBackendOptions:
 
 
 @dataclass
-class BinaryBackendOptions:
-    """Pytuck 二进制后端配置选项
+class PytuckBackendOptions:
+    """Pytuck 单文件后端配置选项（仅保留当前字段）"""
 
-    说明：
-    - `lazy_load` 与 `sidecar_wal` 仅保留为兼容字段，新代码不应依赖它们切换主行为。
-    - 当前单文件后端的新写入仅支持无加密或 `low` 加密。
-    - `medium` 与 `high` 仍保留在类型定义中，仅用于兼容旧配置对象。"""
-    lazy_load: bool = True  # 是否懒加载（只加载 schema 和索引，按需读取数据）
-    sidecar_wal: bool = False  # 是否将 WAL 写入独立 sidecar 文件（.<文件名>.wal）
-
-    # 加密选项
+    # 仅保留当前需要的两个字段
     encryption: Optional[Literal['low', 'medium', 'high']] = None  # 加密等级: 'low' | 'medium' | 'high' | None
     password: Optional[str] = None    # 加密密码（仅 encryption 非 None 时生效）
 
@@ -143,7 +136,7 @@ BackendOptions = Union[
     DuckdbBackendOptions,
     ExcelBackendOptions,
     XmlBackendOptions,
-    BinaryBackendOptions
+    PytuckBackendOptions
 ]
 
 
@@ -158,9 +151,9 @@ def get_default_backend_options(engine: str) -> BackendOptions:
         'duckdb': DuckdbBackendOptions(),
         'excel': ExcelBackendOptions(),
         'xml': XmlBackendOptions(),
-        'pytuck': BinaryBackendOptions()
+        'pytuck': PytuckBackendOptions()
     }
-    return defaults.get(engine, BinaryBackendOptions())
+    return defaults.get(engine, PytuckBackendOptions())
 
 
 def get_default_connector_options(db_type: str) -> ConnectorOptions:

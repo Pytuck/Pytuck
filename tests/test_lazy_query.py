@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Type
 
 from pytuck import Storage, Session, Column, PureBaseModel, declarative_base, insert, select
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 
 class TestLazyQuery:
@@ -64,7 +64,7 @@ class TestLazyQuery:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -93,7 +93,7 @@ class TestLazyQuery:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -122,7 +122,7 @@ class TestLazyQuery:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         assert db.tables['users'].data == {}
@@ -137,7 +137,7 @@ class TestLazyQuery:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 
@@ -164,7 +164,7 @@ class TestLazyQuery:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         age_index = db.tables['users'].indexes['age']
@@ -179,7 +179,7 @@ class TestLazyQuery:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
         Base: Type[PureBaseModel] = declarative_base(db)
 

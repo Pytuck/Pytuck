@@ -29,7 +29,7 @@ class BackendRegistry:
             backend_class: 后端类（必须是 StorageBackend 的子类）
 
         示例:
-            BackendRegistry.register(BinaryBackend)
+            BackendRegistry.register(PytuckBackend)
         """
         if not issubclass(backend_class, StorageBackend):
             raise ConfigurationError(f"{backend_class} must be a subclass of StorageBackend")

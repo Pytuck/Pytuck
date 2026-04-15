@@ -24,7 +24,7 @@ Pytuck 支持 8 种存储引擎，每种引擎有不同的特性、限制和适�
 Pytuck 使用自定义的 `.pytuck` 单文件格式，适合零依赖、嵌入式和受限环境中的本地数据持久化。
 
 > [!IMPORTANT]
-> `BinaryBackendOptions.lazy_load` 与 `sidecar_wal` 仍保留在 API 中，但仅用于兼容旧配置对象；新代码不需要把它们当成开启按需读取的开关。当前单文件新写入支持无加密与 `low` / `medium` / `high`。
+> `PytuckBackendOptions` 当前只保留 `encryption` 与 `password` 两个字段；重新打开 `.pytuck` 文件时默认按需读取，无需额外开关。当前单文件新写入支持无加密与 `low` / `medium` / `high`。
 
 ### 特性
 - **默认按需读取**：打开文件时优先恢复结构与索引目录，记录内容按需读取
@@ -37,25 +37,25 @@ Pytuck 使用自定义的 `.pytuck` 单文件格式，适合零依赖、嵌入�
 ### 配置
 
 ```python
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 db = Storage(
     file_path='data.pytuck',
     engine='pytuck',
-    backend_options=BinaryBackendOptions(
-        encryption='low',         # 当前新写入支持 None / low
-        password='my_password',   # 使用 low 时提供密码
+    backend_options=PytuckBackendOptions(
+        encryption='low',
+        password='my_password',
     )
 )
 ```
 
-### 兼容字段
+### 当前行为
 
-`BinaryBackendOptions.lazy_load` 和 `sidecar_wal` 仍然保留在 API 中，主要用于兼容旧配置对象；新代码不应依赖它们切换主行为。
+重新打开 `.pytuck` 文件时，Pytuck 会优先恢复 schema 与索引目录，记录内容按需读取；无需通过额外选项切换。
 
 ### 限制
 - 文件格式不可人工阅读或编辑
-- 当前新写入仅支持无加密与 `low`
+- 当前单文件新写入支持无加密 / `low` / `medium` / `high`
 - 如果更看重原生 SQL、服务端分页或超大数据集，优先考虑 SQLite / DuckDB
 
 ---

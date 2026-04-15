@@ -29,7 +29,7 @@ from ..common.exceptions import (
 
 if TYPE_CHECKING:
     from ..backends.base import StorageBackend
-    from ..backends.backend_binary import BinaryBackend
+    from ..backends.backend_pytuck import PytuckBackend
 
 
 class TransactionSnapshot:
@@ -1026,10 +1026,6 @@ class Storage:
         self._transaction_snapshot: Optional[TransactionSnapshot] = None
         self._transaction_dirty_flag: bool = False
 
-        # WAL 相关属性
-        self._use_wal: bool = False  # 是否启用 WAL 模式
-        self._wal_threshold: int = 1000  # WAL 条目数阈值，超过则自动 checkpoint
-        self._wal_entry_count: int = 0  # 当前 WAL 条目数
 
         # 原生 SQL 模式相关属性
         self._native_sql_mode: bool = False  # 是否启用原生 SQL 模式
@@ -1665,13 +1661,8 @@ class Storage:
         pk = table.insert(data)
         self._dirty = True
 
-        # 使用 WAL 模式时，写入 WAL
-        if self._use_wal:
-            # 获取完整记录（包含自动生成的主键）
-            record = table.data.get(pk, data)
-            self._write_wal(1, table_name, pk, record, table.columns)  # 1 = INSERT
-        elif self.auto_flush:
-            # 非 WAL 模式：自动刷新到磁盘（如果启用）
+        # 自动刷新到磁盘（如果启用）
+        if self.auto_flush:
             self.flush()
 
         return pk
@@ -1819,13 +1810,7 @@ class Storage:
         table.update(pk, data)
         self._dirty = True
 
-        # 使用 WAL 模式时，写入 WAL
-        if self._use_wal:
-            # 获取更新后的完整记录
-            record = table.data.get(pk)
-            if record:
-                self._write_wal(2, table_name, pk, record, table.columns)  # 2 = UPDATE
-        elif self.auto_flush:
+        if self.auto_flush:
             self.flush()
 
     def _update_native_sql(self, table_name: str, table: Table, pk: Any, data: Dict[str, Any]) -> None:
@@ -1874,16 +1859,10 @@ class Storage:
             return
 
         # 内存模式
-        # 先记录列信息（WAL 需要）
-        columns = table.columns if self._use_wal else None
-
         table.delete(pk)
         self._dirty = True
 
-        # 使用 WAL 模式时，写入 WAL
-        if self._use_wal and columns:
-            self._write_wal(3, table_name, pk)  # 3 = DELETE
-        elif self.auto_flush:
+        if self.auto_flush:
             self.flush()
 
     def bulk_insert(self, table_name: str, records: List[Dict[str, Any]]) -> List[Any]:
@@ -1910,13 +1889,7 @@ class Storage:
         pks = table.bulk_insert(records)
         self._dirty = True
 
-        # WAL 批量写入
-        if self._use_wal:
-            for pk in pks:
-                record = table.data.get(pk)
-                if record:
-                    self._write_wal(1, table_name, pk, record, table.columns)  # 1 = INSERT
-        elif self.auto_flush:
+        if self.auto_flush:
             self.flush()
 
         return pks
@@ -1947,14 +1920,7 @@ class Storage:
         count = table.bulk_update(updates)
         self._dirty = True
 
-        # WAL 批量写入
-        if self._use_wal:
-            for pk, _ in updates:
-                pk = table._normalize_pk(pk)
-                record = table.data.get(pk)
-                if record:
-                    self._write_wal(2, table_name, pk, record, table.columns)  # 2 = UPDATE
-        elif self.auto_flush:
+        if self.auto_flush:
             self.flush()
 
         return count
@@ -2597,28 +2563,6 @@ class Storage:
             self._transaction_snapshot = None
             self._in_transaction = False
 
-    def _init_wal_mode(self) -> None:
-        """
-        初始化 WAL 模式
-
-        对 pytuck 引擎启用 WAL 模式，并回放未提交的 sidecar WAL。
-        """
-        from ..backends.backend_binary import BinaryBackend
-
-        if not isinstance(self.backend, BinaryBackend):
-            return
-
-        backend: 'BinaryBackend' = self.backend
-
-        # 检查是否有活跃的 checkpoint header
-        if backend._active_header is not None:
-            self._use_wal = True
-
-            # 回放未提交的 WAL
-            if backend.has_pending_wal():
-                count = backend.replay_wal(self.tables)
-                if count > 0:
-                    self._dirty = True
 
     def _init_native_sql_mode(self) -> None:
         """
@@ -2671,63 +2615,8 @@ class Storage:
         """是否启用原生 SQL 模式"""
         return self._native_sql_mode
 
-    def _get_pytuck_backend(self) -> Optional['BinaryBackend']:
-        """获取 pytuck 后端（如果是的话）"""
-        from ..backends.backend_binary import BinaryBackend
 
-        if isinstance(self.backend, BinaryBackend):
-            return self.backend
-        return None
 
-    def _write_wal(
-        self,
-        op_type: int,
-        table_name: str,
-        pk: Any,
-        record: Optional[Dict[str, Any]] = None,
-        columns: Optional[Dict[str, 'Column']] = None
-    ) -> bool:
-        """
-        写入 WAL 条目
-
-        Args:
-            op_type: 操作类型 (1=INSERT, 2=UPDATE, 3=DELETE)
-            table_name: 表名
-            pk: 主键值
-            record: 记录数据
-            columns: 列定义
-
-        Returns:
-            是否成功写入 WAL
-        """
-        if not self._use_wal:
-            return False
-
-        backend = self._get_pytuck_backend()
-        if backend is None:
-            return False
-
-        from ..backends.backend_binary import WALOpType
-
-        # 转换操作类型
-        wal_op = WALOpType(op_type)
-
-        # 写入 WAL
-        backend.append_wal_entry(wal_op, table_name, pk, record, columns)
-        self._wal_entry_count += 1
-
-        # 检查是否需要自动 checkpoint
-        if self._wal_entry_count >= self._wal_threshold:
-            self._checkpoint()
-
-        return True
-
-    def _checkpoint(self) -> None:
-        """执行 checkpoint，将内存数据写入磁盘并清空 WAL"""
-        if self.backend:
-            self.backend.save(self.tables)
-            self._wal_entry_count = 0
-            self._dirty = False
 
     def flush(self) -> None:
         """强制写入磁盘"""
@@ -2744,7 +2633,7 @@ class Storage:
                 if table.is_dirty
             }
 
-            # 当前 BinaryBackend.save() 仍会执行全量 checkpoint，
+            # 当前 pytuck 单文件后端会在 flush 时写出完整表数据，
             # 因此 flush 前必须把所有 lazy 表 materialize，避免未改动表被写成空表。
             for table in self.tables.values():
                 if table._lazy_loaded:
@@ -2752,16 +2641,10 @@ class Storage:
 
             self.backend.save(self.tables, changed_tables=changed_tables)
             self._dirty = False
-            # 重置 WAL 计数器（checkpoint 会清空 WAL）
-            self._wal_entry_count = 0
-
             # 重置所有表的脏标记
             for table in self.tables.values():
                 table.reset_dirty()
 
-            # 首次保存 pytuck 引擎后，启用 WAL 模式
-            # 移除自动初始化 WAL 模式的自动调用，保留 changed_tables 语义
-            # WAL 模式需显式初始化或由后端/调用方决定
             event.dispatch_storage(self, 'after_flush')
 
     def close(self) -> None:

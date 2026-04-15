@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 """
-PTK7 二进制格式低层原语。
+Pytuck 单文件格式 v7 低层原语。
 """
 
 from dataclasses import dataclass, replace

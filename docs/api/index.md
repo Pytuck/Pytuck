@@ -37,7 +37,7 @@ from pytuck import (
 
 # 配置选项
 from pytuck.common.options import (
-    BinaryBackendOptions, JsonBackendOptions, CsvBackendOptions,
+    PytuckBackendOptions, JsonBackendOptions, CsvBackendOptions,
     SqliteBackendOptions, DuckdbBackendOptions,
     DuckdbConnectorOptions, ExcelBackendOptions, XmlBackendOptions,
 )

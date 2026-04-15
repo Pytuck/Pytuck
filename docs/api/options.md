@@ -4,7 +4,7 @@
 
 ```python
 from pytuck.common.options import (
-    BinaryBackendOptions, JsonBackendOptions, JsonlBackendOptions, CsvBackendOptions,
+    PytuckBackendOptions, JsonBackendOptions, JsonlBackendOptions, CsvBackendOptions,
     SqliteBackendOptions, DuckdbBackendOptions,
     ExcelBackendOptions, XmlBackendOptions,
     SqliteConnectorOptions, DuckdbConnectorOptions,
@@ -16,28 +16,22 @@ from pytuck.common.options import (
 
 ## 后端配置选项
 
-### BinaryBackendOptions
+### PytuckBackendOptions
 
 ```python
 @dataclass
-class BinaryBackendOptions:
-    lazy_load: bool = True
-    sidecar_wal: bool = False
+class PytuckBackendOptions:
     encryption: Optional[Literal['low', 'medium', 'high']] = None
     password: Optional[str] = None
 ```
 
 > [!IMPORTANT]
-> `lazy_load` 默认值保留为 `True` 只是为了兼容旧配置；无论显式传 `True` 还是 `False`，新代码都不应再把它当成切换主行为的开关。
+> 当前 `.pytuck` 单文件引擎重新打开文件时默认走按需读取路径，无需额外开关。
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `lazy_load` | `bool` | `True` | 兼容字段；新代码不应依赖它切换主行为 |
-| `sidecar_wal` | `bool` | `False` | 兼容字段；新代码不应依赖它切换主行为 |
-| `encryption` | `Optional[str]` | `None` | 当前单文件新写入支持 `None` / `low`；`medium` / `high` 仅保留在类型定义中以兼容旧配置对象 |
-| `password` | `Optional[str]` | `None` | 与当前加密写入配置配套使用的密码 |
-
-`medium` / `high` 仍保留在类型定义中，但当前公开文档不将它们视为新的单文件写入能力；如非兼容旧配置对象，新代码应优先使用无加密或 `low`。
+| `encryption` | `Optional[str]` | `None` | 单文件加密等级；支持 `None` / `low` / `medium` / `high` |
+| `password` | `Optional[str]` | `None` | 与加密配置配套使用的密码；设置 `encryption` 时必须提供 |
 
 ### JsonBackendOptions
 
@@ -182,7 +176,7 @@ class DuckdbConnectorOptions:
 BackendOptions = Union[
     JsonBackendOptions, JsonlBackendOptions, CsvBackendOptions, SqliteBackendOptions,
     DuckdbBackendOptions, ExcelBackendOptions,
-    XmlBackendOptions, BinaryBackendOptions
+    XmlBackendOptions, PytuckBackendOptions
 ]
 
 # 连接器配置选项联合类型
@@ -195,6 +189,7 @@ ConnectorOptions = Union[SqliteConnectorOptions, DuckdbConnectorOptions]
 from pytuck.common.options import get_default_backend_options, get_default_connector_options
 
 # 根据引擎类型返回默认配置
+options = get_default_backend_options('pytuck')  # PytuckBackendOptions()
 options = get_default_backend_options('json')    # JsonBackendOptions()
 options = get_default_backend_options('jsonl')   # JsonlBackendOptions()
 options = get_default_backend_options('sqlite')  # SqliteBackendOptions()

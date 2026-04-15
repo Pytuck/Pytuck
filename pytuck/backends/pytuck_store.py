@@ -21,12 +21,11 @@ from ..common.exceptions import (
     SerializationError,
     TableNotFoundError,
 )
-from ..common.options import BinaryBackendOptions
+from ..common.options import PytuckBackendOptions
 from ..core.orm import Column
 from ..core.storage import Table
 from ..core.types import TypeRegistry
-from .legacy_ptk5 import probe_ptk5
-from .ptk7_format import (
+from .pytuck_format import (
     CRYPTO_META_STRUCT,
     CryptoMetadataV7,
     FileHeaderV7,
@@ -40,7 +39,7 @@ from .ptk7_format import (
     decode_row,
     encode_row,
 )
-from .ptk7_index import decode_sorted_pairs, encode_sorted_pairs
+from .pytuck_index import decode_sorted_pairs, encode_sorted_pairs
 from ..core.index import BaseIndex, HashIndex, SortedIndex
 
 
@@ -166,10 +165,10 @@ class StorePTK7:
     def __init__(
         self,
         file_path: Union[str, Path],
-        options: Optional[BinaryBackendOptions] = None,
+        options: Optional[PytuckBackendOptions] = None,
     ) -> None:
         self.file_path: Path = Path(file_path).expanduser()
-        self.options: BinaryBackendOptions = options or BinaryBackendOptions()
+        self.options: PytuckBackendOptions = options or PytuckBackendOptions()
         self._tables: Dict[str, TableState] = {}
         self._cipher: Optional[CipherType] = None
         self._payload_offset: int = 0
@@ -227,12 +226,6 @@ class StorePTK7:
         }
 
     def open(self) -> None:
-        matched_ptk5, _ = probe_ptk5(self.file_path)
-        if matched_ptk5:
-            raise MigrationError(
-                f"检测到不受支持的旧版 Pytuck 单文件格式：{self.file_path}。当前版本无法直接打开该文件。"
-            )
-
         header = self._read_header()
         self._cipher = None
         self._payload_offset = 0
@@ -355,7 +348,7 @@ class StorePTK7:
     def flush(self, *, changed_tables: Optional[Set[str]] = None) -> None:
         del changed_tables
 
-        encryption_level = self.options.encryption
+        encryption_level = getattr(self.options, 'encryption', None)
         cipher: Optional[CipherType] = None
         crypto_metadata: Optional[CryptoMetadataV7] = None
         metadata_size = 0
@@ -711,4 +704,10 @@ __all__ = [
     "TableState",
     "StorePTK7",
     "probe_ptk7",
+    "PytuckStore",
+    "probe_pytuck",
 ]
+
+# Backwards/compatibility aliases required by Task 2 wiring
+PytuckStore = StorePTK7
+probe_pytuck = probe_ptk7

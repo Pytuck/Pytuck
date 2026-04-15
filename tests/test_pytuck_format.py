@@ -1,6 +1,6 @@
 from pytuck import Column
-from pytuck.backends.ptk7_format import FileHeaderV7, PkDirEntry, TableBlockRef, encode_row
-from pytuck.backends.ptk7_index import decode_sorted_pairs, encode_sorted_pairs
+from pytuck.backends.pytuck_format import FileHeaderV7, PkDirEntry, TableBlockRef, encode_row
+from pytuck.backends.pytuck_index import decode_sorted_pairs, encode_sorted_pairs
 
 
 def test_file_header_v7_roundtrip() -> None:

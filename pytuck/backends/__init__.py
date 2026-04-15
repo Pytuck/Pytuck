@@ -5,6 +5,18 @@ Pytuck 后端模块
 """
 
 from .base import StorageBackend
+
+# Simplify backend imports: only import current backends to avoid legacy shims
+from . import backend_pytuck   # noqa: F401
+from . import backend_json     # noqa: F401
+from . import backend_jsonl    # noqa: F401
+from . import backend_csv      # noqa: F401
+from . import backend_sqlite   # noqa: F401
+from . import backend_duckdb   # noqa: F401
+from . import backend_excel    # noqa: F401
+from . import backend_xml      # noqa: F401
+
+# Re-export registry helpers
 from .registry import (
     BackendRegistry,
     get_backend,
@@ -15,25 +27,13 @@ from .registry import (
     print_available_engines,
 )
 
-# 导入内置后端模块，触发 __init_subclass__ 自动注册
-# 后端模块的外部依赖使用延迟导入（TYPE_CHECKING + 方法内导入）
-# 所以这些导入不会因缺少依赖而失败
-from . import backend_binary   # noqa: F401
-from . import backend_json     # noqa: F401
-from . import backend_jsonl    # noqa: F401
-from . import backend_csv      # noqa: F401
-from . import backend_sqlite   # noqa: F401
-from . import backend_duckdb   # noqa: F401
-from . import backend_excel    # noqa: F401
-from . import backend_xml      # noqa: F401
-
 __all__ = [
     'StorageBackend',
     'BackendRegistry',
     'get_backend',
-    'print_available_engines',
-    'get_available_engines',
     'is_valid_pytuck_database',
     'get_database_info',
     'is_valid_pytuck_database_engine',
+    'get_available_engines',
+    'print_available_engines',
 ]

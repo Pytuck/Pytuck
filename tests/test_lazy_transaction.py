@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from pytuck import Storage, Column
-from pytuck.common.options import BinaryBackendOptions
+from pytuck.common.options import PytuckBackendOptions
 
 
 class TestLazyTransaction:
@@ -37,7 +37,7 @@ class TestLazyTransaction:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']
@@ -76,7 +76,7 @@ class TestLazyTransaction:
         db = Storage(
             file_path=str(db_path),
             engine='pytuck',
-            backend_options=BinaryBackendOptions(lazy_load=True)
+            backend_options=PytuckBackendOptions()
         )
 
         table = db.tables['users']

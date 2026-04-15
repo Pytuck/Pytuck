@@ -16,7 +16,7 @@ import pytest
 from pytuck import Storage, Session, Column, PureBaseModel, declarative_base
 from pytuck import insert
 from pytuck.tools.migrate import migrate_engine
-from pytuck.common.options import SqliteBackendOptions, BinaryBackendOptions
+from pytuck.common.options import SqliteBackendOptions, PytuckBackendOptions
 
 
 class TestMigrateSqliteNativeToJson:
@@ -359,7 +359,7 @@ class TestMigrateBinaryLazyLoadToJson:
         db.close()
 
         # 2. 使用懒加载模式重新打开，验证 table.data 为空
-        opts_lazy = BinaryBackendOptions(lazy_load=True)
+        opts_lazy = PytuckBackendOptions()
         db_lazy = Storage(file_path=str(pytuck_file), engine='pytuck', backend_options=opts_lazy)
         assert db_lazy.tables['users'].data == {}, "懒加载模式下 table.data 应该为空"
         db_lazy.close()
@@ -422,7 +422,7 @@ class TestMigrateBinaryLazyLoadMultipleTables:
         db.close()
 
         # 2. 使用懒加载模式迁移
-        opts_lazy = BinaryBackendOptions(lazy_load=True)
+        opts_lazy = PytuckBackendOptions()
         result = migrate_engine(
             source_path=str(pytuck_file),
             source_engine='pytuck',
@@ -474,7 +474,7 @@ class TestMigrateBinaryLazyLoadChain:
         db.close()
 
         # 2. Pytuck(lazy) -> JSON
-        opts_lazy = BinaryBackendOptions(lazy_load=True)
+        opts_lazy = PytuckBackendOptions()
         result = migrate_engine(
             source_path=str(pytuck_file),
             source_engine='pytuck',

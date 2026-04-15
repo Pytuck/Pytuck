@@ -19,9 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The default Pytuck single-file engine now treats PTK7 as the current primary format
   - Future work is expected to focus on compatibility and performance improvements within PTK7 unless a hard blocker requires another format change
 
-- **The public surface no longer centers PTK5 migration**
+- **The public surface no longer centers legacy single-file migration**
   - README, API docs, and root package messaging are now focused on the current product surface
-  - PTK5-specific public migration shortcuts have been removed while the generic migration path remains available
+  - Legacy single-file-specific public migration shortcuts have been removed while the generic migration path remains available
 
 ### Performance
 

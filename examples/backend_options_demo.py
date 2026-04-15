@@ -22,7 +22,6 @@ from pytuck.common.options import (
     SqliteBackendOptions,
     ExcelBackendOptions,
     XmlBackendOptions,
-    BinaryBackendOptions
 )
 
 
@@ -333,11 +332,8 @@ def demo_pytuck_default():
     if os.path.exists(pytuck_file):
         os.remove(pytuck_file)
 
-    # Pytuck 引擎目前没有额外配置选项，使用默认设置
-    pytuck_opts = BinaryBackendOptions()
-
-    # 创建数据库
-    db = Storage(file_path=pytuck_file, engine='pytuck', backend_options=pytuck_opts)
+    # Pytuck 引擎默认可直接省略 backend_options
+    db = Storage(file_path=pytuck_file, engine='pytuck')
     Base: Type[PureBaseModel] = declarative_base(db)
 
     class Settings(Base):
