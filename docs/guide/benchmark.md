@@ -103,10 +103,28 @@
 - 如果你更看重**分析查询和 DuckDB 生态**，优先看 `DuckDB`。
 - 如果你需要**办公软件交付或标准化结构交换**，再考虑 `Excel` / `XML`。
 
+## 原始结果归档约定
+
+- 仓库内长期归档目录：`docs/benchmark-results/`
+- 多引擎主表原始结果文件名：`YYYY-MM-DD-py312-100000-extended-multi-engine.json`
+- 加密补充 benchmark 文件名：`YYYY-MM-DD-py312-100000-encryption.json`
+- README 与本页表格是整理后的公开结论；仓库内 JSON 是对应表格的原始输入
+- GitHub Actions artifact 命名为 `benchmark-results-py312-5000-${GITHUB_SHA}`，用于临时下载，不替代仓库内长期归档。注意：workflow 中实际使用的变量写法为 `${{ github.sha }}`；CI 在 workflow 中仅以 `-n 5000` 运行生成这个临时 artifact，而长期归档示例（仓库内）使用 `-n 100000` 并输出到 `docs/benchmark-results/`。
+
+### 仓库内归档示例
+
+```bash
+uv run python tests/benchmark/benchmark.py \
+  -n 100000 \
+  -e pytuck json jsonl csv sqlite duckdb excel xml \
+  --extended \
+  --output-json docs/benchmark-results/2026-04-16-py312-100000-extended-multi-engine.json
+```
+
 ## 复现命令
 
 ```bash
-# 跑完整多引擎扩展 benchmark
+# 跑完整多引擎扩展 benchmark（临时本地输出）
 uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite duckdb excel xml --extended --output-json /tmp/pytuck-benchmark.json
 
 # 只看单个引擎

@@ -103,10 +103,28 @@ The main comparison table includes:
 - If you care most about **analytics and DuckDB ecosystem workflows**, start with `DuckDB`.
 - If you need **office handoff or standardized structured exchange**, consider `Excel` / `XML`.
 
+## Raw result archival rules
+
+- Long-lived repository archive directory: `docs/benchmark-results/`
+- Multi-engine main-table raw result filename: `YYYY-MM-DD-py312-100000-extended-multi-engine.json`
+- Encryption supplemental benchmark filename: `YYYY-MM-DD-py312-100000-encryption.json`
+- The README and this page contain curated public conclusions; the JSON files in the repository are the raw inputs behind those tables
+- The GitHub Actions artifact is named `benchmark-results-py312-5000-${GITHUB_SHA}` and is only for temporary download, not a replacement for the repository archive. Note: the workflow actually uses the `${{ github.sha }}` syntax; the CI workflow runs with `-n 5000` to produce this temporary artifact, while long-term archival runs use `-n 100000` and output results into `docs/benchmark-results/`.
+
+### Repository archival example
+
+```bash
+uv run python tests/benchmark/benchmark.py \
+  -n 100000 \
+  -e pytuck json jsonl csv sqlite duckdb excel xml \
+  --extended \
+  --output-json docs/benchmark-results/2026-04-16-py312-100000-extended-multi-engine.json
+```
+
 ## Reproduction
 
 ```bash
-# Full multi-engine extended benchmark
+# Full multi-engine extended benchmark (temporary local output)
 uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sqlite duckdb excel xml --extended --output-json /tmp/pytuck-benchmark.json
 
 # Single-engine run

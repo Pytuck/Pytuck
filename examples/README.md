@@ -31,6 +31,29 @@ uv run python examples/active_record_demo.py
 uv run python examples/<文件名>.py
 ```
 
+## 运行基线
+
+### 推荐起步示例
+
+- `session_api_demo.py`：推荐的新项目起步示例，对应 Session + Statement API 主路径
+- `active_record_demo.py`：Active Record 模式起步示例，对应不显式创建 `Session` 的模型级接口
+
+### 发布前建议验证的示例
+
+默认依赖基线只要求下面两条命令，与 `docs/guide/development.md` / `development.en.md` 中的发布前验证保持一致：
+
+```bash
+uv run python examples/session_api_demo.py
+uv run python examples/active_record_demo.py
+```
+
+### 补充示例
+
+- `backend_options_demo.py`：展示各引擎配置选项；默认自动化只 smoke test `demo_pytuck_default()` 这条不依赖可选依赖的最小路径。
+
+  注意：`demo_pytuck_default()` 仅作为自动化 smoke test 的最小函数路径，用于验证在不安装可选依赖时的基本行为；它不属于上方“发布前建议验证的示例”中列出的人工必跑命令列表。
+- 其余示例用于专题说明，不纳入默认发布前必跑列表
+
 ## API 选择指南
 
 ### Session + Statement API（推荐）

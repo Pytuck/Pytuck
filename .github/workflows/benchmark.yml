@@ -27,11 +27,11 @@ jobs:
         run: uv sync --extra dev
 
       - name: Run benchmark
-        run: uv run python tests/benchmark/benchmark.py -n 5000 --output-json benchmark_results.json
+        run: uv run python tests/benchmark/benchmark.py -n 5000 --output-json benchmark-results-py312-5000-${{ github.sha }}.json
 
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
         with:
-          name: benchmark-results-${{ github.sha }}
-          path: benchmark_results.json
+          name: benchmark-results-py312-5000-${{ github.sha }}
+          path: benchmark-results-py312-5000-${{ github.sha }}.json
           retention-days: 90

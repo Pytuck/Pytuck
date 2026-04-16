@@ -71,6 +71,9 @@ uv publish --index testpypi
 
 > `uv publish --index testpypi` 依赖已配置的 `[[tool.uv.index]]` 条目，其中应包含 `url` 和 `publish-url`。
 
+> [!IMPORTANT]
+> `pyproject.toml` 当前仍保留 `license = {text = "MIT"}`。`uv build` 下 setuptools 会提示 `project.license` TOML table 的 deprecation warning，但不要为了消除这条 warning 直接改成 SPDX 字符串，因为该路径依赖 `setuptools>=77`，会破坏当前 Python `3.7` / `3.8` 构建兼容。只有在项目提高最低支持 Python 版本或统一升级构建链后，才切到 `license = "MIT"` / `license-files`。
+
 ## 发布检查清单
 
 在正式发布前，建议按下面顺序执行：
@@ -91,7 +94,7 @@ uv publish --index testpypi
    - `CHANGELOG.md` / `CHANGELOG.EN.md`
    - 如果开发指南、benchmark 或其他公开文档有变动，也要同步对应英文文件
 
-4. 运行发布前验证：
+4. 运行发布前验证（默认依赖示例基线与 `examples/README.md` 的“推荐起步示例”保持一致）：
 
    ```bash
    uv run pytest tests/ -v

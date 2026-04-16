@@ -71,6 +71,9 @@ uv publish --index testpypi
 
 > `uv publish --index testpypi` requires a configured `[[tool.uv.index]]` entry with both `url` and `publish-url`.
 
+> [!IMPORTANT]
+> `pyproject.toml` intentionally keeps `license = {text = "MIT"}` for now. `uv build` will emit a setuptools deprecation warning for `project.license` as a TOML table, but do not switch to a SPDX string just to silence the warning, because that path depends on `setuptools>=77` and breaks the current Python `3.7` / `3.8` packaging compatibility. Only switch to `license = "MIT"` / `license-files` after the project raises its minimum supported Python version or intentionally upgrades the build chain.
+
 ## Release Checklist
 
 Before publishing, run through this short checklist in order:
@@ -91,7 +94,7 @@ Before publishing, run through this short checklist in order:
    - `CHANGELOG.md` / `CHANGELOG.EN.md`
    - If the development guide, benchmark docs, or other public docs changed, update the matching English file as well
 
-4. Run pre-release verification:
+4. Run pre-release verification (the default-dependency example baseline must stay aligned with the "Recommended getting started examples" section in `examples/README.md`):
 
    ```bash
    uv run pytest tests/ -v
