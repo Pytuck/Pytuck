@@ -5,7 +5,7 @@ Pytuck 数据库连接器抽象基类
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any
 
 from ..common.options import ConnectorOptions
 from ..common.exceptions import UnsupportedOperationError
@@ -99,7 +99,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], Optional[str]]:
+    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], str | None]:
         """
         获取表结构
 
@@ -157,7 +157,7 @@ class DatabaseConnector(ABC):
         self,
         table_name: str,
         columns: list[dict[str, Any]],
-        primary_key: Optional[str]
+        primary_key: str | None
     ) -> None:
         """
         创建表
@@ -324,8 +324,8 @@ class DatabaseConnector(ABC):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        columns: Optional[list[str]] = None
-    ) -> Optional[dict[str, Any]]:
+        columns: list[str] | None = None
+    ) -> dict[str, Any] | None:
         """
         按主键查询一行
 
@@ -349,12 +349,12 @@ class DatabaseConnector(ABC):
     def query_rows(
         self,
         table_name: str,
-        where_clause: Optional[str] = None,
+        where_clause: str | None = None,
         params: tuple[Any, ...] = (),
-        columns: Optional[list[str]] = None,
-        order_by: Optional[str] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None
     ) -> list[dict[str, Any]]:
         """
         条件查询多行

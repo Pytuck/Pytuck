@@ -5,7 +5,7 @@ Pytuck 异常定义
 所有 Pytuck 异常都继承自 PytuckException 基类。
 """
 
-from typing import Any, Optional
+from typing import Any
 
 class PytuckException(Exception):
     """
@@ -25,10 +25,10 @@ class PytuckException(Exception):
         self,
         message: str,
         *,
-        table_name: Optional[str] = None,
-        column_name: Optional[str] = None,
+        table_name: str | None = None,
+        column_name: str | None = None,
         pk: Any = None,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         self.message = message
         self.table_name = table_name
@@ -116,10 +116,10 @@ class ValidationError(PytuckException):
         self,
         message: str,
         *,
-        table_name: Optional[str] = None,
-        column_name: Optional[str] = None,
+        table_name: str | None = None,
+        column_name: str | None = None,
         pk: Any = None,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(
             message,
@@ -146,9 +146,9 @@ class TypeConversionError(ValidationError):
         message: str,
         *,
         value: Any = None,
-        target_type: Optional[str] = None,
-        column_name: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None
+        target_type: str | None = None,
+        column_name: str | None = None,
+        details: dict[str, Any] | None = None
     ):
         extra_details = details or {}
         if value is not None:
@@ -180,7 +180,7 @@ class ConfigurationError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, details=details)
 
@@ -196,8 +196,8 @@ class SchemaError(ConfigurationError):
         self,
         message: str,
         *,
-        table_name: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None
+        table_name: str | None = None,
+        details: dict[str, Any] | None = None
     ):
         # 需要重新调用 PytuckException.__init__ 以设置 table_name
         PytuckException.__init__(
@@ -222,9 +222,9 @@ class QueryError(PytuckException):
         self,
         message: str,
         *,
-        table_name: Optional[str] = None,
-        column_name: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None
+        table_name: str | None = None,
+        column_name: str | None = None,
+        details: dict[str, Any] | None = None
     ):
         super().__init__(
             message,
@@ -248,7 +248,7 @@ class TransactionError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, details=details)
 
@@ -267,7 +267,7 @@ class DatabaseConnectionError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, details=details)
 
@@ -286,8 +286,8 @@ class SerializationError(PytuckException):
         self,
         message: str,
         *,
-        table_name: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None
+        table_name: str | None = None,
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, table_name=table_name, details=details)
 
@@ -306,7 +306,7 @@ class EncryptionError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, details=details)
 
@@ -325,7 +325,7 @@ class MigrationError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, details=details)
 
@@ -344,9 +344,9 @@ class PytuckIndexError(PytuckException):
         self,
         message: str,
         *,
-        table_name: Optional[str] = None,
-        column_name: Optional[str] = None,
-        details: Optional[dict[str, Any]] = None
+        table_name: str | None = None,
+        column_name: str | None = None,
+        details: dict[str, Any] | None = None
     ):
         super().__init__(
             message,
@@ -371,6 +371,6 @@ class UnsupportedOperationError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[dict[str, Any]] = None
+        details: dict[str, Any] | None = None
     ):
         super().__init__(message, details=details)

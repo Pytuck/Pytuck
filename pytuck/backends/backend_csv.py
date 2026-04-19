@@ -12,7 +12,7 @@ import tempfile
 import threading
 import zipfile
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, Optional
+from typing import Any, TYPE_CHECKING
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, EncryptionError
@@ -35,7 +35,7 @@ class CSVBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = []  # 标准库
     FORMAT_VERSION = get_format_version('csv')
 
-    def __init__(self, file_path: Union[str, Path], options: CsvBackendOptions):
+    def __init__(self, file_path: str | Path, options: CsvBackendOptions):
         """
         初始化 CSV 后端
 
@@ -48,7 +48,7 @@ class CSVBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 CsvBackendOptions 类型
         self.options: CsvBackendOptions = options
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """保存所有表数据到ZIP压缩包"""
         # 决定是否可以增量保存
         can_incremental = (
@@ -281,7 +281,7 @@ class CSVBackend(StorageBackend):
         zf: zipfile.ZipFile,
         table_name: str,
         schema: dict[str, Any],
-        pwd: Optional[bytes] = None
+        pwd: bytes | None = None
     ) -> 'Table':
         """从ZIP加载单个表"""
         from ..core.storage import Table
@@ -331,7 +331,7 @@ class CSVBackend(StorageBackend):
         zf: zipfile.ZipFile,
         csv_file: str,
         table: 'Table',
-        pwd: Optional[bytes]
+        pwd: bytes | None
     ) -> None:
         """
         从 ZIP 中读取 CSV 文件并填充到表中
@@ -355,7 +355,7 @@ class CSVBackend(StorageBackend):
         zf: zipfile.ZipFile,
         csv_file: str,
         table: 'Table',
-        pwd: Optional[bytes]
+        pwd: bytes | None
     ) -> None:
         """实际执行 CSV 读取并填充表数据"""
         with zf.open(csv_file, pwd=pwd) as f:
@@ -481,7 +481,7 @@ class CSVBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为 CSV 引擎格式
 
@@ -489,7 +489,7 @@ class CSVBackend(StorageBackend):
         只检查 ZIP 结构和关键文件存在性，非常快速。
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, dict | None]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

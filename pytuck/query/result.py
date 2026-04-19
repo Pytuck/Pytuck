@@ -124,9 +124,9 @@ class Result(Generic[T]):
         result = session.execute(select(User).where(User.age >= 18))
 
         users = result.all()          # list[User]
-        user = result.first()         # Optional[User]
+        user = result.first()         # User | None
         user = result.one()           # User（必须恰好一条）
-        user = result.one_or_none()   # Optional[User]（最多一条）
+        user = result.one_or_none()   # User | None（最多一条）
         count = result.rowcount()     # int
 
     Attributes:

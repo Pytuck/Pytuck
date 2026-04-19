@@ -7,7 +7,7 @@ Pytuck DuckDB 存储引擎
 import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Any, Optional, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .base import StorageBackend
 from .versions import get_format_version
@@ -33,7 +33,7 @@ class DuckDBBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['duckdb']
     FORMAT_VERSION = get_format_version('duckdb')
 
-    def __init__(self, file_path: Union[str, Path], options: DuckdbBackendOptions):
+    def __init__(self, file_path: str | Path, options: DuckdbBackendOptions):
         """
         初始化 DuckDB 后端
 
@@ -47,7 +47,7 @@ class DuckDBBackend(StorageBackend):
         super().__init__(file_path, options)
         self.options: DuckdbBackendOptions = options
         self._use_native_sql: bool = options.use_native_sql
-        self._connector: Optional[DuckDBConnector] = None
+        self._connector: DuckDBConnector | None = None
 
     @property
     def use_native_sql(self) -> bool:
@@ -87,7 +87,7 @@ class DuckDBBackend(StorageBackend):
                 continue
             self._populate_table_data(connector, table_name, table)
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """保存数据到 DuckDB 数据库"""
         if self._use_native_sql:
             self._save_schema_only(tables)
@@ -447,9 +447,9 @@ class DuckDBBackend(StorageBackend):
         self,
         table_name: str,
         conditions: list[dict[str, Any]],
-        limit: Optional[int] = None,
+        limit: int | None = None,
         offset: int = 0,
-        order_by: Optional[str] = None,
+        order_by: str | None = None,
         order_desc: bool = False
     ) -> dict[str, Any]:
         """使用 SQL LIMIT/OFFSET 实现后端分页"""
@@ -532,7 +532,7 @@ class DuckDBBackend(StorageBackend):
             raise NotImplementedError(f'DuckDB pagination failed: {e}')
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """轻量探测文件是否为 DuckDB 引擎格式"""
         try:
             file_path = Path(file_path).expanduser()

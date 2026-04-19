@@ -9,7 +9,7 @@ import inspect
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, Optional
+from typing import Any, TYPE_CHECKING
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, ConfigurationError
@@ -29,7 +29,7 @@ class JSONBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = []  # 标准库
     FORMAT_VERSION = get_format_version('json')
 
-    def __init__(self, file_path: Union[str, Path], options: JsonBackendOptions):
+    def __init__(self, file_path: str | Path, options: JsonBackendOptions):
         """
         初始化 JSON 后端
 
@@ -135,7 +135,7 @@ class JSONBackend(StorageBackend):
             f"Your custom logic must set self._dumps_func, self._loads_func, and self._impl_name"
         )
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """保存所有表数据到JSON文件"""
         data = {
             'format_version': self.FORMAT_VERSION,
@@ -350,7 +350,7 @@ class JSONBackend(StorageBackend):
         }
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为 JSON 引擎格式
 
@@ -358,7 +358,7 @@ class JSONBackend(StorageBackend):
         只读取前 32KB 内容以提高性能。
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, dict | None]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

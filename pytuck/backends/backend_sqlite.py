@@ -6,7 +6,7 @@ Pytuck SQLite存储引擎
 
 import json
 from pathlib import Path
-from typing import Any, Optional, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 from datetime import datetime
 
 from .base import StorageBackend
@@ -36,7 +36,7 @@ class SQLiteBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['sqlite3']  # 内置 sqlite3
     FORMAT_VERSION = get_format_version('sqlite')
 
-    def __init__(self, file_path: Union[str, Path], options: SqliteBackendOptions):
+    def __init__(self, file_path: str | Path, options: SqliteBackendOptions):
         """
         初始化 SQLite 后端
 
@@ -51,7 +51,7 @@ class SQLiteBackend(StorageBackend):
 
         # 原生 SQL 模式
         self._use_native_sql: bool = options.use_native_sql
-        self._connector: Optional[SQLiteConnector] = None
+        self._connector: SQLiteConnector | None = None
 
     @property
     def use_native_sql(self) -> bool:
@@ -129,7 +129,7 @@ class SQLiteBackend(StorageBackend):
                         table.next_id += 1
                 table.data[pk] = record
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """
         保存数据到 SQLite 数据库
 
@@ -644,9 +644,9 @@ class SQLiteBackend(StorageBackend):
     def query_with_pagination(self,
                              table_name: str,
                              conditions: list[dict[str, Any]],
-                             limit: Optional[int] = None,
+                             limit: int | None = None,
                              offset: int = 0,
-                             order_by: Optional[str] = None,
+                             order_by: str | None = None,
                              order_desc: bool = False) -> dict[str, Any]:
         """
         使用 SQL LIMIT/OFFSET 实现后端分页
@@ -757,7 +757,7 @@ class SQLiteBackend(StorageBackend):
             raise NotImplementedError(f"SQLite pagination failed: {e}")
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为 SQLite 引擎格式
 
@@ -765,7 +765,7 @@ class SQLiteBackend(StorageBackend):
         使用只读模式连接并设置超时以确保安全和性能。
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, dict | None]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

@@ -9,7 +9,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, Optional
+from typing import Any, TYPE_CHECKING
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -29,7 +29,7 @@ class ExcelBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['openpyxl']
     FORMAT_VERSION = get_format_version('excel')
 
-    def __init__(self, file_path: Union[str, Path], options: ExcelBackendOptions):
+    def __init__(self, file_path: str | Path, options: ExcelBackendOptions):
         """
         初始化 Excel 后端
 
@@ -42,7 +42,7 @@ class ExcelBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 ExcelBackendOptions 类型
         self.options: ExcelBackendOptions = options
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """保存所有表数据到Excel工作簿"""
         if self.options.read_only:
             raise SerializationError("Excel backend does not support read-only mode")
@@ -350,7 +350,7 @@ class ExcelBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为 Excel 引擎格式
 
@@ -358,7 +358,7 @@ class ExcelBackend(StorageBackend):
         使用 ZIP 方式而非 openpyxl 以避免依赖问题和提高性能。
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, dict | None]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

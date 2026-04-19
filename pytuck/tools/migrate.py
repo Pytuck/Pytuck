@@ -5,7 +5,7 @@ Pytuck 数据迁移工具
 """
 
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from ..backends import get_backend
 from ..common.exceptions import MigrationError
@@ -15,14 +15,14 @@ from ..common.options import BackendOptions, ConnectorOptions, get_default_backe
 from .adapters import get_source_adapter
 
 def migrate_engine(
-    source_path: Union[str, Path],
+    source_path: str | Path,
     source_engine: str,
-    target_path: Union[str, Path],
+    target_path: str | Path,
     target_engine: str,
     *,
     overwrite: bool = False,
-    source_options: Optional[BackendOptions] = None,
-    target_options: Optional[BackendOptions] = None
+    source_options: BackendOptions | None = None,
+    target_options: BackendOptions | None = None
 ) -> dict[str, Any]:
     """
     在不同存储引擎之间迁移数据
@@ -180,18 +180,18 @@ def get_available_engines() -> dict[str, bool]:
     }
 
 def import_from_database(
-    source_path: Union[str, Path],
-    target_path: Union[str, Path],
+    source_path: str | Path,
+    target_path: str | Path,
     target_engine: str = 'pytuck',
     *,
     source_type: str = 'sqlite',
-    tables: Optional[list[str]] = None,
-    primary_key_map: Optional[dict[str, str]] = None,
-    exclude_tables: Optional[list[str]] = None,
+    tables: list[str] | None = None,
+    primary_key_map: dict[str, str] | None = None,
+    exclude_tables: list[str] | None = None,
     schema_only: bool = False,
     overwrite: bool = False,
-    source_options: Optional[ConnectorOptions] = None,
-    target_options: Optional[BackendOptions] = None
+    source_options: ConnectorOptions | None = None,
+    target_options: BackendOptions | None = None
 ) -> dict[str, Any]:
     """
     从外部关系型数据库导入数据到 Pytuck 格式

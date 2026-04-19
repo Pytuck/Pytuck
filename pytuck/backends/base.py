@@ -6,7 +6,7 @@ Pytuck 存储后端抽象基类
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Optional, Union, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from ..common.options import BackendOptions
 from ..common.exceptions import ConfigurationError
@@ -44,7 +44,7 @@ class StorageBackend(ABC):
             raise ConfigurationError(f'The engine name is already registered: "{cls.ENGINE_NAME}"')
         BackendRegistry.register(cls)
 
-    def __init__(self, file_path: Union[str, Path], options: BackendOptions):
+    def __init__(self, file_path: str | Path, options: BackendOptions):
         """
         初始化后端
 
@@ -66,7 +66,7 @@ class StorageBackend(ABC):
         return f"{self.__class__.__name__}(file_path='{self.file_path}')"
 
     @abstractmethod
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """
         保存所有表数据到持久化存储
 
@@ -242,9 +242,9 @@ class StorageBackend(ABC):
             self,
             table_name: str,
             conditions: list[dict[str, Any]],
-            limit: Optional[int] = None,
+            limit: int | None = None,
             offset: int = 0,
-            order_by: Optional[str] = None,
+            order_by: str | None = None,
             order_desc: bool = False
     ) -> dict[str, Any]:
         """
@@ -277,7 +277,7 @@ class StorageBackend(ABC):
         )
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为本引擎格式
 
@@ -288,7 +288,7 @@ class StorageBackend(ABC):
             file_path: 要探测的文件路径
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配此引擎格式, 可选的元数据信息)
+            tuple[bool, dict | None]: (是否匹配此引擎格式, 可选的元数据信息)
 
         返回元数据示例：
             {

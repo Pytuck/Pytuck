@@ -8,10 +8,7 @@ Pytuck ORM层
 import sys
 import json
 import base64
-from typing import (
-    Any, Callable, Optional, Type, Union, TYPE_CHECKING,
-    overload, Literal, Generic, cast
-)
+from typing import Any, Callable, TYPE_CHECKING, overload, Literal, Generic, cast
 from datetime import datetime, date, timedelta, timezone
 
 from ..common.exceptions import ValidationError, TypeConversionError, SchemaError
@@ -278,19 +275,16 @@ class Column:
     def __init__(self,
                  col_type: ColumnTypes,
                  *,
-                 name: Optional[str] = None,
+                 name: str | None = None,
                  nullable: bool = True,
                  primary_key: bool = False,
-                 index: Union[bool, str] = False,
+                 index: bool | str = False,
                  default: Any = None,
-                 default_factory: Optional[Callable[[], Any]] = None,
-                 foreign_key: Optional[tuple] = None,
-                 comment: Optional[str] = None,
+                 default_factory: Callable[[], Any] | None = None,
+                 foreign_key: tuple | None = None,
+                 comment: str | None = None,
                  strict: bool = False,
-                 validator: Optional[Union[
-                     Callable[[Any], bool],
-                     list[Callable[[Any], bool]]
-                 ]] = None):
+                 validator: Callable[[Any], bool] | list[Callable[[Any], bool]] | None = None):
         """
         初始化列定义
 
@@ -331,7 +325,7 @@ class Column:
             raise ValidationError(
                 f"Unsupported index type: '{index}'. Use True, False, 'hash', or 'sorted'"
             )
-        self.index: Union[bool, str] = index
+        self.index: bool | str = index
         self.default = default
         self.default_factory = default_factory
         self.foreign_key = foreign_key
@@ -464,7 +458,7 @@ class Column:
 
     # ==================== 描述符协议 ====================
 
-    def __set_name__(self, owner: Type['PureBaseModel'], name: str) -> None:
+    def __set_name__(self, owner: type['PureBaseModel'], name: str) -> None:
         """
         在类定义时被调用，存储属性名和拥有者类
 
@@ -477,7 +471,7 @@ class Column:
         if self.name is None:
             self.name = name
 
-    def __get__(self, instance: Optional['PureBaseModel'], owner: Type['PureBaseModel']) -> Union['Column', Any]:
+    def __get__(self, instance: 'PureBaseModel | None', owner: type['PureBaseModel']) -> 'Column | Any':
         """
         描述符协议：
         - 类访问（instance=None）：返回 Column 对象（用于查询）
@@ -580,11 +574,11 @@ class PureBaseModel:
 
     # 类属性
     __abstract__: bool = True
-    __storage__: Optional['Storage'] = None
-    __tablename__: Optional[str] = None
-    __table_comment__: Optional[str] = None
+    __storage__: 'Storage | None' = None
+    __tablename__: str | None = None
+    __table_comment__: str | None = None
     __columns__: dict[str, Column] = {}
-    __primary_key__: Optional[str] = None  # None 表示无主键，使用隐式 rowid
+    __primary_key__: str | None = None  # None 表示无主键，使用隐式 rowid
     __relationships__: dict[str, 'Relationship'] = {}
 
     def __init__(self, **kwargs: Any):
@@ -601,7 +595,7 @@ class PureBaseModel:
         这样 session.flush()/commit() 就能检测到修改。
         """
         old_value = None
-        session: Optional['Session'] = None
+        session: 'Session | None' = None
 
         if (hasattr(self.__class__, name) and
             isinstance(getattr(self.__class__, name), Column) and
@@ -632,7 +626,7 @@ class PureBaseModel:
         return column.name if column and column.name else attr_name
 
     @classmethod
-    def _column_to_attr_name(cls, col_name: str) -> Optional[str]:
+    def _column_to_attr_name(cls, col_name: str) -> str | None:
         """
         将 Column.name 转换为属性名
 
@@ -650,8 +644,8 @@ class PureBaseModel:
     def to_dict(
         self,
         use_column_names: bool = False,
-        include: Optional[set[str]] = None,
-        exclude: Optional[set[str]] = None,
+        include: set[str] | None = None,
+        exclude: set[str] | None = None,
         depth: int = 0,
     ) -> dict[str, Any]:
         """
@@ -723,11 +717,11 @@ class PureBaseModel:
     def to_json(
         self,
         use_column_names: bool = False,
-        include: Optional[set[str]] = None,
-        exclude: Optional[set[str]] = None,
+        include: set[str] | None = None,
+        exclude: set[str] | None = None,
         depth: int = 0,
         ensure_ascii: bool = False,
-        indent: Optional[int] = None,
+        indent: int | None = None,
     ) -> str:
         """
         转换为 JSON 字符串
@@ -854,7 +848,7 @@ class CRUDBaseModel(PureBaseModel):
         raise NotImplementedError("This method should be overridden by declarative_base")
 
     @classmethod
-    def get(cls, pk: Any) -> Optional['CRUDBaseModel']:
+    def get(cls, pk: Any) -> 'CRUDBaseModel | None':
         """
         根据主键获取记录
 
@@ -902,11 +896,11 @@ class Relationship(Generic[RelationshipT]):
         # 一对多（返回列表）- 直接声明 list[Order]
         orders: list[Order] = Relationship('orders', foreign_key='user_id')  # type: ignore
 
-        # 多对一（返回单个对象或 None）- 直接声明 Optional[User]
-        user: Optional[User] = Relationship('users', foreign_key='user_id')  # type: ignore
+        # 多对一（返回单个对象或 None）- 直接声明 User | None
+        user: User | None = Relationship('users', foreign_key='user_id')  # type: ignore
 
         # 自引用（需要显式指定 uselist）
-        parent: Optional[Category] = Relationship(  # type: ignore
+        parent: Category | None = Relationship(  # type: ignore
             'categories', foreign_key='parent_id', uselist=False
         )
         children: list[Category] = Relationship(  # type: ignore
@@ -919,11 +913,11 @@ class Relationship(Generic[RelationshipT]):
     """
 
     def __init__(self,
-                 target_model: Union[str, Type[PureBaseModel]],
+                 target_model: str | type[PureBaseModel],
                  foreign_key: str,
                  lazy: bool = True,
-                 back_populates: Optional[str] = None,
-                 uselist: Optional[bool] = None):
+                 back_populates: str | None = None,
+                 uselist: bool | None = None):
         """
         初始化关联关系
 
@@ -941,10 +935,10 @@ class Relationship(Generic[RelationshipT]):
         self.back_populates = back_populates
         self._uselist = uselist  # 用户指定的值
         self.is_one_to_many = False  # 自动判断的值
-        self.name: Optional[str] = None
-        self.owner: Optional[Type[PureBaseModel]] = None
+        self.name: str | None = None
+        self.owner: type[PureBaseModel] | None = None
 
-    def __set_name__(self, owner: Type[PureBaseModel], name: str) -> None:
+    def __set_name__(self, owner: type[PureBaseModel], name: str) -> None:
         """在类定义时调用"""
         self.name = name
         self.owner = owner
@@ -959,16 +953,16 @@ class Relationship(Generic[RelationshipT]):
             self.is_one_to_many = True
 
     @overload
-    def __get__(self, instance: None, owner: Type[PureBaseModel]) -> 'Relationship[RelationshipT]': ...
+    def __get__(self, instance: None, owner: type[PureBaseModel]) -> 'Relationship[RelationshipT]': ...
 
     @overload
-    def __get__(self, instance: PureBaseModel, owner: Type[PureBaseModel]) -> RelationshipT: ...
+    def __get__(self, instance: PureBaseModel, owner: type[PureBaseModel]) -> RelationshipT: ...
 
     def __get__(
         self,
-        instance: Optional[PureBaseModel],
-        owner: Type[PureBaseModel]
-    ) -> Union['Relationship[RelationshipT]', RelationshipT]:
+        instance: PureBaseModel | None,
+        owner: type[PureBaseModel]
+    ) -> 'Relationship[RelationshipT] | RelationshipT':
         """获取关联对象"""
         if instance is None:
             return self
@@ -991,7 +985,7 @@ class Relationship(Generic[RelationshipT]):
             pk_value = getattr(instance, primary_key)
             # 使用 filter_by（如果目标模型支持）
             if hasattr(target_model, 'filter_by'):
-                results: Union[Optional[PureBaseModel], list[PureBaseModel]] = target_model.filter_by(**{
+                results: PureBaseModel | list[PureBaseModel] | None = target_model.filter_by(**{
                     self.foreign_key: pk_value
                 }).all()
             else:
@@ -1010,7 +1004,7 @@ class Relationship(Generic[RelationshipT]):
         setattr(instance, cache_key, results)
         return cast(RelationshipT, results)
 
-    def _resolve_target_model(self, owner: Optional[Type[PureBaseModel]] = None) -> Type[PureBaseModel]:
+    def _resolve_target_model(self, owner: type[PureBaseModel] | None = None) -> type[PureBaseModel]:
         """
         解析目标模型
 
@@ -1059,8 +1053,8 @@ def declarative_base(
     *,
     crud: Literal[False] = ...,
     sync_schema: bool = ...,
-    sync_options: Optional[SyncOptions] = ...
-) -> Type[PureBaseModel]: ...
+    sync_options: SyncOptions | None = ...
+) -> type[PureBaseModel]: ...
 
 @overload
 def declarative_base(
@@ -1068,16 +1062,16 @@ def declarative_base(
     *,
     crud: Literal[True],
     sync_schema: bool = ...,
-    sync_options: Optional[SyncOptions] = ...
-) -> Type[CRUDBaseModel]: ...
+    sync_options: SyncOptions | None = ...
+) -> type[CRUDBaseModel]: ...
 
 def declarative_base(
     storage: 'Storage',
     *,
     crud: bool = False,
     sync_schema: bool = False,
-    sync_options: Optional[SyncOptions] = None
-) -> Union[Type[PureBaseModel], Type[CRUDBaseModel]]:
+    sync_options: SyncOptions | None = None
+) -> type[PureBaseModel] | type[CRUDBaseModel]:
     """
     创建声明式基类工厂函数
 
@@ -1149,8 +1143,8 @@ def declarative_base(
 def _create_pure_base(
     storage: 'Storage',
     sync_schema: bool = False,
-    sync_options: Optional[SyncOptions] = None
-) -> Type[PureBaseModel]:
+    sync_options: SyncOptions | None = None
+) -> type[PureBaseModel]:
     """创建纯模型基类"""
 
     class DeclarativePureBase(PureBaseModel):
@@ -1159,10 +1153,10 @@ def _create_pure_base(
         # 类属性
         __abstract__ = True
         __storage__ = storage
-        __tablename__: Optional[str] = None
-        __table_comment__: Optional[str] = None
+        __tablename__: str | None = None
+        __table_comment__: str | None = None
         __columns__: dict[str, Column] = {}
-        __primary_key__: Optional[str] = None  # None 表示无主键，使用隐式 rowid
+        __primary_key__: str | None = None  # None 表示无主键，使用隐式 rowid
         __relationships__: dict[str, Relationship] = {}
 
         def __init_subclass__(cls, **kwargs: Any):
@@ -1263,8 +1257,8 @@ def _create_pure_base(
 def _create_crud_base(
     storage: 'Storage',
     sync_schema: bool = False,
-    sync_options: Optional[SyncOptions] = None
-) -> Type[CRUDBaseModel]:
+    sync_options: SyncOptions | None = None
+) -> type[CRUDBaseModel]:
     """创建带 CRUD 方法的模型基类"""
     from .event import event
 
@@ -1274,10 +1268,10 @@ def _create_crud_base(
         # 类属性
         __abstract__ = True
         __storage__ = storage
-        __tablename__: Optional[str] = None
-        __table_comment__: Optional[str] = None
+        __tablename__: str | None = None
+        __table_comment__: str | None = None
         __columns__: dict[str, Column] = {}
-        __primary_key__: Optional[str] = None  # None 表示无主键，使用隐式 rowid
+        __primary_key__: str | None = None  # None 表示无主键，使用隐式 rowid
         __relationships__: dict[str, Relationship] = {}
 
         def __init_subclass__(cls, **kwargs: Any):
@@ -1575,7 +1569,7 @@ def _create_crud_base(
             return count
 
         @classmethod
-        def get(cls, pk: Any) -> Optional['DeclarativeCRUDBase']:
+        def get(cls, pk: Any) -> 'DeclarativeCRUDBase | None':
             """根据主键获取记录
 
             注意：无主键模型无法使用此方法，会返回 None。

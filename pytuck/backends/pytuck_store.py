@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import struct
 import tempfile
-from typing import Any, Optional, Union
+from typing import Any
 
 from ..common.crypto import CryptoProvider, ENCRYPTION_LEVELS, CipherType, get_cipher
 from ..common.exceptions import (
@@ -70,8 +70,8 @@ class _LazySortedIndex(SortedIndex):
 
     def range_query(
         self,
-        min_val: Optional[Any] = None,
-        max_val: Optional[Any] = None,
+        min_val: Any | None = None,
+        max_val: Any | None = None,
         include_min: bool = True,
         include_max: bool = True,
     ) -> set[Any]:
@@ -158,13 +158,13 @@ class TableState:
 class StorePTK7:
     def __init__(
         self,
-        file_path: Union[str, Path],
-        options: Optional[PytuckBackendOptions] = None,
+        file_path: str | Path,
+        options: PytuckBackendOptions | None = None,
     ) -> None:
         self.file_path: Path = Path(file_path).expanduser()
         self.options: PytuckBackendOptions = options or PytuckBackendOptions()
         self._tables: dict[str, TableState] = {}
-        self._cipher: Optional[CipherType] = None
+        self._cipher: CipherType | None = None
         self._payload_offset: int = 0
         if self.file_path.exists():
             self.open()
@@ -185,8 +185,8 @@ class StorePTK7:
         self,
         table_name: str,
         columns: list[Column],
-        primary_key: Optional[str] = None,
-        comment: Optional[str] = None,
+        primary_key: str | None = None,
+        comment: str | None = None,
     ) -> None:
         resolved_primary_key = primary_key or _find_primary_key(columns)
         table = Table(table_name, columns, primary_key=resolved_primary_key, comment=comment)
@@ -339,12 +339,12 @@ class StorePTK7:
             record[pk_name] = pk
         return record
 
-    def flush(self, *, changed_tables: Optional[set[str]] = None) -> None:
+    def flush(self, *, changed_tables: set[str] | None = None) -> None:
         del changed_tables
 
         encryption_level = getattr(self.options, 'encryption', None)
-        cipher: Optional[CipherType] = None
-        crypto_metadata: Optional[CryptoMetadataV7] = None
+        cipher: CipherType | None = None
+        crypto_metadata: CryptoMetadataV7 | None = None
         metadata_size = 0
         if encryption_level is not None:
             if encryption_level not in ENCRYPTION_LEVELS:
@@ -589,7 +589,7 @@ def _encode_pk_dir(records: list[_RecordLayout], data_offset: int) -> bytes:
         cursor += len(record.entry_bytes)
     return bytes(pk_dir)
 
-def _find_primary_key(columns: list[Column]) -> Optional[str]:
+def _find_primary_key(columns: list[Column]) -> str | None:
     for column in columns:
         if column.primary_key:
             return column.name
@@ -652,7 +652,7 @@ def _decode_table_refs(blob: bytes) -> dict[str, TableBlockRef]:
         offset += consumed
     return refs
 
-def probe_ptk7(file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+def probe_ptk7(file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
     path = Path(file_path).expanduser()
     if not path.exists():
         return False, {"error": "file_not_found"}

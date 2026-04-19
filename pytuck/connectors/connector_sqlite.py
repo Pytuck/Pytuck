@@ -7,7 +7,7 @@ SQLite 数据库连接器
 import json
 import sqlite3
 from datetime import datetime, date, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from .base import DatabaseConnector
 from ..common.options import SqliteConnectorOptions
@@ -93,7 +93,7 @@ class SQLiteConnector(DatabaseConnector):
         """
         super().__init__(db_path, options)
         self.options: SqliteConnectorOptions = options
-        self.conn: Optional[sqlite3.Connection] = None
+        self.conn: sqlite3.Connection | None = None
 
     def connect(self) -> None:
         """连接到 SQLite 数据库"""
@@ -156,7 +156,7 @@ class SQLiteConnector(DatabaseConnector):
         )
         return cursor.fetchone() is not None
 
-    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], Optional[str]]:
+    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], str | None]:
         """
         获取表结构
 
@@ -172,7 +172,7 @@ class SQLiteConnector(DatabaseConnector):
 
         cursor = self.conn.execute(f"PRAGMA table_info('{table_name}')")
         columns: list[dict[str, Any]] = []
-        primary_key: Optional[str] = None
+        primary_key: str | None = None
         pk_columns: list[str] = []  # 收集所有主键列
 
         for row in cursor.fetchall():
@@ -239,7 +239,7 @@ class SQLiteConnector(DatabaseConnector):
         self,
         table_name: str,
         columns: list[dict[str, Any]],
-        primary_key: Optional[str]
+        primary_key: str | None
     ) -> None:
         """创建表"""
         if self.conn is None:
@@ -407,8 +407,8 @@ class SQLiteConnector(DatabaseConnector):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        columns: Optional[list[str]] = None
-    ) -> Optional[dict[str, Any]]:
+        columns: list[str] | None = None
+    ) -> dict[str, Any] | None:
         """
         按主键查询一行
 
@@ -442,12 +442,12 @@ class SQLiteConnector(DatabaseConnector):
     def query_rows(
         self,
         table_name: str,
-        where_clause: Optional[str] = None,
+        where_clause: str | None = None,
         params: tuple[Any, ...] = (),
-        columns: Optional[list[str]] = None,
-        order_by: Optional[str] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None
     ) -> list[dict[str, Any]]:
         """
         条件查询多行

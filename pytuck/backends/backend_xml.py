@@ -9,7 +9,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Union, TYPE_CHECKING, Optional
+from typing import Any, TYPE_CHECKING
 from datetime import datetime, date, timedelta
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -29,7 +29,7 @@ class XMLBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['lxml']
     FORMAT_VERSION = get_format_version('xml')
 
-    def __init__(self, file_path: Union[str, Path], options: XmlBackendOptions):
+    def __init__(self, file_path: str | Path, options: XmlBackendOptions):
         """
         初始化 XML 后端
 
@@ -42,7 +42,7 @@ class XMLBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 XmlBackendOptions 类型
         self.options: XmlBackendOptions = options
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """保存所有表数据到XML文件"""
         try:
             from lxml import etree
@@ -323,7 +323,7 @@ class XMLBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为 XML 引擎格式
 
@@ -335,7 +335,7 @@ class XMLBackend(StorageBackend):
         2. 如果通过初步检查，从文件直接解析完整 XML（不使用截断的内容）
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, dict | None]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

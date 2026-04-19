@@ -5,14 +5,14 @@ Pytuck 配置选项 dataclass 定义
 """
 import re
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union, Literal
+from typing import Any, Literal, Union
 
 from .exceptions import ValidationError
 
 # ASCII 可打印字符正则（排除空格 0x20，包含 0x21-0x7E）
 _VALID_ZIP_PASSWORD_PATTERN = re.compile(r'^[\x21-\x7e]+$')
 
-def _validate_zip_password(password: Optional[str]) -> None:
+def _validate_zip_password(password: str | None) -> None:
     """校验 ZIP 密码格式
 
     Args:
@@ -33,32 +33,32 @@ def _validate_zip_password(password: Optional[str]) -> None:
 class SqliteConnectorOptions:
     """SQLite 连接器配置选项"""
     check_same_thread: bool = True  # 检查同一线程
-    timeout: Optional[float] = None  # 连接超时时间
-    isolation_level: Optional[str] = None  # 事务隔离级别
+    timeout: float | None = None  # 连接超时时间
+    isolation_level: str | None = None  # 事务隔离级别
 
 @dataclass
 class DuckdbConnectorOptions:
     """DuckDB 连接器配置选项"""
     read_only: bool = False  # 只读模式
-    threads: Optional[int] = None  # 线程数（None 表示自动）
+    threads: int | None = None  # 线程数（None 表示自动）
     schema: str = 'main'  # 默认 schema 名称
 
 # Connector 选项联合类型
-ConnectorOptions = Union[SqliteConnectorOptions, DuckdbConnectorOptions]
+ConnectorOptions = SqliteConnectorOptions | DuckdbConnectorOptions
 
 @dataclass
 class JsonBackendOptions:
     """JSON 后端配置选项"""
-    indent: Optional[int] = None  # 缩进空格数
+    indent: int | None = None  # 缩进空格数
     ensure_ascii: bool = False  # 是否强制 ASCII 编码
-    impl: Optional[str] = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
+    impl: str | None = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
 
 @dataclass
 class JsonlBackendOptions:
     """JSONL 后端配置选项"""
     ensure_ascii: bool = False  # 是否强制 ASCII 编码
-    impl: Optional[str] = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
-    password: Optional[str] = None  # ZIP 密码（仅允许 ASCII 字符）
+    impl: str | None = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
+    password: str | None = None  # ZIP 密码（仅允许 ASCII 字符）
 
     def __setattr__(self, name: str, value: Any) -> None:
         """拦截属性赋值，校验 password 字段"""
@@ -71,9 +71,9 @@ class CsvBackendOptions:
     """CSV 后端配置选项"""
     encoding: str = 'utf-8-sig'  # 字符编码（默认带 BOM，兼容 Excel）
     delimiter: str = ','  # 字段分隔符
-    indent: Optional[int] = None  # json元数据缩进空格数（无缩进时为 None）
-    password: Optional[str] = None  # ZIP 解压密码（仅允许 ASCII 字符）
-    field_size_limit: Optional[int] = None  # CSV 字段大小上限（bytes），None 表示使用 csv 模块默认限制（131072）
+    indent: int | None = None  # json元数据缩进空格数（无缩进时为 None）
+    password: str | None = None  # ZIP 解压密码（仅允许 ASCII 字符）
+    field_size_limit: int | None = None  # CSV 字段大小上限（bytes），None 表示使用 csv 模块默认限制（131072）
 
     def __setattr__(self, name: str, value: Any) -> None:
         """拦截属性赋值，校验 password 和 field_size_limit 字段"""
@@ -111,8 +111,8 @@ class PytuckBackendOptions:
     """Pytuck 单文件后端配置选项（仅保留当前字段）"""
 
     # 仅保留当前需要的两个字段
-    encryption: Optional[Literal['low', 'medium', 'high']] = None  # 加密等级: 'low' | 'medium' | 'high' | None
-    password: Optional[str] = None    # 加密密码（仅 encryption 非 None 时生效）
+    encryption: Literal['low', 'medium', 'high'] | None = None  # 加密等级: 'low' | 'medium' | 'high' | None
+    password: str | None = None    # 加密密码（仅 encryption 非 None 时生效）
 
 # Backend 选项联合类型
 BackendOptions = Union[

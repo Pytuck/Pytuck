@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING, Union
+from typing import Any, TYPE_CHECKING
 
 from ..common.crypto import ENCRYPTION_LEVELS
 from ..common.exceptions import ConfigurationError
@@ -14,7 +14,7 @@ class PytuckBackend(StorageBackend):
     ENGINE_NAME = 'pytuck'
     FORMAT_VERSION = 7
 
-    def __init__(self, file_path: Union[str, Path], options: BackendOptions) -> None:
+    def __init__(self, file_path: str | Path, options: BackendOptions) -> None:
         super().__init__(file_path, options)
         assert isinstance(options, PytuckBackendOptions), 'options must be an instance of PytuckBackendOptions'
         self.options = options
@@ -47,9 +47,9 @@ class PytuckBackend(StorageBackend):
         self,
         table_name: str,
         conditions: list[dict[str, Any]],
-        limit: Optional[int] = None,
+        limit: int | None = None,
         offset: int = 0,
-        order_by: Optional[str] = None,
+        order_by: str | None = None,
         order_desc: bool = False,
     ) -> dict[str, Any]:
         """通过后端路径执行过滤、排序和分页。"""
@@ -91,7 +91,7 @@ class PytuckBackend(StorageBackend):
         self,
         tables: dict[str, 'Table'],
         *,
-        changed_tables: Optional[set[str]] = None,
+        changed_tables: set[str] | None = None,
     ) -> None:
         self.store.replace_tables(tables)
         self.store.flush(changed_tables=changed_tables)
@@ -103,7 +103,7 @@ class PytuckBackend(StorageBackend):
         self.store.delete()
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         return probe_pytuck(file_path)
 
 __all__ = ['PytuckBackend']

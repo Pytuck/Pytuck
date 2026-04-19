@@ -12,7 +12,7 @@ import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, TYPE_CHECKING, Union
+from typing import Any, TYPE_CHECKING
 
 from .base import StorageBackend
 from .backend_json import JSONBackend
@@ -31,7 +31,7 @@ class JSONLBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = []
     FORMAT_VERSION = get_format_version('jsonl')
 
-    def __init__(self, file_path: Union[str, Path], options: JsonlBackendOptions):
+    def __init__(self, file_path: str | Path, options: JsonlBackendOptions):
         """
         初始化 JSONL 后端
 
@@ -116,7 +116,7 @@ class JSONLBackend(StorageBackend):
             f"Your custom logic must set self._dumps_func, self._loads_func, and self._impl_name"
         )
 
-    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: set[str] | None = None) -> None:
         """保存所有表数据到 JSONL ZIP 文件"""
         # 决定是否可以增量保存
         can_incremental = (
@@ -323,7 +323,7 @@ class JSONLBackend(StorageBackend):
             buffer.write('\n')
         return buffer.getvalue().encode('utf-8')
 
-    def _load_metadata(self, zf: zipfile.ZipFile, pwd: Optional[bytes] = None) -> dict[str, Any]:
+    def _load_metadata(self, zf: zipfile.ZipFile, pwd: bytes | None = None) -> dict[str, Any]:
         """从 ZIP 中读取元数据"""
         if '_metadata.json' not in zf.namelist():
             raise SerializationError('Missing _metadata.json in JSONL archive')
@@ -369,7 +369,7 @@ class JSONLBackend(StorageBackend):
         zf: zipfile.ZipFile,
         jsonl_file: str,
         table: 'Table',
-        pwd: Optional[bytes] = None
+        pwd: bytes | None = None
     ) -> None:
         """从 ZIP 中读取单表 JSONL 数据并填充到表中"""
         with zf.open(jsonl_file, pwd=pwd) as f:
@@ -462,12 +462,12 @@ class JSONLBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
+    def probe(cls, file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
         """
         轻量探测文件是否为 JSONL 引擎格式
 
         Returns:
-            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或 None)
+            tuple[bool, dict | None]: (是否匹配, 元数据信息或 None)
         """
         try:
             path = Path(file_path).expanduser()
