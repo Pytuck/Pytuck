@@ -18,7 +18,7 @@ Pytuck 关系预取 API
     users = result.all()  # all() 返回后，orders 已批量加载
 """
 
-from typing import Any, Optional, Sequence, Type, Union, overload, TYPE_CHECKING
+from typing import Any, Sequence, TYPE_CHECKING
 
 from ..query.builder import Condition
 from .orm import PureBaseModel, Relationship, PSEUDO_PK_NAME
@@ -46,7 +46,7 @@ class PrefetchOption:
 
 def prefetch(
     *args: Any
-) -> Union[None, PrefetchOption]:
+) -> None | PrefetchOption:
     """
     批量预取关联数据 / 创建预取选项
 
@@ -126,11 +126,11 @@ def _prefetch_relationship(
     """
     owner_class = type(instances[0])
     target_model = rel._resolve_target_model(owner_class)
-    storage: Optional['Storage'] = getattr(owner_class, '__storage__', None)
+    storage: 'Storage | None' = getattr(owner_class, '__storage__', None)
     if storage is None:
         raise ValueError(f"Model '{owner_class.__name__}' is not bound to a Storage")
 
-    target_table: Optional[str] = getattr(target_model, '__tablename__', None)
+    target_table: str | None = getattr(target_model, '__tablename__', None)
     if target_table is None:
         raise ValueError(f"Target model has no __tablename__")
 
@@ -154,7 +154,7 @@ def _prefetch_relationship(
 def _prefetch_one_to_many(
     instances: Sequence[PureBaseModel],
     storage: 'Storage',
-    target_model: Type[PureBaseModel],
+    target_model: type[PureBaseModel],
     target_table: str,
     pk_attr: str,
     foreign_key: str,
@@ -206,7 +206,7 @@ def _prefetch_one_to_many(
 def _prefetch_many_to_one(
     instances: Sequence[PureBaseModel],
     storage: 'Storage',
-    target_model: Type[PureBaseModel],
+    target_model: type[PureBaseModel],
     target_table: str,
     foreign_key: str,
     cache_key: str
@@ -240,7 +240,7 @@ def _prefetch_many_to_one(
         return
 
     # 2. 查询目标表
-    target_pk: Optional[str] = getattr(target_model, '__primary_key__', None)
+    target_pk: str | None = getattr(target_model, '__primary_key__', None)
     if target_pk is None:
         raise ValueError("Many-to-one prefetch requires target model to have a primary key")
 
@@ -264,7 +264,7 @@ def _prefetch_many_to_one(
         setattr(inst, cache_key, pk_map.get(fk_val))
 
 def _record_to_instance(
-    model_class: Type[PureBaseModel],
+    model_class: type[PureBaseModel],
     record: dict[str, Any]
 ) -> PureBaseModel:
     """

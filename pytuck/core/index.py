@@ -6,7 +6,7 @@ Pytuck 索引实现
 
 from abc import ABC, abstractmethod
 from bisect import bisect_left, bisect_right
-from typing import Any, Optional
+from typing import Any
 
 class BaseIndex(ABC):
     """索引基类（抽象接口）"""
@@ -71,8 +71,8 @@ class BaseIndex(ABC):
 
     def range_query(
         self,
-        min_val: Optional[Any] = None,
-        max_val: Optional[Any] = None,
+        min_val: Any | None = None,
+        max_val: Any | None = None,
         include_min: bool = True,
         include_max: bool = True
     ) -> set[Any]:
@@ -248,8 +248,8 @@ class SortedIndex(BaseIndex):
 
     def range_query(
         self,
-        min_val: Optional[Any] = None,
-        max_val: Optional[Any] = None,
+        min_val: Any | None = None,
+        max_val: Any | None = None,
         include_min: bool = True,
         include_max: bool = True
     ) -> set[Any]:

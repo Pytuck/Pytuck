@@ -9,7 +9,6 @@ import struct
 import time
 import zlib
 from pathlib import Path
-from typing import Optional, Union
 
 from .zipcrypto import ZipCryptoEncryptor
 
@@ -59,8 +58,8 @@ class EncryptedZipFile:
 
     def __init__(
         self,
-        path: Union[str, Path],
-        password: Optional[str] = None,
+        path: str | Path,
+        password: str | None = None,
         compression: int = 8  # 默认使用 DEFLATE 压缩
     ) -> None:
         """

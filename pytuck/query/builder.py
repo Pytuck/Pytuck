@@ -3,8 +3,8 @@ Pytuck 查询构建器
 
 提供链式查询API
 """
-
-from typing import Any, Callable, Optional, Type, Generic, TYPE_CHECKING, Union
+from __future__ import annotations
+from typing import Any, Callable, Generic, TYPE_CHECKING, Union
 
 from ..common.typing import T
 from ..common.exceptions import QueryError
@@ -105,7 +105,7 @@ class CompositeCondition:
     支持递归嵌套，可以表示任意复杂的布尔逻辑组合。
     """
 
-    def __init__(self, operator: str, conditions: list[Union[Condition, 'CompositeCondition']]):
+    def __init__(self, operator: str, conditions: list[Condition | 'CompositeCondition']):
         """
         初始化组合条件
 
@@ -181,7 +181,7 @@ class LogicalExpression:
         Returns:
             CompositeCondition 对象
         """
-        conditions: list[Union[Condition, CompositeCondition]] = []
+        conditions: list[Condition | CompositeCondition] = []
         for expr in self.expressions:
             if isinstance(expr, BinaryExpression):
                 conditions.append(expr.to_condition())
@@ -278,12 +278,12 @@ def not_(expression: ExpressionType) -> LogicalExpression:
     return LogicalExpression('NOT', [expression])
 
 # 条件类型：Condition 或 CompositeCondition
-ConditionType = Union[Condition, CompositeCondition]
+ConditionType = Condition | CompositeCondition
 
 class Query(Generic[T]):
     """查询构建器（支持链式调用）"""
 
-    def __init__(self, model_class: Type[T], storage: Optional['Storage'] = None) -> None:
+    def __init__(self, model_class: type[T], storage: 'Storage | None' = None) -> None:
         """
         初始化查询构建器
 
@@ -295,7 +295,7 @@ class Query(Generic[T]):
         self.storage = storage  # 新 API：通过参数传入
         self._conditions: list[ConditionType] = []
         self._order_by_fields: list[tuple[str, bool]] = []  # [(field, desc), ...]
-        self._limit_value: Optional[int] = None
+        self._limit_value: int | None = None
         self._offset_value: int = 0
 
     def filter(self, *expressions: ExpressionType) -> 'Query[T]':
@@ -418,7 +418,7 @@ class Query(Generic[T]):
         self._offset_value = n
         return self
 
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         """
         返回第一条记录
 
@@ -483,7 +483,7 @@ class Query(Generic[T]):
             记录字典列表
         """
         # 获取 storage 实例（新 API 优先，兼容旧 API）
-        storage: Optional['Storage'] = (
+        storage: 'Storage | None' = (
             self.storage or
             getattr(self.model_class, '__storage__', None) or
             getattr(self.model_class, '_db', None)
@@ -493,7 +493,7 @@ class Query(Generic[T]):
             raise QueryError(f"No database configured for {self.model_class.__name__}")
 
         # 获取表名（支持新旧两种风格）
-        table_name: Optional[str] = (
+        table_name: str | None = (
             getattr(self.model_class, '__tablename__', None) or
             getattr(self.model_class, '_table_name', None)
         )

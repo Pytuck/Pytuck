@@ -7,7 +7,7 @@ SQLite 数据库连接器
 import json
 import sqlite3
 from datetime import datetime, date, timedelta
-from typing import Any, Optional, Type
+from typing import Any, Optional
 
 from .base import DatabaseConnector
 from ..common.options import SqliteConnectorOptions
@@ -183,7 +183,7 @@ class SQLiteConnector(DatabaseConnector):
             is_pk = row[5] >= 1  # pk 列：0 表示非主键，>=1 表示主键顺序
 
             # 类型映射
-            py_type: Type = str  # 默认类型
+            py_type: type = str  # 默认类型
             for sql_type, mapped_type in self.SQL_TO_TYPE.items():
                 if sql_type in col_type_str:
                     py_type = mapped_type

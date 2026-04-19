@@ -6,7 +6,7 @@ SQL 语句编译器
 
 import json
 from datetime import datetime, date, timedelta
-from typing import Any, NamedTuple, Optional, Type, TYPE_CHECKING
+from typing import Any, NamedTuple, TYPE_CHECKING
 
 from ..common.exceptions import QueryError
 from ..core.types import TypeRegistry
@@ -64,7 +64,7 @@ class QueryCompiler:
             # result.params = (18,)
     """
 
-    def __init__(self, dialect: Optional[SQLDialect] = None) -> None:
+    def __init__(self, dialect: SQLDialect | None = None) -> None:
         """
         初始化编译器
 
@@ -271,7 +271,7 @@ class QueryCompiler:
     def _compile_binary_expression(
         self,
         expr: 'BinaryExpression',
-        model_class: Type
+        model_class: type
     ) -> tuple[str, list[Any]]:
         """
         编译二元表达式
@@ -322,7 +322,7 @@ class QueryCompiler:
     def _compile_logical_expression(
         self,
         expr: 'LogicalExpression',
-        model_class: Type
+        model_class: type
     ) -> tuple[str, list[Any]]:
         """
         递归编译逻辑表达式
@@ -407,7 +407,7 @@ class QueryCompiler:
         """引用标识符"""
         return self.dialect.quote_identifier(name)
 
-    def _serialize_param(self, value: Any, model_class: Type, col_name: str) -> Any:
+    def _serialize_param(self, value: Any, model_class: type, col_name: str) -> Any:
         """
         序列化参数值为 SQL 兼容格式
 

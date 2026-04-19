@@ -4,7 +4,7 @@ Result - 查询结果包装器
 提供简洁的查询结果处理接口，直接返回模型实例。
 """
 
-from typing import Any, Optional, Type, Generic, TYPE_CHECKING
+from typing import Any, Generic, TYPE_CHECKING
 
 from ..common.typing import T
 from ..common.exceptions import QueryError, UnsupportedOperationError
@@ -20,7 +20,7 @@ class _ScalarResult(Generic[T]):
     负责将查询结果字典转换为模型实例，并处理 identity map。
     """
 
-    def __init__(self, records: list[dict[str, Any]], model_class: Type[T], session: Optional['Session'] = None) -> None:
+    def __init__(self, records: list[dict[str, Any]], model_class: type[T], session: 'Session | None' = None) -> None:
         self._records = records
         self._model_class = model_class
         self._session = session
@@ -87,7 +87,7 @@ class _ScalarResult(Generic[T]):
             instances.append(instance)
         return instances
 
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         """返回第一个模型实例"""
         if not self._records:
             return None
@@ -101,7 +101,7 @@ class _ScalarResult(Generic[T]):
             raise QueryError(f"Expected one result, got {len(self._records)}")
         return self._create_instance(self._records[0])
 
-    def one_or_none(self) -> Optional[T]:
+    def one_or_none(self) -> T | None:
         """返回唯一的模型实例或 None（最多一条）"""
         if len(self._records) == 0:
             return None
@@ -136,7 +136,14 @@ class Result(Generic[T]):
         _session: Session 实例，用于 identity map 管理
     """
 
-    def __init__(self, records: list[dict[str, Any]], model_class: Type[T], operation: str = 'select', session: Optional['Session'] = None, options: Optional[list[Any]] = None) -> None:
+    def __init__(
+            self,
+            records: list[dict[str, Any]],
+            model_class: type[T],
+            operation: str = 'select',
+            session: 'Session | None' = None,
+            options: list[Any] | None = None
+    ) -> None:
         """
         Args:
             records: 查询结果（字典列表）
@@ -161,7 +168,7 @@ class Result(Generic[T]):
         self._apply_prefetch(instances)
         return instances
 
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         """返回第一个结果为模型实例"""
         if self._operation != 'select':
             raise UnsupportedOperationError("first() not supported for non-select operations")
@@ -173,7 +180,7 @@ class Result(Generic[T]):
             raise UnsupportedOperationError("one() not supported for non-select operations")
         return self._scalar_result.one()
 
-    def one_or_none(self) -> Optional[T]:
+    def one_or_none(self) -> T | None:
         """返回唯一的结果为模型实例或 None（最多一条）"""
         if self._operation != 'select':
             raise UnsupportedOperationError("one_or_none() not supported for non-select operations")
@@ -222,7 +229,7 @@ class CursorResult(Result[T]):
         _inserted_pk: 插入的主键（仅 INSERT）
     """
 
-    def __init__(self, affected_rows: int, model_class: Type[T], operation: str, inserted_pk: Any = None) -> None:
+    def __init__(self, affected_rows: int, model_class: type[T], operation: str, inserted_pk: Any = None) -> None:
         """
         Args:
             affected_rows: 受影响的行数
@@ -246,11 +253,11 @@ class CursorResult(Result[T]):
     def all(self) -> list[T]:
         raise UnsupportedOperationError(f"all() not supported for {self._operation} operation")
 
-    def first(self) -> Optional[T]:
+    def first(self) -> T | None:
         raise UnsupportedOperationError(f"first() not supported for {self._operation} operation")
 
     def one(self) -> T:
         raise UnsupportedOperationError(f"one() not supported for {self._operation} operation")
 
-    def one_or_none(self) -> Optional[T]:
+    def one_or_none(self) -> T | None:
         raise UnsupportedOperationError(f"one_or_none() not supported for {self._operation} operation")

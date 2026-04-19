@@ -6,7 +6,7 @@ Pytuck 类型系统
 
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Any, Callable, Type
+from typing import Any, Callable
 import struct
 import json
 import base64
@@ -377,7 +377,7 @@ def _deserialize_float(value: Any) -> float:
     return float(value)
 
 # 文本反序列化函数注册表
-_TEXT_DESERIALIZERS: dict[Type, Callable[[Any], Any]] = {
+_TEXT_DESERIALIZERS: dict[type, Callable[[Any], Any]] = {
     bytes: _deserialize_bytes,
     datetime: _deserialize_datetime,
     date: _deserialize_date,

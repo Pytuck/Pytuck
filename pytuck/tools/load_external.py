@@ -5,17 +5,17 @@
 """
 
 from pathlib import Path
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, TypeVar
 
 from ..core.orm import PureBaseModel, Column
 
 T = TypeVar('T', bound=PureBaseModel)
 
 def load_table(
-    model: Type[T],
+    model: type[T],
     file_path: str,
     *,
-    sheet_name: Optional[str] = None,
+    sheet_name: str | None = None,
     encoding: str = 'utf-8-sig',
     delimiter: str = ',',
 ) -> list[T]:
@@ -95,7 +95,7 @@ def _load_csv(path: Path, encoding: str, delimiter: str) -> list[dict[str, Any]]
 
     return rows
 
-def _load_excel(path: Path, sheet_name: Optional[str]) -> list[dict[str, Any]]:
+def _load_excel(path: Path, sheet_name: str | None) -> list[dict[str, Any]]:
     """加载 Excel 文件，返回字典列表"""
     try:
         from openpyxl import load_workbook
@@ -140,7 +140,7 @@ def _load_excel(path: Path, sheet_name: Optional[str]) -> list[dict[str, Any]]:
     return rows
 
 def _row_to_model(
-    model: Type[T],
+    model: type[T],
     row: dict[str, Any],
     columns: dict[str, Column]
 ) -> T:

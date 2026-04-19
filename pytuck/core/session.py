@@ -5,7 +5,7 @@ Session - 会话管理器
 """
 
 from collections import OrderedDict
-from typing import Any, Generator, Optional, Type, Union, overload
+from typing import Any, Generator, overload
 from contextlib import contextmanager
 
 from ..common.typing import T
@@ -68,14 +68,14 @@ class Session:
         self._deleted_objects: list[PureBaseModel] = []  # 待删除对象
 
         # 标识映射：缓存已加载的对象 {(model_class, pk): instance}
-        self._identity_map: dict[tuple[Type[PureBaseModel], Any], PureBaseModel] = {}
+        self._identity_map: dict[tuple[type[PureBaseModel], Any], PureBaseModel] = {}
 
         # 事务状态
         self._in_transaction = False
 
         # 原生 SQL 插入缓冲区：{table_name: (model_class, [validated_data_dicts])}
         # 用于在 commit/flush 时批量提交，避免逐条 INSERT 的性能问题
-        self._insert_buffer: dict[str, tuple[Type[PureBaseModel], list[dict[str, Any]]]] = {}
+        self._insert_buffer: dict[str, tuple[type[PureBaseModel], list[dict[str, Any]]]] = {}
 
     def add(self, instance: PureBaseModel) -> None:
         """
@@ -147,7 +147,7 @@ class Session:
 
         # 1. 处理待插入对象
         if self._new_objects:
-            groups: "OrderedDict[Type[PureBaseModel], list[PureBaseModel]]" = OrderedDict()
+            groups: "OrderedDict[type[PureBaseModel], list[PureBaseModel]]" = OrderedDict()
             for instance in self._new_objects:
                 model_class = instance.__class__
                 if model_class not in groups:
@@ -462,7 +462,7 @@ class Session:
 
         return count
 
-    def get(self, model_class: Type[T], pk: Any) -> Optional[T]:
+    def get(self, model_class: type[T], pk: Any) -> T | None:
         """
         通过主键获取对象
 
@@ -584,7 +584,7 @@ class Session:
     @overload
     def execute(self, statement: Delete[T]) -> CursorResult[T]: ...
 
-    def execute(self, statement: Statement) -> Union[Result, CursorResult]:
+    def execute(self, statement: Statement) -> Result | CursorResult:
         """
         执行 statement（SQLAlchemy 2.0 风格）
 
@@ -644,7 +644,7 @@ class Session:
                 details={'statement_type': type(statement).__name__}
             )
 
-    def _execute_native_sql(self, statement: Statement) -> Union[Result, CursorResult]:
+    def _execute_native_sql(self, statement: Statement) -> Result | CursorResult:
         """
         原生 SQL 模式下执行语句
 
@@ -907,7 +907,7 @@ class Session:
         instance._pytuck_session = self
         instance._pytuck_state = 'persistent'
 
-    def _get_from_identity_map(self, model_class: Type[T], pk: Any) -> Optional[T]:
+    def _get_from_identity_map(self, model_class: type[T], pk: Any) -> T | None:
         """
         从 identity map 获取实例
 
@@ -1006,7 +1006,7 @@ class Session:
         self.add(instance)
         return instance
 
-    def query(self, model_class: Type[T]) -> Query[T]:
+    def query(self, model_class: type[T]) -> Query[T]:
         """
         创建查询构建器（SQLAlchemy 1.4 风格，不推荐，但也不警告）
 
@@ -1067,7 +1067,7 @@ class Session:
         """上下文管理器入口"""
         return self
 
-    def __exit__(self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Any) -> None:
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any) -> None:
         """上下文管理器出口"""
         if exc_type is None:
             self.commit()
@@ -1077,7 +1077,7 @@ class Session:
     # ==================== Schema 操作（面向模型） ====================
 
     @staticmethod
-    def _resolve_table_name(model_or_table: Union[Type[PureBaseModel], str]) -> str:
+    def _resolve_table_name(model_or_table: type[PureBaseModel] | str) -> str:
         """
         解析表名
 
@@ -1096,8 +1096,8 @@ class Session:
 
     def sync_schema(
         self,
-        model_class: Type[PureBaseModel],
-        options: Optional[SyncOptions] = None
+        model_class: type[PureBaseModel],
+        options: SyncOptions | None = None
     ) -> SyncResult:
         """
         同步模型到数据库表结构
@@ -1130,7 +1130,7 @@ class Session:
 
     def add_column(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
+        model_or_table: type[PureBaseModel] | str,
         column: Column,
         default_value: Any = None
     ) -> None:
@@ -1159,7 +1159,7 @@ class Session:
 
     def drop_column(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
+        model_or_table: type[PureBaseModel] | str,
         column_name: str
     ) -> None:
         """
@@ -1186,7 +1186,7 @@ class Session:
 
     def alter_column(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
+        model_or_table: type[PureBaseModel] | str,
         column_name: str,
         *,
         col_type: Any = ...,
@@ -1221,7 +1221,7 @@ class Session:
 
     def set_primary_key(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
+        model_or_table: type[PureBaseModel] | str,
         column_name: str
     ) -> None:
         """
@@ -1240,7 +1240,7 @@ class Session:
 
     def reorder_columns(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
+        model_or_table: type[PureBaseModel] | str,
         new_order: list[str]
     ) -> None:
         """
@@ -1259,8 +1259,8 @@ class Session:
 
     def update_table_comment(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
-        comment: Optional[str]
+        model_or_table: type[PureBaseModel] | str,
+        comment: str | None
     ) -> None:
         """
         更新表备注
@@ -1278,10 +1278,10 @@ class Session:
 
     def update_column(
         self,
-        model_or_table: Union[Type[PureBaseModel], str],
+        model_or_table: type[PureBaseModel] | str,
         column_name: str,
-        comment: Optional[str] = None,
-        index: Optional[bool] = None
+        comment: str | None = None,
+        index: bool | None = None
     ) -> None:
         """
         更新列属性
@@ -1309,7 +1309,7 @@ class Session:
         table_name = self._resolve_table_name(model_or_table)
         self.storage.update_column(table_name, column_name, comment, index)
 
-    def drop_table(self, model_or_table: Union[Type[PureBaseModel], str]) -> None:
+    def drop_table(self, model_or_table: type[PureBaseModel] | str) -> None:
         """
         删除表
 
@@ -1325,7 +1325,7 @@ class Session:
 
     def rename_table(
         self,
-        old_model_or_table: Union[Type[PureBaseModel], str],
+        old_model_or_table: type[PureBaseModel] | str,
         new_name: str
     ) -> None:
         """

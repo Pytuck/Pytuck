@@ -8,7 +8,7 @@ import copy
 import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Any, Iterator, Optional, Generator, Type, Union, TYPE_CHECKING, Sequence
+from typing import Any, Iterator, Generator, TYPE_CHECKING, Sequence
 from contextlib import contextmanager
 
 from ..common.options import BackendOptions, SyncOptions, SyncResult
@@ -98,8 +98,8 @@ class Table:
         self,
         name: str,
         columns: list[Column],
-        primary_key: Optional[str] = None,
-        comment: Optional[str] = None
+        primary_key: str | None = None,
+        comment: str | None = None
     ):
         """
         初始化表
@@ -126,9 +126,9 @@ class Table:
         self._schema_dirty: bool = False  # 结构是否被修改（add_column/drop_column 等）
 
         # 懒加载支持
-        self._pk_offsets: Optional[dict[Any, int]] = None  # {pk: file_offset}
-        self._data_file: Optional[Path] = None  # 数据文件路径
-        self._backend: Optional[Any] = None  # Binary 后端引用（用于读取记录）
+        self._pk_offsets: dict[Any, int] | None = None  # {pk: file_offset}
+        self._data_file: Path | None = None  # 数据文件路径
+        self._backend: Any | None = None  # Binary 后端引用（用于读取记录）
         self._lazy_loaded: bool = False  # 是否为懒加载模式
 
         # 自动为标记了index的列创建索引
@@ -924,7 +924,7 @@ class Table:
         self._schema_dirty = True
         self._data_dirty = True
 
-    def update_comment(self, comment: Optional[str]) -> None:
+    def update_comment(self, comment: str | None) -> None:
         """
         更新表备注
 
@@ -933,7 +933,7 @@ class Table:
         """
         self.comment = comment
 
-    def update_column_comment(self, column_name: str, comment: Optional[str]) -> None:
+    def update_column_comment(self, column_name: str, comment: str | None) -> None:
         """
         更新列备注
 
@@ -948,7 +948,7 @@ class Table:
             raise ColumnNotFoundError(self.name, column_name)
         self.columns[column_name].comment = comment
 
-    def update_column_index(self, column_name: str, index: Union[bool, str]) -> None:
+    def update_column_index(self, column_name: str, index: bool | str) -> None:
         """
         更新列的索引设置
 
@@ -991,11 +991,11 @@ class Storage:
 
     def __init__(
         self,
-        file_path: Optional[Union[str, Path]] = None,
+        file_path: str | Path | None = None,
         in_memory: bool = False,
         engine: str = 'pytuck',
         auto_flush: bool = False,
-        backend_options: Optional[BackendOptions] = None,
+        backend_options: BackendOptions | None = None,
     ):
         """
         初始化存储引擎
@@ -1009,7 +1009,7 @@ class Storage:
         """
         # 路径统一处理：边界转换为 Path 对象
         if file_path is not None and str(file_path) != '':
-            self.file_path: Optional[Path] = Path(file_path).expanduser()
+            self.file_path: Path | None = Path(file_path).expanduser()
         else:
             self.file_path = None
         self.in_memory: bool = in_memory or (file_path is None)
@@ -1020,19 +1020,19 @@ class Storage:
 
         # 事务管理属性
         self._in_transaction: bool = False
-        self._transaction_snapshot: Optional[TransactionSnapshot] = None
+        self._transaction_snapshot: TransactionSnapshot | None = None
         self._transaction_dirty_flag: bool = False
 
         # 原生 SQL 模式相关属性
         self._native_sql_mode: bool = False  # 是否启用原生 SQL 模式
-        self._connector: Optional[Any] = None  # 数据库连接器（原生 SQL 模式）
+        self._connector: Any | None = None  # 数据库连接器（原生 SQL 模式）
         self._native_sql_in_transaction: bool = False  # 是否在原生 SQL 事务中
 
         # 模型注册表（表名 -> 模型类，用于 Relationship 解析）
-        self._model_registry: dict[str, Type] = {}
+        self._model_registry: dict[str, type] = {}
 
         # 初始化后端
-        self.backend: Optional[StorageBackend] = None
+        self.backend: StorageBackend | None = None
         if not self.in_memory and self.file_path:
             # 如果没有提供选项，使用默认选项
             if backend_options is None:
@@ -1054,7 +1054,7 @@ class Storage:
 
     # ==================== 模型注册表方法 ====================
 
-    def _register_model(self, table_name: str, model_cls: Type) -> None:
+    def _register_model(self, table_name: str, model_cls: type) -> None:
         """
         注册模型类（按表名）
 
@@ -1064,7 +1064,7 @@ class Storage:
         """
         self._model_registry[table_name] = model_cls
 
-    def _get_model_by_table(self, table_name: str) -> Optional[Type]:
+    def _get_model_by_table(self, table_name: str) -> type | None:
         """
         根据表名获取模型类
 
@@ -1080,7 +1080,7 @@ class Storage:
         self,
         name: str,
         columns: list[Column],
-        comment: Optional[str] = None
+        comment: str | None = None
     ) -> None:
         """
         创建表
@@ -1190,8 +1190,8 @@ class Storage:
         self,
         table_name: str,
         columns: list[Column],
-        comment: Optional[str] = None,
-        options: Optional[SyncOptions] = None
+        comment: str | None = None,
+        options: SyncOptions | None = None
     ) -> SyncResult:
         """
         同步表结构（轻量迁移）
@@ -1332,7 +1332,7 @@ class Storage:
         if self.auto_flush:
             self.flush()
 
-    def update_table_comment(self, table_name: str, comment: Optional[str]) -> None:
+    def update_table_comment(self, table_name: str, comment: str | None) -> None:
         """
         更新表备注
 
@@ -2012,9 +2012,9 @@ class Storage:
     def query(self,
               table_name: str,
               conditions: Sequence[ConditionType],
-              limit: Optional[int] = None,
+              limit: int | None = None,
               offset: int = 0,
-              order_by: Optional[str] = None,
+              order_by: str | None = None,
               order_desc: bool = False) -> list[dict[str, Any]]:
         """
         查询多条记录
@@ -2231,9 +2231,9 @@ class Storage:
         table_name: str,
         table: Table,
         conditions: Sequence[ConditionType],
-        limit: Optional[int],
+        limit: int | None,
         offset: int,
-        order_by: Optional[str],
+        order_by: str | None,
         order_desc: bool
     ) -> list[dict[str, Any]]:
         """
@@ -2393,11 +2393,11 @@ class Storage:
 
     def query_table_data(self,
                         table_name: str,
-                        limit: Optional[int] = None,
+                        limit: int | None = None,
                         offset: int = 0,
-                        order_by: Optional[str] = None,
+                        order_by: str | None = None,
                         order_desc: bool = False,
-                        filters: Optional[Union[dict[str, Any], list[dict[str, Any]]]] = None) -> dict[str, Any]:
+                        filters: dict[str, Any] | list[dict[str, Any]] | None = None) -> dict[str, Any]:
         """
         查询表数据（专为 Web UI 设计）
 

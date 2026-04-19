@@ -7,8 +7,6 @@ Pytuck 外部数据库源适配器
 实际实现位于 pytuck.connectors 模块。
 """
 
-from typing import Optional
-
 from ..connectors import (
     DatabaseConnector,
     SQLiteConnector,
@@ -34,7 +32,7 @@ ADAPTERS = CONNECTORS
 def get_source_adapter(
     source_type: str,
     source_path: str,
-    options: Optional[ConnectorOptions] = None
+    options: ConnectorOptions | None = None
 ) -> DatabaseConnector:
     """
     获取数据库源适配器实例

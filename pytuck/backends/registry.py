@@ -4,7 +4,7 @@ Pytuck 后端注册器和工厂
 提供引擎注册、发现和实例化功能
 """
 
-from typing import Any, Type, Optional, Union
+from typing import Any
 from pathlib import Path
 from .base import StorageBackend
 from ..common.options import BackendOptions
@@ -17,10 +17,10 @@ class BackendRegistry:
     负责管理所有可用的存储引擎
     """
 
-    _backends: dict[str, Type[StorageBackend]] = {}
+    _backends: dict[str, type[StorageBackend]] = {}
 
     @classmethod
-    def register(cls, backend_class: Type[StorageBackend]) -> None:
+    def register(cls, backend_class: type[StorageBackend]) -> None:
         """
         注册后端
 
@@ -39,7 +39,7 @@ class BackendRegistry:
         cls._backends[backend_class.ENGINE_NAME] = backend_class
 
     @classmethod
-    def get(cls, engine_name: str) -> Optional[Type[StorageBackend]]:
+    def get(cls, engine_name: str) -> type[StorageBackend] | None:
         """
         获取后端类
 
@@ -84,7 +84,7 @@ class BackendRegistry:
         """
         return list(cls._backends.keys())
 
-def get_backend(engine: str, file_path: Union[str, Path], options: BackendOptions) -> StorageBackend:
+def get_backend(engine: str, file_path: str | Path, options: BackendOptions) -> StorageBackend:
     """
     获取后端实例（工厂函数）
 
@@ -132,7 +132,7 @@ def _get_all_available_engines() -> list[str]:
             result.append(name)
     return result
 
-def is_valid_pytuck_database(file_path: Union[str, Path]) -> tuple[bool, Optional[str]]:
+def is_valid_pytuck_database(file_path: str | Path) -> tuple[bool, str | None]:
     """
     检验是否是合法的 Pytuck 数据库文件并识别引擎
 
@@ -143,7 +143,7 @@ def is_valid_pytuck_database(file_path: Union[str, Path]) -> tuple[bool, Optiona
         file_path: 数据库文件路径
 
     Returns:
-        tuple[bool, Optional[str]]: (是否有效, 引擎名称或None)
+        tuple[bool, str | None]: (是否有效, 引擎名称或None)
 
     示例:
         >>> is_valid_pytuck_database('data.pytuck')
@@ -175,7 +175,7 @@ def is_valid_pytuck_database(file_path: Union[str, Path]) -> tuple[bool, Optiona
 
     return False, None
 
-def get_database_info(file_path: Union[str, Path]) -> Optional[dict[str, Any]]:
+def get_database_info(file_path: str | Path) -> dict[str, Any] | None:
     """
     获取 Pytuck 数据库文件的详细信息
 
@@ -185,7 +185,7 @@ def get_database_info(file_path: Union[str, Path]) -> Optional[dict[str, Any]]:
         file_path: 数据库文件路径
 
     Returns:
-        Optional[dict]: 包含引擎名称、版本、表数量等信息，如果不是有效数据库则返回 None
+        dict[str, Any] | None: 包含引擎名称、版本、表数量等信息，如果不是有效数据库则返回 None
 
     返回字典结构:
         {
@@ -231,7 +231,7 @@ def get_database_info(file_path: Union[str, Path]) -> Optional[dict[str, Any]]:
 
     return None
 
-def is_valid_pytuck_database_engine(file_path: Union[str, Path], engine_name: str) -> bool:
+def is_valid_pytuck_database_engine(file_path: str | Path, engine_name: str) -> bool:
     """
     检验文件是否为指定引擎的 Pytuck 数据库
 

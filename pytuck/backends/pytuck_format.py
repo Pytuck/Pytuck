@@ -6,7 +6,7 @@ Pytuck 单文件格式 v7 低层原语。
 
 from dataclasses import dataclass, replace
 import struct
-from typing import Any, Optional
+from typing import Any
 
 from ..common.crypto import get_encryption_level_code, get_encryption_level_name
 from ..common.exceptions import SerializationError
@@ -77,7 +77,7 @@ class FileHeaderV7:
     def is_encrypted(self) -> bool:
         return (self.flags & self.FLAG_ENCRYPTION_ENABLED) != 0
 
-    def get_encryption_level(self) -> Optional[str]:
+    def get_encryption_level(self) -> str | None:
         if not self.is_encrypted():
             return None
         level_code = (self.flags & self.FLAG_ENCRYPTION_LEVEL_MASK) >> self.FLAG_ENCRYPTION_LEVEL_SHIFT
@@ -179,7 +179,7 @@ class PkDirEntry:
         pk, offset, length = PK_DIR_INT_STRUCT.unpack(data[: PK_DIR_INT_STRUCT.size])
         return cls(pk=pk, offset=offset, length=length)
 
-def encode_row(columns: list[Column], record: dict[str, Any], pk_name: Optional[str] = None) -> bytes:
+def encode_row(columns: list[Column], record: dict[str, Any], pk_name: str | None = None) -> bytes:
     payload_columns = [column for column in columns if column.name != pk_name]
     null_bits = 0
     payload = bytearray()
@@ -194,7 +194,7 @@ def encode_row(columns: list[Column], record: dict[str, Any], pk_name: Optional[
         payload.extend(codec.encode(value))
     return NULL_BITMAP_STRUCT.pack(null_bits) + bytes(payload)
 
-def decode_row(columns: list[Column], payload: bytes, pk_name: Optional[str] = None) -> dict[str, Any]:
+def decode_row(columns: list[Column], payload: bytes, pk_name: str | None = None) -> dict[str, Any]:
     if len(payload) < NULL_BITMAP_STRUCT.size:
         raise SerializationError(
             f"Not enough data to decode row payload (need at least {NULL_BITMAP_STRUCT.size}, got {len(payload)})"

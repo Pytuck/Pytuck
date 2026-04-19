@@ -7,7 +7,7 @@ DuckDB 数据库连接器
 import ast
 import json
 from datetime import datetime, date, timedelta
-from typing import Any, Optional, Type
+from typing import Any
 
 from .base import DatabaseConnector
 from ..common.options import DuckdbConnectorOptions
@@ -182,7 +182,7 @@ class DuckDBConnector(DatabaseConnector):
         )
         return result.fetchone() is not None
 
-    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], Optional[str]]:
+    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], str | None]:
         """
         获取表结构
 
@@ -226,11 +226,11 @@ class DuckDBConnector(DatabaseConnector):
         indexed_columns = self.get_indexed_columns(table_name)
 
         columns: list[dict[str, Any]] = []
-        primary_key: Optional[str] = pk_columns[0] if pk_columns else None
+        primary_key: str | None = pk_columns[0] if pk_columns else None
 
         for col_name, col_type_str, is_nullable in col_rows:
             col_type_upper = (col_type_str or '').upper()
-            py_type: Type = str
+            py_type: type = str
 
             if 'JSON' in col_type_upper:
                 py_type = self._infer_json_python_type(table_name, col_name)
@@ -279,7 +279,7 @@ class DuckDBConnector(DatabaseConnector):
         self,
         table_name: str,
         columns: list[dict[str, Any]],
-        primary_key: Optional[str]
+        primary_key: str | None
     ) -> None:
         """创建表"""
         if self.conn is None:
@@ -406,7 +406,7 @@ class DuckDBConnector(DatabaseConnector):
         if self.conn is not None:
             self.conn.execute('CHECKPOINT')
 
-    def set_table_comment(self, table_name: str, comment: Optional[str]) -> None:
+    def set_table_comment(self, table_name: str, comment: str | None) -> None:
         """设置表备注"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -424,7 +424,7 @@ class DuckDBConnector(DatabaseConnector):
         self,
         table_name: str,
         column_name: str,
-        comment: Optional[str]
+        comment: str | None
     ) -> None:
         """设置列备注"""
         if self.conn is None:
@@ -441,7 +441,7 @@ class DuckDBConnector(DatabaseConnector):
             )
         self.conn.execute(sql)
 
-    def get_table_comment(self, table_name: str) -> Optional[str]:
+    def get_table_comment(self, table_name: str) -> str | None:
         """读取表备注"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -456,7 +456,7 @@ class DuckDBConnector(DatabaseConnector):
             return None
         return row[0]
 
-    def get_column_comments(self, table_name: str) -> dict[str, Optional[str]]:
+    def get_column_comments(self, table_name: str) -> dict[str, str | None]:
         """读取列备注"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -632,8 +632,8 @@ class DuckDBConnector(DatabaseConnector):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        columns: Optional[list[str]] = None
-    ) -> Optional[dict[str, Any]]:
+        columns: list[str] | None = None
+    ) -> dict[str, Any] | None:
         """
         按主键查询一行
 
@@ -670,12 +670,12 @@ class DuckDBConnector(DatabaseConnector):
     def query_rows(
         self,
         table_name: str,
-        where_clause: Optional[str] = None,
+        where_clause: str | None = None,
         params: tuple[Any, ...] = (),
-        columns: Optional[list[str]] = None,
-        order_by: Optional[str] = None,
-        limit: Optional[int] = None,
-        offset: Optional[int] = None
+        columns: list[str] | None = None,
+        order_by: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None
     ) -> list[dict[str, Any]]:
         """
         条件查询多行

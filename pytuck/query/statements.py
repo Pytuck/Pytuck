@@ -4,7 +4,7 @@ SQLAlchemy 2.0 风格的 Statement API
 提供 select, insert, update, delete 语句构建器
 """
 
-from typing import Any, Optional, Type, Generic, TYPE_CHECKING
+from typing import Any, Generic, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from ..common.typing import T
@@ -26,7 +26,7 @@ class Statement(Generic[T], ABC):
         model_class: The model class this statement operates on
     """
 
-    def __init__(self, model_class: Type[T]) -> None:
+    def __init__(self, model_class: type[T]) -> None:
         self.model_class = model_class
 
     @abstractmethod
@@ -61,11 +61,11 @@ class Select(Statement[T]):
         _options: list of query options (e.g., PrefetchOption)
     """
 
-    def __init__(self, model_class: Type[T]) -> None:
+    def __init__(self, model_class: type[T]) -> None:
         super().__init__(model_class)
         self._where_clauses: list['ExpressionType'] = []
         self._order_by_fields: list[tuple[str, bool]] = []  # [(field, desc), ...]
-        self._limit_value: Optional[int] = None
+        self._limit_value: int | None = None
         self._offset_value: int = 0
         self._options: list[Any] = []
 
@@ -268,10 +268,10 @@ class Insert(Statement[T]):
         _values: Dictionary of column names to values
     """
 
-    def __init__(self, model_class: Type[T]) -> None:
+    def __init__(self, model_class: type[T]) -> None:
         super().__init__(model_class)
         self._values: dict[str, Any] = {}
-        self._values_list: Optional[list[dict[str, Any]]] = None
+        self._values_list: list[dict[str, Any]] | None = None
 
     def values(self, **kwargs: Any) -> 'Insert[T]':
         """设置要插入的值（单条）"""
@@ -347,7 +347,7 @@ class Update(Statement[T]):
         _values: Dictionary of column names to new values
     """
 
-    def __init__(self, model_class: Type[T]) -> None:
+    def __init__(self, model_class: type[T]) -> None:
         super().__init__(model_class)
         self._where_clauses: list['ExpressionType'] = []
         self._values: dict[str, Any] = {}
@@ -457,7 +457,7 @@ class Delete(Statement[T]):
         _where_clauses: list of conditions to match records for deletion
     """
 
-    def __init__(self, model_class: Type[T]) -> None:
+    def __init__(self, model_class: type[T]) -> None:
         super().__init__(model_class)
         self._where_clauses: list['ExpressionType'] = []
 
@@ -538,18 +538,18 @@ class Delete(Statement[T]):
 
 # ==================== 顶层工厂函数 ====================
 
-def select(model_class: Type[T]) -> Select[T]:
+def select(model_class: type[T]) -> Select[T]:
     """创建 SELECT 语句"""
     return Select(model_class)
 
-def insert(model_class: Type[T]) -> Insert[T]:
+def insert(model_class: type[T]) -> Insert[T]:
     """创建 INSERT 语句"""
     return Insert(model_class)
 
-def update(model_class: Type[T]) -> Update[T]:
+def update(model_class: type[T]) -> Update[T]:
     """创建 UPDATE 语句"""
     return Update(model_class)
 
-def delete(model_class: Type[T]) -> Delete[T]:
+def delete(model_class: type[T]) -> Delete[T]:
     """创建 DELETE 语句"""
     return Delete(model_class)

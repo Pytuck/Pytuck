@@ -17,7 +17,6 @@ from .session import Session
 from .event import event
 from .prefetch import prefetch, PrefetchOption
 
-
 __all__ = [
     # ORM
     'Column',
