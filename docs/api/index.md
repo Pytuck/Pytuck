@@ -62,4 +62,4 @@ from pytuck.core.orm import Relationship
 
 ## 支持的 Python 版本
 
-Python 3.7+
+Python 3.10+

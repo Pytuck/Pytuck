@@ -10,7 +10,7 @@
 - [x] 持久化语义文档化（`auto_flush`、`flush()`、`close()`）
 - [x] 发布检查清单并入 `docs/guide/development.md` / `development.en.md`
 - [x] 当前基线验证通过（`uv run pytest tests/ -v`、`uv build`、两个推荐示例）
-- [x] 记录 `project.license` 继续保留 TOML table 的兼容原因，明确 Python `3.7` / `3.8` 构建链下暂不切 SPDX 字符串
+- [x] 升级最低 Python 版本至 3.10+，统一 license 格式为 SPDX 字符串，消除 setuptools 警告
 - [x] benchmark 原始结果归档约定文档化（结果目录、命名方式、对外引用口径）
 - [x] `examples/` 运行基线收敛到推荐起步示例，并补充 smoke test
 

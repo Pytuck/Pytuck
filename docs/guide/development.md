@@ -71,8 +71,8 @@ uv publish --index testpypi
 
 > `uv publish --index testpypi` 依赖已配置的 `[[tool.uv.index]]` 条目，其中应包含 `url` 和 `publish-url`。
 
-> [!IMPORTANT]
-> `pyproject.toml` 当前仍保留 `license = {text = "MIT"}`。`uv build` 下 setuptools 会提示 `project.license` TOML table 的 deprecation warning，但不要为了消除这条 warning 直接改成 SPDX 字符串，因为该路径依赖 `setuptools>=77`，会破坏当前 Python `3.7` / `3.8` 构建兼容。只有在项目提高最低支持 Python 版本或统一升级构建链后，才切到 `license = "MIT"` / `license-files`。
+> [!NOTE]
+> `pyproject.toml` 现已使用 `license = "MIT"` SPDX 字符串格式，setuptools deprecation warning 已消除。最低支持版本已升级至 Python 3.10+。
 
 ## 发布检查清单
 

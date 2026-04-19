@@ -7,7 +7,7 @@ name = "pytuck"
 version = "1.3.0"
 description = "Lightweight Python document database - No SQL, multi-engine, pluggable persistence"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "go9sky"}
 ]
@@ -33,16 +33,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Typing :: Typed",
 ]
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 dependencies = []
 
 [project.optional-dependencies]
@@ -95,7 +92,7 @@ line-length = 100
 target-version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 
 [tool.mypy]
-python_version = "3.7"
+python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
