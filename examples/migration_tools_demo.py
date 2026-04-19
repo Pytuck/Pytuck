@@ -27,7 +27,6 @@ from pytuck.common.options import (
     SqliteConnectorOptions
 )
 
-
 def create_sample_database():
     """创建示例 Pytuck 数据库"""
     temp_dir = get_project_temp_dir()
@@ -86,7 +85,6 @@ def create_sample_database():
 
     print(f"✓ 创建示例数据库: {source_file}")
     return source_file
-
 
 def demo_engine_migration():
     """演示引擎间数据迁移"""
@@ -161,7 +159,6 @@ def demo_engine_migration():
     for file in [source_file, json_target, csv_target]:
         if os.path.exists(file):
             os.remove(file)
-
 
 def create_external_sqlite_database():
     """创建外部 SQLite 数据库（非 Pytuck 格式）"""
@@ -251,7 +248,6 @@ def create_external_sqlite_database():
 
     print(f"✓ 创建外部 SQLite 数据库: {external_db}")
     return external_db
-
 
 def demo_database_import():
     """演示从外部数据库导入数据"""
@@ -362,7 +358,6 @@ def demo_database_import():
         if os.path.exists(file):
             os.remove(file)
 
-
 def main():
     """主演示函数"""
     print("=" * 60)
@@ -397,7 +392,6 @@ def main():
         print(f"\n❌ 演示过程中出错: {e}")
         import traceback
         traceback.print_exc()
-
 
 if __name__ == '__main__':
     main()

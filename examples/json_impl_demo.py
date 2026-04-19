@@ -23,7 +23,6 @@ from pytuck.common.options import JsonBackendOptions
 from pytuck.common.exceptions import ConfigurationError
 from pytuck.backends.backend_json import JSONBackend
 
-
 def demo_performance_comparison():
     """演示不同JSON实现的性能对比"""
     print("=" * 60)
@@ -158,7 +157,6 @@ def demo_performance_comparison():
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-
 def demo_parameter_handling():
     """演示参数处理机制"""
     print("\n" + "=" * 60)
@@ -232,7 +230,6 @@ def demo_parameter_handling():
     finally:
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
-
 
 def demo_custom_implementation():
     """演示自定义JSON实现"""
@@ -354,7 +351,6 @@ def demo_custom_implementation():
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-
 def demo_error_handling():
     """演示错误处理机制"""
     print("\n" + "=" * 60)
@@ -436,7 +432,6 @@ def demo_error_handling():
         import shutil
         shutil.rmtree(temp_dir, ignore_errors=True)
 
-
 def main():
     """主演示函数"""
     print("Pytuck JSON后端实现选择演示")
@@ -467,7 +462,6 @@ def main():
     print(f"\n安装方法:")
     print("pip install pytuck[orjson]  # 安装orjson支持")
     print("pip install pytuck[ujson]   # 安装ujson支持")
-
 
 if __name__ == '__main__':
     main()

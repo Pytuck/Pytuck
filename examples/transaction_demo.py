@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import select, insert, update
 
-
 def main() -> None:
     print("=" * 60)
     print("Pytuck 事务功能演示")
@@ -35,7 +34,6 @@ def main() -> None:
         name = Column(str, nullable=False)
         balance = Column(int)  # 账户余额
 
-
     class Order(Base):
         """订单模型"""
         __tablename__ = 'orders'
@@ -43,7 +41,6 @@ def main() -> None:
         id = Column(int, primary_key=True)
         user_id = Column(int, index=True)
         amount = Column(int)
-
 
     # 创建 Session
     session = Session(db)
@@ -216,7 +213,6 @@ def main() -> None:
     # 关闭 session
     session.close()
     print("\n✓ Session 已关闭")
-
 
 if __name__ == '__main__':
     main()

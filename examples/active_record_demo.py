@@ -17,7 +17,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from pytuck import Storage, declarative_base, Column
 from pytuck import CRUDBaseModel
 
-
 def main() -> None:
     print("=" * 60)
     print("Pytuck Active Record 模式示例")
@@ -39,7 +38,6 @@ def main() -> None:
 
     print("\n2. 定义模型")
 
-
     class User(Base):
         """用户模型"""
         __tablename__ = 'users'
@@ -48,7 +46,6 @@ def main() -> None:
         name = Column(str, nullable=False)
         email = Column(str)
         age = Column(int)
-
 
     print("   ✓ User 模型定义完成")
     print(f"   ✓ 模型方法: create, save, delete, refresh, get, filter, filter_by, all")
@@ -216,7 +213,6 @@ def main() -> None:
     # 关闭数据库
     db.close()
     print("\n✓ 数据库已关闭")
-
 
 if __name__ == '__main__':
     main()

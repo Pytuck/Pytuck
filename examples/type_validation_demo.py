@@ -17,7 +17,6 @@ from pytuck import PureBaseModel
 from pytuck.common.exceptions import ValidationError
 from typing import Type
 
-
 def main() -> None:
     print("=" * 60)
     print("Pytuck 类型验证演示")
@@ -215,7 +214,6 @@ def main() -> None:
     print("  • 生产环境：结合业务需求选择合适模式")
 
     db.close()
-
 
 if __name__ == '__main__':
     main()

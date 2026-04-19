@@ -21,7 +21,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from pytuck import Storage, declarative_base, Column, Relationship
 from pytuck import CRUDBaseModel
 
-
 def main() -> None:
     print("=" * 70)
     print("Pytuck Relationship 关联关系示例")
@@ -38,7 +37,6 @@ def main() -> None:
     db1 = Storage(in_memory=True)
     Base1: Type[CRUDBaseModel] = declarative_base(db1, crud=True)
 
-
     # 使用字符串（表名）定义关联 - 无需考虑类定义顺序
     class Order(Base1):
         """订单模型"""
@@ -51,7 +49,6 @@ def main() -> None:
         # 多对一：订单 -> 用户（使用表名引用，此时 User 类尚未定义）
         user = Relationship('users', foreign_key='user_id')
 
-
     class User(Base1):
         """用户模型"""
         __tablename__ = 'users'
@@ -61,7 +58,6 @@ def main() -> None:
 
         # 一对多：用户 -> 订单（使用表名引用）
         orders = Relationship('orders', foreign_key='user_id', back_populates='user')
-
 
     # 创建测试数据
     alice = User.create(name='Alice')
@@ -100,7 +96,6 @@ def main() -> None:
     db2 = Storage(in_memory=True)
     Base2: Type[CRUDBaseModel] = declarative_base(db2, crud=True)
 
-
     class UserProfile(Base2):
         """用户资料模型"""
         __tablename__ = 'user_profiles'
@@ -113,7 +108,6 @@ def main() -> None:
         # 多对一：资料 -> 用户
         user = Relationship('users', foreign_key='user_id')
 
-
     class User2(Base2):
         """用户模型"""
         __tablename__ = 'users'
@@ -124,7 +118,6 @@ def main() -> None:
 
         # 一对一：用户 -> 资料（实际是一对多，取第一个即可）
         profile = Relationship('user_profiles', foreign_key='user_id')
-
 
     # 创建测试数据
     user = User2.create(name='Charlie', email='charlie@example.com')
@@ -162,7 +155,6 @@ def main() -> None:
     db3 = Storage(in_memory=True)
     Base3: Type[CRUDBaseModel] = declarative_base(db3, crud=True)
 
-
     class Enrollment(Base3):
         """选课记录（中间表）"""
         __tablename__ = 'enrollments'
@@ -176,7 +168,6 @@ def main() -> None:
         student = Relationship('students', foreign_key='student_id')
         course = Relationship('courses', foreign_key='course_id')
 
-
     class Student(Base3):
         """学生模型"""
         __tablename__ = 'students'
@@ -186,7 +177,6 @@ def main() -> None:
 
         # 学生 -> 选课记录
         enrollments = Relationship('enrollments', foreign_key='student_id')
-
 
     class Course(Base3):
         """课程模型"""
@@ -198,7 +188,6 @@ def main() -> None:
 
         # 课程 -> 选课记录
         enrollments = Relationship('enrollments', foreign_key='course_id')
-
 
     # 创建测试数据
     student1 = Student.create(name='David')
@@ -246,7 +235,6 @@ def main() -> None:
     db4 = Storage(in_memory=True)
     Base4: Type[CRUDBaseModel] = declarative_base(db4, crud=True)
 
-
     class Category(Base4):
         """分类模型（树形结构）"""
         __tablename__ = 'categories'
@@ -258,7 +246,6 @@ def main() -> None:
         # 自引用关系 - 需要用 uselist 明确指定方向
         parent = Relationship('categories', foreign_key='parent_id', uselist=False)
         children = Relationship('categories', foreign_key='parent_id', uselist=True)
-
 
     # 创建分类树
     #   Electronics
@@ -320,7 +307,6 @@ def main() -> None:
     db5 = Storage(in_memory=True)
     Base5: Type[CRUDBaseModel] = declarative_base(db5, crud=True)
 
-
     # 先定义的类可以被后面的类直接引用
     class Tag(Base5):
         """标签模型"""
@@ -333,7 +319,6 @@ def main() -> None:
         # 使用字符串引用（此时 Post 尚未定义）
         post = Relationship('posts', foreign_key='post_id')
 
-
     class Post(Base5):
         """文章模型"""
         __tablename__ = 'posts'
@@ -343,7 +328,6 @@ def main() -> None:
 
         # 使用类引用（Tag 已定义）
         tags = Relationship(Tag, foreign_key='post_id')
-
 
     # 创建测试数据
     post = Post.create(title='Introduction to Pytuck')
@@ -378,11 +362,9 @@ def main() -> None:
     print("=" * 70)
 
     # 导入类型提示所需模块
-    from typing import Optional
 
     db6 = Storage(in_memory=True)
     Base6: Type[CRUDBaseModel] = declarative_base(db6, crud=True)
-
 
     # 为了让 IDE 提供精确的类型提示，直接声明返回类型
     # 注意：由于 Python 类型系统限制，需要使用 type: ignore 抑制类型警告
@@ -396,12 +378,11 @@ def main() -> None:
         content = Column(str)
 
         # 多对一：评论 -> 文章
-        # 直接声明返回类型为 Optional[Article]
+        # 直接声明返回类型为 Article | None
         article: Optional['Article'] = Relationship(  # type: ignore[assignment]
             'articles',
             foreign_key='article_id'
         )
-
 
     class Article(Base6):
         """文章模型"""
@@ -416,7 +397,6 @@ def main() -> None:
             'comments',
             foreign_key='article_id'
         )
-
 
     # 创建测试数据
     article = Article.create(title='Python Type Hints Guide')
@@ -437,7 +417,7 @@ def main() -> None:
     # IDE 知道 comments 是 list[Comment]，可以获得正确的代码补全
     for comment in article_obj.comments:
         # IDE 知道 comment 是 Comment 类型
-        # IDE 知道 comment.article 是 Optional[Article] 类型
+        # IDE 知道 comment.article 是 Article | None 类型
         print(f"     - {comment.content}")
         print(f"       (来自文章: {comment.article.title if comment.article else 'N/A'})")
 
@@ -482,17 +462,16 @@ def main() -> None:
     6. 类型提示（IDE 友好）
        - 直接声明返回类型获得精确 IDE 提示
        - 一对多：list[TargetModel]
-       - 多对一：Optional[TargetModel]
+       - 多对一：TargetModel | None
        - 需要使用 type: ignore 抑制类型警告
        - 示例：
          comments: list[Comment] = Relationship('comments', ...)  # type: ignore
-         user: Optional[User] = Relationship('users', ...)  # type: ignore
+         user: User | None = Relationship('users', ...)  # type: ignore
     """)
 
     print("=" * 70)
     print("示例完成！")
     print("=" * 70)
-
 
 if __name__ == '__main__':
     main()

@@ -18,7 +18,6 @@ from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, select, insert
 from typing import Type
 
-
 def main() -> None:
     print("=" * 60)
     print("Pytuck 数据模型特性演示")
@@ -240,7 +239,6 @@ def main() -> None:
     print("  • 关联查询：需要手动 JOIN")
 
     db3.close()
-
 
 if __name__ == '__main__':
     main()

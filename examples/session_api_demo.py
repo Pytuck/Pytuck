@@ -18,7 +18,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from pytuck import Storage, declarative_base, Session, Column, Relationship
 from pytuck import PureBaseModel, select, insert, update, delete
 
-
 def main() -> None:
     print("=" * 60)
     print("Pytuck Session + Statement API 完整示例")
@@ -40,14 +39,12 @@ def main() -> None:
 
     print("\n2. 定义模型")
 
-
     class Class(Base):
         """班级模型"""
         __tablename__ = 'classes'
 
         id = Column(int, primary_key=True)
         name = Column(str, nullable=False)
-
 
     class Student(Base):
         """学生模型"""
@@ -57,7 +54,6 @@ def main() -> None:
         name = Column(str, nullable=False, index=True)
         age = Column(int)
         class_id = Column(int, foreign_key=('classes', 'id'))
-
 
     print("   ✓ Class 模型定义完成")
     print("   ✓ Student 模型定义完成")
@@ -325,7 +321,6 @@ def main() -> None:
     # 关闭 session
     session.close()
     print("\n✓ Session 已关闭")
-
 
 if __name__ == '__main__':
     main()

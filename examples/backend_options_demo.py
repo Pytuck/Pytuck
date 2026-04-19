@@ -24,7 +24,6 @@ from pytuck.common.options import (
     XmlBackendOptions,
 )
 
-
 def demo_json_options():
     """演示 JSON 引擎配置选项"""
     print("\n" + "="*50)
@@ -207,7 +206,6 @@ def demo_json_options():
         # 恢复原始方法
         JSONBackend._setup_custom_json = original_setup_custom
 
-
 def demo_csv_options():
     """演示 CSV 引擎配置选项"""
     print("\n" + "="*50)
@@ -261,7 +259,6 @@ def demo_csv_options():
 
     # 清理
     os.remove(csv_file)
-
 
 def demo_sqlite_options():
     """演示 SQLite 引擎配置选项"""
@@ -317,7 +314,6 @@ def demo_sqlite_options():
     # 清理
     os.remove(sqlite_file)
 
-
 def demo_pytuck_default():
     """演示 Pytuck 引擎（默认选项）"""
     print("\n" + "="*50)
@@ -368,7 +364,6 @@ def demo_pytuck_default():
     # 清理
     os.remove(pytuck_file)
 
-
 def demo_without_options():
     """演示不显式指定选项（使用默认值）"""
     print("\n" + "="*50)
@@ -409,7 +404,6 @@ def demo_without_options():
     # 清理
     os.remove(default_file)
 
-
 def main():
     """主演示函数"""
     print("=" * 60)
@@ -443,7 +437,6 @@ def main():
     print("✅ opts = JsonBackendOptions(impl='orjson')  # 2-3倍性能提升")
     print("✅ opts = JsonBackendOptions(impl='ujson')   # 1.5-2倍性能提升")
     print("✅ 自定义实现: JSONBackend._setup_custom_json = your_function")
-
 
 if __name__ == '__main__':
     # main()

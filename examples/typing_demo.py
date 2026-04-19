@@ -14,7 +14,6 @@ import os
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import select, insert, update, delete
 
-
 def main() -> None:
     """演示泛型类型系统的各种用法"""
 
@@ -77,8 +76,8 @@ def main() -> None:
     users = result.all()  # IDE 推断：list[User] ✅
     print(f"   result.all() → {type(users)} (元素类型: {type(users[0]) if users else 'N/A'})")
 
-    first_user = result.first()  # IDE 推断：Optional[User] ✅
-    print(f"   result.first() → 类型是 Optional[User]")
+    first_user = result.first()  # IDE 推断：User | None ✅
+    print(f"   result.first() → 类型是 User | None")
 
     # 5. 类型安全的属性访问
     print("\n5. 类型安全的属性访问")
@@ -93,7 +92,7 @@ def main() -> None:
     # 6. Session.get 的类型推断
     print("\n6. Session.get 类型推断")
     if users:
-        found_user = session.get(User, users[0].id)  # IDE 推断：Optional[User] ✅
+        found_user = session.get(User, users[0].id)  # IDE 推断：User | None ✅
         if found_user:
             print(f"   通过主键找到用户: {found_user.name}")
 
@@ -142,7 +141,6 @@ def main() -> None:
     # 清理数据库
     db.close()
 
-
 def demonstrate_type_inference() -> None:
     """演示类型推断的具体效果"""
 
@@ -187,7 +185,6 @@ def demonstrate_type_inference() -> None:
     # 清理数据库
     db.close()
 
-
 def cleanup_demo_files() -> None:
     """清理演示文件"""
     files_to_remove = ['typing_demo.db', 'type_inference_demo.db']
@@ -195,7 +192,6 @@ def cleanup_demo_files() -> None:
         if os.path.exists(filename):
             os.remove(filename)
             print(f"✓ 已清理: {filename}")
-
 
 if __name__ == '__main__':
     try:
