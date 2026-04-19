@@ -5,12 +5,11 @@ Pytuck 数据库连接器抽象基类
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Optional
 
 from ..common.options import ConnectorOptions
 from ..common.exceptions import UnsupportedOperationError
 from ..common.typing import ColumnTypes
-
 
 class DatabaseConnector(ABC):
     """
@@ -39,13 +38,13 @@ class DatabaseConnector(ABC):
     DB_TYPE: str = ''
 
     # 所需第三方依赖（用于可用性检查）
-    REQUIRED_DEPENDENCIES: List[str] = []
+    REQUIRED_DEPENDENCIES: list[str] = []
 
     # Python 类型到 SQL 类型的映射
-    TYPE_TO_SQL: Dict[ColumnTypes, str] = {}
+    TYPE_TO_SQL: dict[ColumnTypes, str] = {}
 
     # SQL 类型到 Python 类型的映射
-    SQL_TO_TYPE: Dict[str, ColumnTypes] = {}
+    SQL_TO_TYPE: dict[str, ColumnTypes] = {}
 
     def __init__(self, db_path: str, options: ConnectorOptions):
         """
@@ -74,7 +73,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def get_table_names(self, exclude_system: bool = True) -> List[str]:
+    def get_table_names(self, exclude_system: bool = True) -> list[str]:
         """
         获取所有表名
 
@@ -100,7 +99,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def get_table_schema(self, table_name: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], Optional[str]]:
         """
         获取表结构
 
@@ -116,7 +115,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def get_table_data(self, table_name: str) -> List[Dict[str, Any]]:
+    def get_table_data(self, table_name: str) -> list[dict[str, Any]]:
         """
         获取表中所有数据
 
@@ -143,7 +142,7 @@ class DatabaseConnector(ABC):
         pass
 
     @abstractmethod
-    def executemany(self, sql: str, params_list: List[tuple]) -> None:
+    def executemany(self, sql: str, params_list: list[tuple]) -> None:
         """
         批量执行 SQL 语句
 
@@ -157,7 +156,7 @@ class DatabaseConnector(ABC):
     def create_table(
         self,
         table_name: str,
-        columns: List[Dict[str, Any]],
+        columns: list[dict[str, Any]],
         primary_key: Optional[str]
     ) -> None:
         """
@@ -185,8 +184,8 @@ class DatabaseConnector(ABC):
     def insert_records(
         self,
         table_name: str,
-        columns: List[str],
-        records: List[Dict[str, Any]]
+        columns: list[str],
+        records: list[dict[str, Any]]
     ) -> None:
         """
         批量插入记录
@@ -246,7 +245,7 @@ class DatabaseConnector(ABC):
     def insert_row(
         self,
         table_name: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         pk_column: str
     ) -> Any:
         """
@@ -273,7 +272,7 @@ class DatabaseConnector(ABC):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> int:
         """
         更新一行数据
@@ -325,8 +324,8 @@ class DatabaseConnector(ABC):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        columns: Optional[List[str]] = None
-    ) -> Optional[Dict[str, Any]]:
+        columns: Optional[list[str]] = None
+    ) -> Optional[dict[str, Any]]:
         """
         按主键查询一行
 
@@ -351,12 +350,12 @@ class DatabaseConnector(ABC):
         self,
         table_name: str,
         where_clause: Optional[str] = None,
-        params: Tuple[Any, ...] = (),
-        columns: Optional[List[str]] = None,
+        params: tuple[Any, ...] = (),
+        columns: Optional[list[str]] = None,
         order_by: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         条件查询多行
 

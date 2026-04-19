@@ -6,14 +6,13 @@ Pytuck 存储后端抽象基类
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Set, Union, TYPE_CHECKING, Tuple
+from typing import Any, Optional, Union, TYPE_CHECKING
 
 from ..common.options import BackendOptions
 from ..common.exceptions import ConfigurationError
 
 if TYPE_CHECKING:
     from ..core.storage import Table
-
 
 class StorageBackend(ABC):
     """
@@ -26,7 +25,7 @@ class StorageBackend(ABC):
     ENGINE_NAME: str  # type: ignore
 
     # 所需的外部依赖列表（用于检查可用性）
-    REQUIRED_DEPENDENCIES: List[str] = []
+    REQUIRED_DEPENDENCIES: list[str] = []
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """
@@ -67,7 +66,7 @@ class StorageBackend(ABC):
         return f"{self.__class__.__name__}(file_path='{self.file_path}')"
 
     @abstractmethod
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """
         保存所有表数据到持久化存储
 
@@ -79,10 +78,10 @@ class StorageBackend(ABC):
 
         Table 对象结构：
             - table.name: str - 表名
-            - table.columns: Dict[str, Column] - 列定义
+            - table.columns: dict[str, Column] - 列定义
             - table.primary_key: str - 主键字段名
-            - table.data: Dict[pk, record_dict] - 数据 {主键: 记录字典}
-            - table.indexes: Dict[str, HashIndex] - 索引
+            - table.data: dict[pk, record_dict] - 数据 {主键: 记录字典}
+            - table.indexes: dict[str, HashIndex] - 索引
             - table.next_id: int - 下一个自增ID
 
         实现要点：
@@ -95,7 +94,7 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """
         从持久化存储加载所有表数据
 
@@ -156,7 +155,7 @@ class StorageBackend(ABC):
                 return False
         return True
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """
         获取后端元数据（可选实现）
 
@@ -206,7 +205,7 @@ class StorageBackend(ABC):
         """
         return False
 
-    def populate_tables_with_data(self, tables: Dict[str, 'Table']) -> None:
+    def populate_tables_with_data(self, tables: dict[str, 'Table']) -> None:
         """
         从持久化存储填充表数据（用于延迟加载模式）
 
@@ -223,7 +222,7 @@ class StorageBackend(ABC):
         """
         pass  # 默认实现：什么都不做
 
-    def save_full(self, tables: Dict[str, 'Table']) -> None:
+    def save_full(self, tables: dict[str, 'Table']) -> None:
         """
         全量保存所有表数据（用于迁移场景）
 
@@ -242,12 +241,12 @@ class StorageBackend(ABC):
     def query_with_pagination(
             self,
             table_name: str,
-            conditions: List[Dict[str, Any]],
+            conditions: list[dict[str, Any]],
             limit: Optional[int] = None,
             offset: int = 0,
             order_by: Optional[str] = None,
             order_desc: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         带分页的查询（可选实现，用于数据库后端优化）
 
@@ -261,7 +260,7 @@ class StorageBackend(ABC):
 
         Returns:
             {
-                'records': List[Dict[str, Any]],  # 查询结果
+                'records': list[dict[str, Any]],  # 查询结果
                 'total_count': int,               # 总记录数（可选）
                 'has_more': bool,                 # 是否还有更多数据（可选）
             }
@@ -278,7 +277,7 @@ class StorageBackend(ABC):
         )
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为本引擎格式
 
@@ -289,7 +288,7 @@ class StorageBackend(ABC):
             file_path: 要探测的文件路径
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配此引擎格式, 可选的元数据信息)
+            tuple[bool, Optional[dict]]: (是否匹配此引擎格式, 可选的元数据信息)
 
         返回元数据示例：
             {

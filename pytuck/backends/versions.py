@@ -4,10 +4,9 @@
 各引擎的格式版本独立于库版本管理，便于向后兼容检测。
 版本号为整数，每次格式变更时递增。
 """
-from typing import Dict
 
 # 各引擎的当前格式版本
-ENGINE_FORMAT_VERSIONS: Dict[str, int] = {
+ENGINE_FORMAT_VERSIONS: dict[str, int] = {
     'pytuck': 7,   # v7: PTK7 主运行路径
     'csv': 2,      # v2: 统一元数据结构 + 添加表和列 comment 支持
     'excel': 2,    # v2: 统一元数据结构 + 添加表和列 comment 支持
@@ -17,7 +16,6 @@ ENGINE_FORMAT_VERSIONS: Dict[str, int] = {
     'duckdb': 1,   # v1: DuckDB 引擎初始格式版本
     'xml': 2,      # v2: 添加表和列 comment 支持
 }
-
 
 def get_format_version(engine_name: str) -> int:
     """

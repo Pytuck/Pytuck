@@ -7,7 +7,7 @@ Pytuck 外部数据库源适配器
 实际实现位于 pytuck.connectors 模块。
 """
 
-from typing import List, Optional
+from typing import Optional
 
 from ..connectors import (
     DatabaseConnector,
@@ -17,7 +17,6 @@ from ..connectors import (
     CONNECTORS,
 )
 from ..common.options import ConnectorOptions
-
 
 # 向后兼容别名
 DatabaseSourceAdapter = DatabaseConnector
@@ -31,7 +30,6 @@ DuckDBSourceAdapter = DuckDBConnector
 
 # 适配器注册表（指向 CONNECTORS）
 ADAPTERS = CONNECTORS
-
 
 def get_source_adapter(
     source_type: str,
@@ -56,8 +54,7 @@ def get_source_adapter(
     """
     return get_connector(source_type, source_path, options)
 
-
-def get_available_source_types() -> List[str]:
+def get_available_source_types() -> list[str]:
     """
     获取所有可用的数据库源类型
 

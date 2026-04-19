@@ -5,8 +5,7 @@ Pytuck 异常定义
 所有 Pytuck 异常都继承自 PytuckException 基类。
 """
 
-from typing import Any, Dict, Optional
-
+from typing import Any, Optional
 
 class PytuckException(Exception):
     """
@@ -29,7 +28,7 @@ class PytuckException(Exception):
         table_name: Optional[str] = None,
         column_name: Optional[str] = None,
         pk: Any = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         self.message = message
         self.table_name = table_name
@@ -38,14 +37,14 @@ class PytuckException(Exception):
         self.details = details or {}
         super().__init__(message)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         将异常转换为字典，便于日志记录和序列化
 
         Returns:
             包含异常信息的字典
         """
-        result: Dict[str, Any] = {
+        result: dict[str, Any] = {
             'error': self.__class__.__name__,
             'message': self.message
         }
@@ -58,7 +57,6 @@ class PytuckException(Exception):
         if self.details:
             result['details'] = self.details
         return result
-
 
 # =============================================================================
 # 表/记录相关异常
@@ -73,7 +71,6 @@ class TableNotFoundError(PytuckException):
             table_name=table_name
         )
 
-
 class RecordNotFoundError(PytuckException):
     """记录不存在异常"""
 
@@ -83,7 +80,6 @@ class RecordNotFoundError(PytuckException):
             table_name=table_name,
             pk=pk
         )
-
 
 class DuplicateKeyError(PytuckException):
     """主键重复异常"""
@@ -95,7 +91,6 @@ class DuplicateKeyError(PytuckException):
             pk=pk
         )
 
-
 class ColumnNotFoundError(PytuckException):
     """列不存在异常"""
 
@@ -105,7 +100,6 @@ class ColumnNotFoundError(PytuckException):
             table_name=table_name,
             column_name=column_name
         )
-
 
 # =============================================================================
 # 验证相关异常
@@ -125,7 +119,7 @@ class ValidationError(PytuckException):
         table_name: Optional[str] = None,
         column_name: Optional[str] = None,
         pk: Any = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(
             message,
@@ -134,7 +128,6 @@ class ValidationError(PytuckException):
             pk=pk,
             details=details
         )
-
 
 class TypeConversionError(ValidationError):
     """
@@ -155,7 +148,7 @@ class TypeConversionError(ValidationError):
         value: Any = None,
         target_type: Optional[str] = None,
         column_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         extra_details = details or {}
         if value is not None:
@@ -172,7 +165,6 @@ class TypeConversionError(ValidationError):
         self.value = value
         self.target_type = target_type
 
-
 # =============================================================================
 # 配置相关异常
 # =============================================================================
@@ -188,10 +180,9 @@ class ConfigurationError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, details=details)
-
 
 class SchemaError(ConfigurationError):
     """
@@ -206,7 +197,7 @@ class SchemaError(ConfigurationError):
         message: str,
         *,
         table_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         # 需要重新调用 PytuckException.__init__ 以设置 table_name
         PytuckException.__init__(
@@ -215,7 +206,6 @@ class SchemaError(ConfigurationError):
             table_name=table_name,
             details=details
         )
-
 
 # =============================================================================
 # 查询相关异常
@@ -234,7 +224,7 @@ class QueryError(PytuckException):
         *,
         table_name: Optional[str] = None,
         column_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(
             message,
@@ -242,7 +232,6 @@ class QueryError(PytuckException):
             column_name=column_name,
             details=details
         )
-
 
 # =============================================================================
 # 事务相关异常
@@ -259,10 +248,9 @@ class TransactionError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, details=details)
-
 
 # =============================================================================
 # 连接相关异常
@@ -279,10 +267,9 @@ class DatabaseConnectionError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, details=details)
-
 
 # =============================================================================
 # 序列化相关异常
@@ -300,10 +287,9 @@ class SerializationError(PytuckException):
         message: str,
         *,
         table_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, table_name=table_name, details=details)
-
 
 # =============================================================================
 # 加密相关异常
@@ -320,10 +306,9 @@ class EncryptionError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, details=details)
-
 
 # =============================================================================
 # 迁移相关异常
@@ -340,10 +325,9 @@ class MigrationError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, details=details)
-
 
 # =============================================================================
 # 索引相关异常
@@ -362,7 +346,7 @@ class PytuckIndexError(PytuckException):
         *,
         table_name: Optional[str] = None,
         column_name: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(
             message,
@@ -370,7 +354,6 @@ class PytuckIndexError(PytuckException):
             column_name=column_name,
             details=details
         )
-
 
 # =============================================================================
 # 不支持的操作异常
@@ -388,6 +371,6 @@ class UnsupportedOperationError(PytuckException):
         self,
         message: str,
         *,
-        details: Optional[Dict[str, Any]] = None
+        details: Optional[dict[str, Any]] = None
     ):
         super().__init__(message, details=details)

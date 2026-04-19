@@ -7,13 +7,12 @@ DuckDB 数据库连接器
 import ast
 import json
 from datetime import datetime, date, timedelta
-from typing import Any, Dict, List, Tuple, Optional, Type, Set
+from typing import Any, Optional, Type
 
 from .base import DatabaseConnector
 from ..common.options import DuckdbConnectorOptions
 from ..common.exceptions import DatabaseConnectionError, TableNotFoundError
 from ..common.typing import ColumnTypes
-
 
 class DuckDBConnector(DatabaseConnector):
     """
@@ -35,9 +34,9 @@ class DuckDBConnector(DatabaseConnector):
     """
 
     DB_TYPE = 'duckdb'
-    REQUIRED_DEPENDENCIES: List[str] = ['duckdb']
+    REQUIRED_DEPENDENCIES: list[str] = ['duckdb']
 
-    TYPE_TO_SQL: Dict[ColumnTypes, str] = {
+    TYPE_TO_SQL: dict[ColumnTypes, str] = {
         # 基础类型
         int: 'BIGINT',
         str: 'VARCHAR',
@@ -52,7 +51,7 @@ class DuckDBConnector(DatabaseConnector):
         dict: 'JSON',
     }
 
-    SQL_TO_TYPE: Dict[str, ColumnTypes] = {
+    SQL_TO_TYPE: dict[str, ColumnTypes] = {
         # 整数类型
         'BIGINT': int,
         'INTEGER': int,
@@ -145,7 +144,7 @@ class DuckDBConnector(DatabaseConnector):
         """检查是否已连接"""
         return self.conn is not None
 
-    def get_table_names(self, exclude_system: bool = True) -> List[str]:
+    def get_table_names(self, exclude_system: bool = True) -> list[str]:
         """
         获取所有表名
 
@@ -183,7 +182,7 @@ class DuckDBConnector(DatabaseConnector):
         )
         return result.fetchone() is not None
 
-    def get_table_schema(self, table_name: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], Optional[str]]:
         """
         获取表结构
 
@@ -205,7 +204,7 @@ class DuckDBConnector(DatabaseConnector):
         )
         col_rows = result.fetchall()
 
-        pk_columns: List[str] = []
+        pk_columns: list[str] = []
         try:
             pk_result = self.conn.execute(
                 "SELECT kcu.column_name "
@@ -226,7 +225,7 @@ class DuckDBConnector(DatabaseConnector):
         column_comments = self.get_column_comments(table_name)
         indexed_columns = self.get_indexed_columns(table_name)
 
-        columns: List[Dict[str, Any]] = []
+        columns: list[dict[str, Any]] = []
         primary_key: Optional[str] = pk_columns[0] if pk_columns else None
 
         for col_name, col_type_str, is_nullable in col_rows:
@@ -252,7 +251,7 @@ class DuckDBConnector(DatabaseConnector):
 
         return columns, primary_key
 
-    def get_table_data(self, table_name: str) -> List[Dict[str, Any]]:
+    def get_table_data(self, table_name: str) -> list[dict[str, Any]]:
         """获取表中所有数据"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -270,7 +269,7 @@ class DuckDBConnector(DatabaseConnector):
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
         return self.conn.execute(sql, list(params) if params else [])
 
-    def executemany(self, sql: str, params_list: List[tuple]) -> None:
+    def executemany(self, sql: str, params_list: list[tuple]) -> None:
         """批量执行 SQL 语句"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -279,19 +278,19 @@ class DuckDBConnector(DatabaseConnector):
     def create_table(
         self,
         table_name: str,
-        columns: List[Dict[str, Any]],
+        columns: list[dict[str, Any]],
         primary_key: Optional[str]
     ) -> None:
         """创建表"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
 
-        col_defs: List[str] = []
+        col_defs: list[str] = []
         for col in columns:
             is_pk = col.get('primary_key', False)
             col_type = col['type']
             sql_type = self.TYPE_TO_SQL.get(col_type, 'VARCHAR')
-            constraints: List[str] = []
+            constraints: list[str] = []
 
             if is_pk:
                 constraints.append('PRIMARY KEY')
@@ -316,8 +315,8 @@ class DuckDBConnector(DatabaseConnector):
     def insert_records(
         self,
         table_name: str,
-        columns: List[str],
-        records: List[Dict[str, Any]]
+        columns: list[str],
+        records: list[dict[str, Any]]
     ) -> None:
         """批量插入记录"""
         if self.conn is None:
@@ -333,7 +332,7 @@ class DuckDBConnector(DatabaseConnector):
             f'({col_names}) VALUES ({placeholders})'
         )
 
-        values_list: List[tuple] = []
+        values_list: list[tuple] = []
         for record in records:
             values = []
             for column_name in columns:
@@ -345,8 +344,8 @@ class DuckDBConnector(DatabaseConnector):
     def insert_records_fast(
         self,
         table_name: str,
-        columns: List[str],
-        records: List[Dict[str, Any]]
+        columns: list[str],
+        records: list[dict[str, Any]]
     ) -> None:
         """
         通过临时 CSV + COPY FROM 快速批量插入
@@ -457,7 +456,7 @@ class DuckDBConnector(DatabaseConnector):
             return None
         return row[0]
 
-    def get_column_comments(self, table_name: str) -> Dict[str, Optional[str]]:
+    def get_column_comments(self, table_name: str) -> dict[str, Optional[str]]:
         """读取列备注"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -470,7 +469,7 @@ class DuckDBConnector(DatabaseConnector):
         )
         return {row[0]: row[1] for row in result.fetchall()}
 
-    def get_indexed_columns(self, table_name: str) -> Set[str]:
+    def get_indexed_columns(self, table_name: str) -> set[str]:
         """读取表上已存在的单列索引列名"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -481,7 +480,7 @@ class DuckDBConnector(DatabaseConnector):
             [self.options.schema, table_name]
         )
 
-        indexed_columns: Set[str] = set()
+        indexed_columns: set[str] = set()
         for row in result.fetchall():
             expressions = row[0]
             if not expressions:
@@ -524,7 +523,7 @@ class DuckDBConnector(DatabaseConnector):
     def insert_row(
         self,
         table_name: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         pk_column: str
     ) -> Any:
         """
@@ -570,7 +569,7 @@ class DuckDBConnector(DatabaseConnector):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> int:
         """
         更新一行数据
@@ -633,8 +632,8 @@ class DuckDBConnector(DatabaseConnector):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        columns: Optional[List[str]] = None
-    ) -> Optional[Dict[str, Any]]:
+        columns: Optional[list[str]] = None
+    ) -> Optional[dict[str, Any]]:
         """
         按主键查询一行
 
@@ -672,12 +671,12 @@ class DuckDBConnector(DatabaseConnector):
         self,
         table_name: str,
         where_clause: Optional[str] = None,
-        params: Tuple[Any, ...] = (),
-        columns: Optional[List[str]] = None,
+        params: tuple[Any, ...] = (),
+        columns: Optional[list[str]] = None,
         order_by: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         条件查询多行
 

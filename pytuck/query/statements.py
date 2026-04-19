@@ -4,7 +4,7 @@ SQLAlchemy 2.0 风格的 Statement API
 提供 select, insert, update, delete 语句构建器
 """
 
-from typing import Any, Dict, List, Optional, Tuple, Type, Generic, TYPE_CHECKING
+from typing import Any, Optional, Type, Generic, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
 from ..common.typing import T
@@ -14,7 +14,6 @@ from ..core.orm import PSEUDO_PK_NAME
 if TYPE_CHECKING:
     from .builder import BinaryExpression, LogicalExpression, ExpressionType
     from ..core.storage import Storage
-
 
 class Statement(Generic[T], ABC):
     """
@@ -34,7 +33,6 @@ class Statement(Generic[T], ABC):
     def _execute(self, storage: 'Storage') -> Any:
         """执行语句（由 Session.execute 调用）"""
         pass
-
 
 class Select(Statement[T]):
     """
@@ -56,20 +54,20 @@ class Select(Statement[T]):
 
     Attributes:
         model_class: The model class to query
-        _where_clauses: List of query conditions (BinaryExpression or LogicalExpression)
-        _order_by_fields: List of (field_name, desc) tuples for multi-column ordering
+        _where_clauses: list of query conditions (BinaryExpression or LogicalExpression)
+        _order_by_fields: list of (field_name, desc) tuples for multi-column ordering
         _limit_value: Maximum number of records to return
         _offset_value: Number of records to skip
-        _options: List of query options (e.g., PrefetchOption)
+        _options: list of query options (e.g., PrefetchOption)
     """
 
     def __init__(self, model_class: Type[T]) -> None:
         super().__init__(model_class)
-        self._where_clauses: List['ExpressionType'] = []
-        self._order_by_fields: List[Tuple[str, bool]] = []  # [(field, desc), ...]
+        self._where_clauses: list['ExpressionType'] = []
+        self._order_by_fields: list[tuple[str, bool]] = []  # [(field, desc), ...]
         self._limit_value: Optional[int] = None
         self._offset_value: int = 0
-        self._options: List[Any] = []
+        self._options: list[Any] = []
 
     def where(self, *expressions: 'ExpressionType') -> 'Select[T]':
         """
@@ -187,7 +185,7 @@ class Select(Statement[T]):
         self._options.extend(opts)
         return self
 
-    def _execute(self, storage: 'Storage') -> List[Dict[str, Any]]:
+    def _execute(self, storage: 'Storage') -> list[dict[str, Any]]:
         """执行查询，返回记录字典列表"""
         from .builder import BinaryExpression, LogicalExpression, ConditionType
 
@@ -211,7 +209,7 @@ class Select(Statement[T]):
                     except RecordNotFoundError:
                         return []
 
-        conditions: List[ConditionType] = []
+        conditions: list[ConditionType] = []
         for expr in self._where_clauses:
             if isinstance(expr, (BinaryExpression, LogicalExpression)):
                 conditions.append(expr.to_condition())
@@ -256,7 +254,6 @@ class Select(Statement[T]):
 
         return records
 
-
 class Insert(Statement[T]):
     """
     INSERT statement builder for creating new records.
@@ -273,15 +270,15 @@ class Insert(Statement[T]):
 
     def __init__(self, model_class: Type[T]) -> None:
         super().__init__(model_class)
-        self._values: Dict[str, Any] = {}
-        self._values_list: Optional[List[Dict[str, Any]]] = None
+        self._values: dict[str, Any] = {}
+        self._values_list: Optional[list[dict[str, Any]]] = None
 
     def values(self, **kwargs: Any) -> 'Insert[T]':
         """设置要插入的值（单条）"""
         self._values.update(kwargs)
         return self
 
-    def values_list(self, records: List[Dict[str, Any]]) -> 'Insert[T]':
+    def values_list(self, records: list[dict[str, Any]]) -> 'Insert[T]':
         """
         设置要批量插入的值
 
@@ -305,9 +302,9 @@ class Insert(Statement[T]):
 
         # 批量插入
         if self._values_list is not None:
-            validated_records: List[Dict[str, Any]] = []
+            validated_records: list[dict[str, Any]] = []
             for record in self._values_list:
-                validated_data: Dict[str, Any] = {}
+                validated_data: dict[str, Any] = {}
                 for attr_name, column in self.model_class.__columns__.items():
                     db_col_name = column.name if column.name else attr_name
                     if attr_name in record:
@@ -320,7 +317,7 @@ class Insert(Statement[T]):
 
         # 单条插入
         # 验证和转换值（使用 Column.name 作为存储键）
-        validated_data_single: Dict[str, Any] = {}
+        validated_data_single: dict[str, Any] = {}
         for attr_name, column in self.model_class.__columns__.items():
             db_col_name = column.name if column.name else attr_name
             if attr_name in self._values:
@@ -331,7 +328,6 @@ class Insert(Statement[T]):
         # 插入
         pk = storage.insert(table_name, validated_data_single)
         return pk
-
 
 class Update(Statement[T]):
     """
@@ -347,14 +343,14 @@ class Update(Statement[T]):
 
     Attributes:
         model_class: The model class to update
-        _where_clauses: List of conditions to match records
+        _where_clauses: list of conditions to match records
         _values: Dictionary of column names to new values
     """
 
     def __init__(self, model_class: Type[T]) -> None:
         super().__init__(model_class)
-        self._where_clauses: List['ExpressionType'] = []
-        self._values: Dict[str, Any] = {}
+        self._where_clauses: list['ExpressionType'] = []
+        self._values: dict[str, Any] = {}
 
     def where(self, *expressions: 'ExpressionType') -> 'Update[T]':
         """
@@ -393,7 +389,7 @@ class Update(Statement[T]):
                     pk_value = expr.value
 
         # 验证值（使用 Column.name 作为存储键）
-        validated_values: Dict[str, Any] = {}
+        validated_values: dict[str, Any] = {}
         for attr_name, value in self._values.items():
             if attr_name in self.model_class.__columns__:
                 column = self.model_class.__columns__[attr_name]
@@ -412,7 +408,7 @@ class Update(Statement[T]):
             # 其他异常（如数据库错误）向上传播
         else:
             # 条件查询
-            conditions: List[ConditionType] = []
+            conditions: list[ConditionType] = []
             for expr in self._where_clauses:
                 if isinstance(expr, (BinaryExpression, LogicalExpression)):
                     conditions.append(expr.to_condition())
@@ -444,7 +440,6 @@ class Update(Statement[T]):
 
             return count
 
-
 class Delete(Statement[T]):
     """
     DELETE statement builder for removing records.
@@ -459,12 +454,12 @@ class Delete(Statement[T]):
 
     Attributes:
         model_class: The model class to delete from
-        _where_clauses: List of conditions to match records for deletion
+        _where_clauses: list of conditions to match records for deletion
     """
 
     def __init__(self, model_class: Type[T]) -> None:
         super().__init__(model_class)
-        self._where_clauses: List['ExpressionType'] = []
+        self._where_clauses: list['ExpressionType'] = []
 
     def where(self, *expressions: 'ExpressionType') -> 'Delete[T]':
         """
@@ -509,7 +504,7 @@ class Delete(Statement[T]):
             # 其他异常（如数据库错误）向上传播
         else:
             # 条件查询
-            conditions: List[ConditionType] = []
+            conditions: list[ConditionType] = []
             for expr in self._where_clauses:
                 if isinstance(expr, (BinaryExpression, LogicalExpression)):
                     conditions.append(expr.to_condition())
@@ -541,23 +536,19 @@ class Delete(Statement[T]):
 
             return count
 
-
 # ==================== 顶层工厂函数 ====================
 
 def select(model_class: Type[T]) -> Select[T]:
     """创建 SELECT 语句"""
     return Select(model_class)
 
-
 def insert(model_class: Type[T]) -> Insert[T]:
     """创建 INSERT 语句"""
     return Insert(model_class)
 
-
 def update(model_class: Type[T]) -> Update[T]:
     """创建 UPDATE 语句"""
     return Update(model_class)
-
 
 def delete(model_class: Type[T]) -> Delete[T]:
     """创建 DELETE 语句"""

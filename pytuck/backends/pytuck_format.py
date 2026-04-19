@@ -6,13 +6,12 @@ Pytuck 单文件格式 v7 低层原语。
 
 from dataclasses import dataclass, replace
 import struct
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 from ..common.crypto import get_encryption_level_code, get_encryption_level_name
 from ..common.exceptions import SerializationError
 from ..core.orm import Column
 from ..core.types import TypeRegistry
-
 
 MAGIC_V7 = b"PTK7"
 HEADER_STRUCT = struct.Struct("<4sHHIQQQQQQI")
@@ -21,7 +20,6 @@ TABLE_REF_PREFIX_STRUCT = struct.Struct("<H")
 TABLE_REF_BODY_STRUCT = struct.Struct("<QQQQQQQQQQ")
 PK_DIR_INT_STRUCT = struct.Struct("<qQI")
 NULL_BITMAP_STRUCT = struct.Struct("<I")
-
 
 @dataclass(frozen=True)
 class CryptoMetadataV7:
@@ -42,7 +40,6 @@ class CryptoMetadataV7:
             )
         salt, key_check = CRYPTO_META_STRUCT.unpack(data[: CRYPTO_META_STRUCT.size])
         return cls(salt=salt, key_check=key_check)
-
 
 @dataclass(frozen=True)
 class FileHeaderV7:
@@ -108,7 +105,6 @@ class FileHeaderV7:
             raise SerializationError(f"Unsupported PTK7 version: {header.version}")
         return header
 
-
 @dataclass(frozen=True)
 class TableBlockRef:
     name: str
@@ -163,7 +159,6 @@ class TableBlockRef:
         body = TABLE_REF_BODY_STRUCT.unpack(data[name_end:body_end])
         return cls(name, *body)
 
-
 @dataclass(frozen=True)
 class PkDirEntry:
     pk: Any
@@ -184,8 +179,7 @@ class PkDirEntry:
         pk, offset, length = PK_DIR_INT_STRUCT.unpack(data[: PK_DIR_INT_STRUCT.size])
         return cls(pk=pk, offset=offset, length=length)
 
-
-def encode_row(columns: List[Column], record: Dict[str, Any], pk_name: Optional[str] = None) -> bytes:
+def encode_row(columns: list[Column], record: dict[str, Any], pk_name: Optional[str] = None) -> bytes:
     payload_columns = [column for column in columns if column.name != pk_name]
     null_bits = 0
     payload = bytearray()
@@ -200,8 +194,7 @@ def encode_row(columns: List[Column], record: Dict[str, Any], pk_name: Optional[
         payload.extend(codec.encode(value))
     return NULL_BITMAP_STRUCT.pack(null_bits) + bytes(payload)
 
-
-def decode_row(columns: List[Column], payload: bytes, pk_name: Optional[str] = None) -> Dict[str, Any]:
+def decode_row(columns: list[Column], payload: bytes, pk_name: Optional[str] = None) -> dict[str, Any]:
     if len(payload) < NULL_BITMAP_STRUCT.size:
         raise SerializationError(
             f"Not enough data to decode row payload (need at least {NULL_BITMAP_STRUCT.size}, got {len(payload)})"
@@ -210,7 +203,7 @@ def decode_row(columns: List[Column], payload: bytes, pk_name: Optional[str] = N
     payload_columns = [column for column in columns if column.name != pk_name]
     null_bits = NULL_BITMAP_STRUCT.unpack(payload[: NULL_BITMAP_STRUCT.size])[0]
     offset = NULL_BITMAP_STRUCT.size
-    record: Dict[str, Any] = {}
+    record: dict[str, Any] = {}
     for index, column in enumerate(payload_columns):
         col_name = column.name
         assert col_name is not None, "Column.name must be set"
@@ -222,7 +215,6 @@ def decode_row(columns: List[Column], payload: bytes, pk_name: Optional[str] = N
         offset += consumed
         record[col_name] = value
     return record
-
 
 __all__ = [
     "MAGIC_V7",

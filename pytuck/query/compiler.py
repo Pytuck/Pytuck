@@ -6,7 +6,7 @@ SQL 语句编译器
 
 import json
 from datetime import datetime, date, timedelta
-from typing import Any, List, NamedTuple, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Any, NamedTuple, Optional, Type, TYPE_CHECKING
 
 from ..common.exceptions import QueryError
 from ..core.types import TypeRegistry
@@ -14,7 +14,6 @@ from ..core.types import TypeRegistry
 if TYPE_CHECKING:
     from .statements import Statement, Select, Insert, Update, Delete
     from .builder import BinaryExpression, LogicalExpression
-
 
 class CompiledQuery(NamedTuple):
     """
@@ -27,10 +26,9 @@ class CompiledQuery(NamedTuple):
         table_name: 表名
     """
     sql: str
-    params: Tuple[Any, ...]
+    params: tuple[Any, ...]
     statement_type: str
     table_name: str
-
 
 class SQLDialect:
     """
@@ -50,7 +48,6 @@ class SQLDialect:
         """引用标识符（表名、列名）"""
         escaped = name.replace(self.identifier_quote, self.identifier_quote * 2)
         return f'{self.identifier_quote}{escaped}{self.identifier_quote}'
-
 
 class QueryCompiler:
     """
@@ -136,7 +133,7 @@ class QueryCompiler:
         table = self._quote(stmt.model_class.__tablename__)
         sql = f'SELECT * FROM {table}'
 
-        params: List[Any] = []
+        params: list[Any] = []
 
         # WHERE 子句
         where_sql, where_params = self._compile_where(stmt)
@@ -146,7 +143,7 @@ class QueryCompiler:
 
         # ORDER BY（支持多列）
         if stmt._order_by_fields:
-            order_parts: List[str] = []
+            order_parts: list[str] = []
             for field, desc in stmt._order_by_fields:
                 order_expr = self._quote(field)
                 if desc:
@@ -192,8 +189,8 @@ class QueryCompiler:
         """编译 UPDATE 语句"""
         table = self._quote(stmt.model_class.__tablename__)
 
-        set_parts: List[str] = []
-        params: List[Any] = []
+        set_parts: list[str] = []
+        params: list[Any] = []
 
         for col, val in stmt._values.items():
             set_parts.append(f'{self._quote(col)} = ?')
@@ -219,7 +216,7 @@ class QueryCompiler:
         table = self._quote(stmt.model_class.__tablename__)
         sql = f'DELETE FROM {table}'
 
-        params: List[Any] = []
+        params: list[Any] = []
 
         # WHERE 子句
         where_sql, where_params = self._compile_where(stmt)
@@ -234,7 +231,7 @@ class QueryCompiler:
             table_name=stmt.model_class.__tablename__
         )
 
-    def _compile_where(self, stmt: Any) -> Tuple[str, List[Any]]:
+    def _compile_where(self, stmt: Any) -> tuple[str, list[Any]]:
         """
         编译 WHERE 条件
 
@@ -249,8 +246,8 @@ class QueryCompiler:
         if not hasattr(stmt, '_where_clauses') or not stmt._where_clauses:
             return '', []
 
-        parts: List[str] = []
-        params: List[Any] = []
+        parts: list[str] = []
+        params: list[Any] = []
 
         for expr in stmt._where_clauses:
             if isinstance(expr, LogicalExpression):
@@ -275,7 +272,7 @@ class QueryCompiler:
         self,
         expr: 'BinaryExpression',
         model_class: Type
-    ) -> Tuple[str, List[Any]]:
+    ) -> tuple[str, list[Any]]:
         """
         编译二元表达式
 
@@ -293,7 +290,7 @@ class QueryCompiler:
                 details={"column": repr(expr.column)}
             )
         op = self._convert_op(expr.operator)
-        params: List[Any] = []
+        params: list[Any] = []
 
         if expr.operator == 'IN':
             # IN 操作符需要特殊处理
@@ -326,7 +323,7 @@ class QueryCompiler:
         self,
         expr: 'LogicalExpression',
         model_class: Type
-    ) -> Tuple[str, List[Any]]:
+    ) -> tuple[str, list[Any]]:
         """
         递归编译逻辑表达式
 
@@ -339,8 +336,8 @@ class QueryCompiler:
         """
         from .builder import BinaryExpression, LogicalExpression
 
-        parts: List[str] = []
-        params: List[Any] = []
+        parts: list[str] = []
+        params: list[Any] = []
 
         if expr.operator == 'NOT':
             # NOT 只有一个子表达式

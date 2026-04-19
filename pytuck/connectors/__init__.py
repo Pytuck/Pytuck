@@ -10,7 +10,7 @@ Pytuck 数据库连接器模块
 - duckdb: DuckDB 数据库（需要 duckdb 包）
 """
 
-from typing import Dict, Type, Optional
+from typing import Type, Optional
 
 from .base import DatabaseConnector
 from .connector_sqlite import SQLiteConnector
@@ -18,15 +18,13 @@ from .connector_duckdb import DuckDBConnector
 from ..common.options import ConnectorOptions, get_default_connector_options
 from ..common.exceptions import ConfigurationError
 
-
 # 连接器注册表
-CONNECTORS: Dict[str, Type[DatabaseConnector]] = {
+CONNECTORS: dict[str, Type[DatabaseConnector]] = {
     'sqlite': SQLiteConnector,
     'duckdb': DuckDBConnector,
     # 未来扩展：
     # 'mysql': MySQLConnector,
 }
-
 
 def get_connector(db_type: str, db_path: str, options: Optional[ConnectorOptions] = None) -> DatabaseConnector:
     """
@@ -73,8 +71,7 @@ def get_connector(db_type: str, db_path: str, options: Optional[ConnectorOptions
     connector_class = CONNECTORS[db_type]
     return connector_class(db_path, options)
 
-
-def get_available_connectors() -> Dict[str, bool]:
+def get_available_connectors() -> dict[str, bool]:
     """
     获取所有连接器及其可用状态
 
@@ -89,7 +86,6 @@ def get_available_connectors() -> Dict[str, bool]:
         db_type: connector_class.is_available()
         for db_type, connector_class in CONNECTORS.items()
     }
-
 
 __all__ = [
     'DatabaseConnector',

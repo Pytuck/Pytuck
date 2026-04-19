@@ -4,12 +4,11 @@ Pytuck 后端注册器和工厂
 提供引擎注册、发现和实例化功能
 """
 
-from typing import Any, Dict, List, Type, Optional, Tuple, Union
+from typing import Any, Type, Optional, Union
 from pathlib import Path
 from .base import StorageBackend
 from ..common.options import BackendOptions
 from ..common.exceptions import ConfigurationError
-
 
 class BackendRegistry:
     """
@@ -18,7 +17,7 @@ class BackendRegistry:
     负责管理所有可用的存储引擎
     """
 
-    _backends: Dict[str, Type[StorageBackend]] = {}
+    _backends: dict[str, Type[StorageBackend]] = {}
 
     @classmethod
     def register(cls, backend_class: Type[StorageBackend]) -> None:
@@ -53,7 +52,7 @@ class BackendRegistry:
         return cls._backends.get(engine_name)
 
     @classmethod
-    def available_engines(cls) -> Dict[str, bool]:
+    def available_engines(cls) -> dict[str, bool]:
         """
         获取所有引擎及其可用性
 
@@ -76,7 +75,7 @@ class BackendRegistry:
         }
 
     @classmethod
-    def list_engines(cls) -> List[str]:
+    def list_engines(cls) -> list[str]:
         """
         列出所有已注册的引擎名称
 
@@ -84,7 +83,6 @@ class BackendRegistry:
             引擎名称列表
         """
         return list(cls._backends.keys())
-
 
 def get_backend(engine: str, file_path: Union[str, Path], options: BackendOptions) -> StorageBackend:
     """
@@ -125,18 +123,16 @@ def get_backend(engine: str, file_path: Union[str, Path], options: BackendOption
 
     return backend_class(file_path, options)
 
-
-def _get_all_available_engines() -> List[str]:
+def _get_all_available_engines() -> list[str]:
     """获取所有可用引擎列表，按注册顺序返回"""
-    result: List[str] = []
+    result: list[str] = []
     for name in BackendRegistry.list_engines():
         backend_cls = BackendRegistry.get(name)
         if backend_cls is not None and backend_cls.is_available():
             result.append(name)
     return result
 
-
-def is_valid_pytuck_database(file_path: Union[str, Path]) -> Tuple[bool, Optional[str]]:
+def is_valid_pytuck_database(file_path: Union[str, Path]) -> tuple[bool, Optional[str]]:
     """
     检验是否是合法的 Pytuck 数据库文件并识别引擎
 
@@ -147,7 +143,7 @@ def is_valid_pytuck_database(file_path: Union[str, Path]) -> Tuple[bool, Optiona
         file_path: 数据库文件路径
 
     Returns:
-        Tuple[bool, Optional[str]]: (是否有效, 引擎名称或None)
+        tuple[bool, Optional[str]]: (是否有效, 引擎名称或None)
 
     示例:
         >>> is_valid_pytuck_database('data.pytuck')
@@ -179,8 +175,7 @@ def is_valid_pytuck_database(file_path: Union[str, Path]) -> Tuple[bool, Optiona
 
     return False, None
 
-
-def get_database_info(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
+def get_database_info(file_path: Union[str, Path]) -> Optional[dict[str, Any]]:
     """
     获取 Pytuck 数据库文件的详细信息
 
@@ -190,7 +185,7 @@ def get_database_info(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
         file_path: 数据库文件路径
 
     Returns:
-        Optional[Dict]: 包含引擎名称、版本、表数量等信息，如果不是有效数据库则返回 None
+        Optional[dict]: 包含引擎名称、版本、表数量等信息，如果不是有效数据库则返回 None
 
     返回字典结构:
         {
@@ -236,7 +231,6 @@ def get_database_info(file_path: Union[str, Path]) -> Optional[Dict[str, Any]]:
 
     return None
 
-
 def is_valid_pytuck_database_engine(file_path: Union[str, Path], engine_name: str) -> bool:
     """
     检验文件是否为指定引擎的 Pytuck 数据库
@@ -281,15 +275,14 @@ def is_valid_pytuck_database_engine(file_path: Union[str, Path], engine_name: st
     except Exception:
         return False
 
-
-def get_available_engines() -> Dict[str, Dict[str, Any]]:
+def get_available_engines() -> dict[str, dict[str, Any]]:
     """
     获取所有可用引擎的详细信息
 
     替代 print_available_engines，返回结构化数据而非直接打印。
 
     Returns:
-        Dict[str, Dict]: 引擎名称到引擎信息的映射
+        dict[str, dict]: 引擎名称到引擎信息的映射
 
     返回结构:
         {
@@ -322,7 +315,7 @@ def get_available_engines() -> Dict[str, Dict[str, Any]]:
         ...     status = "✅" if info['available'] else "❌"
         ...     print(f"{status} {name}")
     """
-    engines_info: Dict[str, Dict[str, Any]] = {}
+    engines_info: dict[str, dict[str, Any]] = {}
 
     for engine_name in BackendRegistry.list_engines():
         backend_class = BackendRegistry.get(engine_name)
@@ -343,7 +336,6 @@ def get_available_engines() -> Dict[str, Dict[str, Any]]:
         }
 
     return engines_info
-
 
 def print_available_engines() -> None:
     """

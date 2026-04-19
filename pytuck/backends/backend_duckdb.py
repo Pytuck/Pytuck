@@ -7,7 +7,7 @@ Pytuck DuckDB 存储引擎
 import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union, TYPE_CHECKING, Tuple
+from typing import Any, Optional, Union, TYPE_CHECKING
 
 from .base import StorageBackend
 from .versions import get_format_version
@@ -18,7 +18,6 @@ from ..core.types import TypeRegistry
 
 if TYPE_CHECKING:
     from ..core.storage import Table
-
 
 class DuckDBBackend(StorageBackend):
     """DuckDB format storage engine
@@ -76,7 +75,7 @@ class DuckDBBackend(StorageBackend):
         """原生 SQL 模式下只加载 schema"""
         return self._use_native_sql
 
-    def populate_tables_with_data(self, tables: Dict[str, 'Table']) -> None:
+    def populate_tables_with_data(self, tables: dict[str, 'Table']) -> None:
         """从 DuckDB 填充表数据（用于原生 SQL 模式下的迁移场景）"""
         if not self._use_native_sql:
             return
@@ -88,18 +87,18 @@ class DuckDBBackend(StorageBackend):
                 continue
             self._populate_table_data(connector, table_name, table)
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """保存数据到 DuckDB 数据库"""
         if self._use_native_sql:
             self._save_schema_only(tables)
         else:
             self._save_full(tables)
 
-    def save_full(self, tables: Dict[str, 'Table']) -> None:
+    def save_full(self, tables: dict[str, 'Table']) -> None:
         """全量保存所有表数据（用于迁移场景）"""
         self._save_full(tables)
 
-    def _save_full(self, tables: Dict[str, 'Table']) -> None:
+    def _save_full(self, tables: dict[str, 'Table']) -> None:
         """全量保存所有表数据到 DuckDB 数据库（兼容模式）"""
         try:
             connector = DuckDBConnector(str(self.file_path), self.options)
@@ -115,7 +114,7 @@ class DuckDBBackend(StorageBackend):
         except Exception as e:
             raise SerializationError(f'Failed to save to DuckDB: {e}')
 
-    def _save_schema_only(self, tables: Dict[str, 'Table']) -> None:
+    def _save_schema_only(self, tables: dict[str, 'Table']) -> None:
         """只保存 schema 元数据（原生 SQL 模式）"""
         try:
             connector = self.get_connector()
@@ -135,7 +134,7 @@ class DuckDBBackend(StorageBackend):
         except Exception as e:
             raise SerializationError(f'Failed to save schema to DuckDB: {e}')
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """加载数据"""
         if not self.exists():
             raise FileNotFoundError(f'DuckDB database not found: {self.file_path}')
@@ -144,12 +143,12 @@ class DuckDBBackend(StorageBackend):
             return self._load_schema_only()
         return self._load_full()
 
-    def _load_full(self) -> Dict[str, 'Table']:
+    def _load_full(self) -> dict[str, 'Table']:
         """全量加载所有表数据（兼容模式）"""
         try:
             connector = DuckDBConnector(str(self.file_path), self.options)
             with connector:
-                tables: Dict[str, 'Table'] = {}
+                tables: dict[str, 'Table'] = {}
                 for table_name in connector.get_table_names(exclude_system=True):
                     table = self._load_table_from_database(connector, table_name)
                     tables[table_name] = table
@@ -157,11 +156,11 @@ class DuckDBBackend(StorageBackend):
         except Exception as e:
             raise SerializationError(f'Failed to load from DuckDB: {e}')
 
-    def _load_schema_only(self) -> Dict[str, 'Table']:
+    def _load_schema_only(self) -> dict[str, 'Table']:
         """只加载 schema 元数据（原生 SQL 模式）"""
         try:
             connector = self.get_connector()
-            tables: Dict[str, 'Table'] = {}
+            tables: dict[str, 'Table'] = {}
             for table_name in connector.get_table_names(exclude_system=True):
                 table = self._load_table_schema_from_database(connector, table_name)
                 tables[table_name] = table
@@ -181,7 +180,7 @@ class DuckDBBackend(StorageBackend):
         columns_info, primary_key = connector.get_table_schema(table_name)
         table_comment = connector.get_table_comment(table_name)
 
-        columns: List[Column] = []
+        columns: list['Column'] = []
         for col_info in columns_info:
             column = Column(
                 col_info['type'],
@@ -249,7 +248,7 @@ class DuckDBBackend(StorageBackend):
         connector.execute('INSERT INTO _pytuck_metadata (key, value) VALUES (?, ?)', (key, value))
 
     @staticmethod
-    def _build_columns_def(table: 'Table') -> List[Dict[str, Any]]:
+    def _build_columns_def(table: 'Table') -> list[dict[str, Any]]:
         """构建连接器 create_table 所需的列定义"""
         return [
             {
@@ -313,11 +312,11 @@ class DuckDBBackend(StorageBackend):
 
     @staticmethod
     def _serialize_record_for_duckdb(
-        record: Dict[str, Any],
-        columns: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        record: dict[str, Any],
+        columns: dict[str, Any]
+    ) -> dict[str, Any]:
         """序列化记录以适应 DuckDB 存储"""
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for key, value in record.items():
             if value is None:
                 result[key] = None
@@ -333,11 +332,11 @@ class DuckDBBackend(StorageBackend):
 
     @staticmethod
     def _deserialize_record(
-        record: Dict[str, Any],
-        columns: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        record: dict[str, Any],
+        columns: dict[str, Any]
+    ) -> dict[str, Any]:
         """反序列化单条记录"""
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for col_name, value in record.items():
             if col_name not in columns or value is None:
                 result[col_name] = value
@@ -359,9 +358,9 @@ class DuckDBBackend(StorageBackend):
     def _deserialize_row(
         cls,
         row: tuple,
-        col_names: List[str],
-        columns: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        col_names: list[str],
+        columns: dict[str, Any]
+    ) -> dict[str, Any]:
         """反序列化单行数据"""
         raw_record = dict(zip(col_names, row))
         return cls._deserialize_record(raw_record, columns)
@@ -399,14 +398,14 @@ class DuckDBBackend(StorageBackend):
                     table.next_id += 1
             table.data[pk] = record
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
 
         try:
             file_stat = self.file_path.stat()
-            metadata: Dict[str, Any] = {
+            metadata: dict[str, Any] = {
                 'engine': 'duckdb',
                 'file_size': file_stat.st_size,
                 'modified': file_stat.st_mtime
@@ -447,12 +446,12 @@ class DuckDBBackend(StorageBackend):
     def query_with_pagination(
         self,
         table_name: str,
-        conditions: List[Dict[str, Any]],
+        conditions: list[dict[str, Any]],
         limit: Optional[int] = None,
         offset: int = 0,
         order_by: Optional[str] = None,
         order_desc: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """使用 SQL LIMIT/OFFSET 实现后端分页"""
         if not self.exists():
             return {'records': [], 'total_count': 0, 'has_more': False}
@@ -464,9 +463,9 @@ class DuckDBBackend(StorageBackend):
                     return {'records': [], 'total_count': 0, 'has_more': False}
 
                 where_clause = ''
-                params: List[Any] = []
+                params: list[Any] = []
                 if conditions:
-                    where_parts: List[str] = []
+                    where_parts: list[str] = []
                     for condition in conditions:
                         field = condition['field']
                         operator = condition.get('operator', '=')
@@ -512,10 +511,10 @@ class DuckDBBackend(StorageBackend):
                 cursor = connector.execute(data_sql, tuple(params))
                 rows = cursor.fetchall()
                 col_names = [desc[0] for desc in cursor.description] if cursor.description else []
-
+                
                 records = []
                 for row in rows:
-                    record: Dict[str, Any] = {}
+                    record: dict[str, Any] = {}
                     for col_name, value in zip(col_names, row):
                         record[col_name] = value
                     records.append(record)
@@ -533,7 +532,7 @@ class DuckDBBackend(StorageBackend):
             raise NotImplementedError(f'DuckDB pagination failed: {e}')
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """轻量探测文件是否为 DuckDB 引擎格式"""
         try:
             file_path = Path(file_path).expanduser()

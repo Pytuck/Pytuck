@@ -8,7 +8,7 @@ import copy
 import json
 from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Iterator, Tuple, Optional, Generator, Type, Union, TYPE_CHECKING, Sequence
+from typing import Any, Iterator, Optional, Generator, Type, Union, TYPE_CHECKING, Sequence
 from contextlib import contextmanager
 
 from ..common.options import BackendOptions, SyncOptions, SyncResult
@@ -31,7 +31,6 @@ if TYPE_CHECKING:
     from ..backends.base import StorageBackend
     from ..backends.backend_pytuck import PytuckBackend
 
-
 class TransactionSnapshot:
     """
     事务快照类
@@ -40,14 +39,14 @@ class TransactionSnapshot:
     采用深拷贝策略确保数据隔离。
     """
 
-    def __init__(self, tables: Dict[str, 'Table']):
+    def __init__(self, tables: dict[str, 'Table']):
         """
         创建快照
 
         Args:
             tables: 当前所有表的字典 {table_name: Table}
         """
-        self.table_snapshots: Dict[str, dict] = {}
+        self.table_snapshots: dict[str, dict] = {}
 
         # 深拷贝所有表的关键状态
         for table_name, table in tables.items():
@@ -69,7 +68,7 @@ class TransactionSnapshot:
                 '_schema_dirty': table._schema_dirty
             }
 
-    def restore(self, tables: Dict[str, 'Table']) -> None:
+    def restore(self, tables: dict[str, 'Table']) -> None:
         """
         恢复快照到表对象
 
@@ -92,14 +91,13 @@ class TransactionSnapshot:
                 table._data_dirty = bool(snapshot.get('_data_dirty', False))
                 table._schema_dirty = bool(snapshot.get('_schema_dirty', False))
 
-
 class Table:
     """表管理"""
 
     def __init__(
         self,
         name: str,
-        columns: List[Column],
+        columns: list[Column],
         primary_key: Optional[str] = None,
         comment: Optional[str] = None
     ):
@@ -113,14 +111,14 @@ class Table:
             comment: 表备注/注释
         """
         self.name = name
-        self.columns: Dict[str, Column] = {}
+        self.columns: dict[str, Column] = {}
         for col in columns:
             assert col.name is not None, "Column name must be set"
             self.columns[col.name] = col
         self.primary_key = primary_key  # None 表示无主键
         self.comment = comment
-        self.data: Dict[Any, Dict[str, Any]] = {}  # {pk: record}
-        self.indexes: Dict[str, BaseIndex] = {}  # {column_name: BaseIndex}
+        self.data: dict[Any, dict[str, Any]] = {}  # {pk: record}
+        self.indexes: dict[str, BaseIndex] = {}  # {column_name: BaseIndex}
         self.next_id = 1
 
         # 脏标记（用于增量保存优化）
@@ -128,7 +126,7 @@ class Table:
         self._schema_dirty: bool = False  # 结构是否被修改（add_column/drop_column 等）
 
         # 懒加载支持
-        self._pk_offsets: Optional[Dict[Any, int]] = None  # {pk: file_offset}
+        self._pk_offsets: Optional[dict[Any, int]] = None  # {pk: file_offset}
         self._data_file: Optional[Path] = None  # 数据文件路径
         self._backend: Optional[Any] = None  # Binary 后端引用（用于读取记录）
         self._lazy_loaded: bool = False  # 是否为懒加载模式
@@ -173,7 +171,7 @@ class Table:
 
         return pk
 
-    def insert(self, record: Dict[str, Any]) -> Any:
+    def insert(self, record: dict[str, Any]) -> Any:
         """
         插入记录
 
@@ -241,7 +239,7 @@ class Table:
         self._data_dirty = True
         return pk
 
-    def update(self, pk: Any, record: Dict[str, Any]) -> None:
+    def update(self, pk: Any, record: dict[str, Any]) -> None:
         """
         更新记录
 
@@ -314,7 +312,7 @@ class Table:
             del self._pk_offsets[pk]
         self._data_dirty = True
 
-    def bulk_insert(self, records: List[Dict[str, Any]]) -> List[Any]:
+    def bulk_insert(self, records: list[dict[str, Any]]) -> list[Any]:
         """
         批量插入记录
 
@@ -333,7 +331,7 @@ class Table:
         if not records:
             return []
 
-        pks: List[Any] = []
+        pks: list[Any] = []
 
         # 第一阶段：批量分配主键
         has_user_pk = self.primary_key and self.primary_key in self.columns
@@ -382,7 +380,7 @@ class Table:
         # 检查批次内主键无重复
         if len(set(pks)) != len(pks):
             # 找出重复的主键
-            seen: Dict[Any, int] = {}
+            seen: dict[Any, int] = {}
             for pk in pks:
                 if pk in seen:
                     raise DuplicateKeyError(self.name, pk)
@@ -391,7 +389,7 @@ class Table:
         # 第二阶段：批量验证字段并存储记录
         for i, record in enumerate(records):
             pk = pks[i]
-            validated_record: Dict[str, Any] = {}
+            validated_record: dict[str, Any] = {}
             for col_name, column in self.columns.items():
                 value = record.get(col_name)
                 validated_value = column.validate(value)
@@ -413,7 +411,7 @@ class Table:
         self._data_dirty = True
         return pks
 
-    def bulk_update(self, updates: List[Tuple[Any, Dict[str, Any]]]) -> int:
+    def bulk_update(self, updates: list[tuple[Any, dict[str, Any]]]) -> int:
         """
         批量更新记录
 
@@ -468,7 +466,7 @@ class Table:
             self._data_dirty = True
         return count
 
-    def get(self, pk: Any) -> Dict[str, Any]:
+    def get(self, pk: Any) -> dict[str, Any]:
         """
         获取记录（支持懒加载）
 
@@ -498,7 +496,7 @@ class Table:
 
         raise RecordNotFoundError(self.name, pk)
 
-    def _read_record_from_file(self, pk: Any) -> Dict[str, Any]:
+    def _read_record_from_file(self, pk: Any) -> dict[str, Any]:
         """
         从文件读取单条记录（懒加载模式）
 
@@ -553,14 +551,14 @@ class Table:
                 continue
             self.data[pk] = record
 
-    def all_pks(self) -> List[Any]:
+    def all_pks(self) -> list[Any]:
         """返回表中的所有主键（包含懒加载未入内存的记录）"""
         pks = set(self.data.keys())
         if self._pk_offsets is not None:
             pks.update(self._pk_offsets.keys())
         return list(pks)
 
-    def scan(self) -> Iterator[Tuple[Any, Dict[str, Any]]]:
+    def scan(self) -> Iterator[tuple[Any, dict[str, Any]]]:
         """
         扫描所有记录
 
@@ -737,7 +735,7 @@ class Table:
         need_nullable_check = nullable is not ... and not new_nullable and old_col.nullable
 
         # 第一步：验证所有记录是否满足新约束（先验证再修改）
-        converted_values: Dict[Any, Any] = {}  # {pk: converted_value}
+        converted_values: dict[Any, Any] = {}  # {pk: converted_value}
 
         # 在懒加载模式下先确保加载磁盘记录
         self._ensure_all_loaded()
@@ -850,7 +848,7 @@ class Table:
             seen.add(value)
 
         # 重建 data 字典
-        new_data: Dict[Any, Dict[str, Any]] = {}
+        new_data: dict[Any, dict[str, Any]] = {}
         for record in self.data.values():
             new_pk = record[column_name]
             new_data[new_pk] = record
@@ -878,7 +876,7 @@ class Table:
         if self._lazy_loaded:
             self._pk_offsets = None
 
-    def reorder_columns(self, new_order: List[str]) -> None:
+    def reorder_columns(self, new_order: list[str]) -> None:
         """
         重新排列列的顺序
 
@@ -988,7 +986,6 @@ class Table:
     def __repr__(self) -> str:
         return f"Table(name='{self.name}', records={len(self.data)}, indexes={len(self.indexes)})"
 
-
 class Storage:
     """存储引擎"""
 
@@ -1018,7 +1015,7 @@ class Storage:
         self.in_memory: bool = in_memory or (file_path is None)
         self.engine_name = engine
         self.auto_flush = auto_flush
-        self.tables: Dict[str, Table] = {}
+        self.tables: dict[str, Table] = {}
         self._dirty = False
 
         # 事务管理属性
@@ -1026,14 +1023,13 @@ class Storage:
         self._transaction_snapshot: Optional[TransactionSnapshot] = None
         self._transaction_dirty_flag: bool = False
 
-
         # 原生 SQL 模式相关属性
         self._native_sql_mode: bool = False  # 是否启用原生 SQL 模式
         self._connector: Optional[Any] = None  # 数据库连接器（原生 SQL 模式）
         self._native_sql_in_transaction: bool = False  # 是否在原生 SQL 事务中
 
         # 模型注册表（表名 -> 模型类，用于 Relationship 解析）
-        self._model_registry: Dict[str, Type] = {}
+        self._model_registry: dict[str, Type] = {}
 
         # 初始化后端
         self.backend: Optional[StorageBackend] = None
@@ -1083,7 +1079,7 @@ class Storage:
     def create_table(
         self,
         name: str,
-        columns: List[Column],
+        columns: list[Column],
         comment: Optional[str] = None
     ) -> None:
         """
@@ -1193,7 +1189,7 @@ class Storage:
     def sync_table_schema(
         self,
         table_name: str,
-        columns: List[Column],
+        columns: list[Column],
         comment: Optional[str] = None,
         options: Optional[SyncOptions] = None
     ) -> SyncResult:
@@ -1227,7 +1223,7 @@ class Storage:
         result = SyncResult(table_name=table_name)
 
         # 构建新列名到列的映射
-        new_columns_map: Dict[str, Column] = {}
+        new_columns_map: dict[str, Column] = {}
         for col in columns:
             assert col.name is not None, "Column name must be set"
             new_columns_map[col.name] = col
@@ -1500,7 +1496,7 @@ class Storage:
         if self.auto_flush:
             self.flush()
 
-    def reorder_columns(self, table_name: str, new_order: List[str]) -> None:
+    def reorder_columns(self, table_name: str, new_order: list[str]) -> None:
         """
         重新排列列的顺序
 
@@ -1640,7 +1636,7 @@ class Storage:
             or ('primary key' in error_msg and ('duplicate' in error_msg or 'violate' in error_msg))
         )
 
-    def insert(self, table_name: str, data: Dict[str, Any]) -> Any:
+    def insert(self, table_name: str, data: dict[str, Any]) -> Any:
         """
         插入记录
 
@@ -1667,7 +1663,7 @@ class Storage:
 
         return pk
 
-    def _insert_native_sql(self, table_name: str, table: Table, data: Dict[str, Any]) -> Any:
+    def _insert_native_sql(self, table_name: str, table: Table, data: dict[str, Any]) -> Any:
         """
         原生 SQL 插入
 
@@ -1683,7 +1679,7 @@ class Storage:
         connector = self._connector
 
         # 验证和处理所有字段
-        validated_record: Dict[str, Any] = {}
+        validated_record: dict[str, Any] = {}
         for col_name, column in table.columns.items():
             value = data.get(col_name)
             validated_value = column.validate(value)
@@ -1717,8 +1713,8 @@ class Storage:
         self,
         table_name: str,
         table: Table,
-        records: List[Dict[str, Any]]
-    ) -> List[Any]:
+        records: list[dict[str, Any]]
+    ) -> list[Any]:
         """
         原生 SQL 批量插入，使用 connector.insert_records() (executemany)
 
@@ -1737,8 +1733,8 @@ class Storage:
         columns = list(table.columns.keys())
 
         # 验证所有记录，并预分配自增 PK
-        validated_records: List[Dict[str, Any]] = []
-        pks: List[Any] = []
+        validated_records: list[dict[str, Any]] = []
+        pks: list[Any] = []
         pk_col = table.primary_key
         pk_is_int_auto = (
             pk_col is not None
@@ -1747,7 +1743,7 @@ class Storage:
         )
 
         for data in records:
-            validated_record: Dict[str, Any] = {}
+            validated_record: dict[str, Any] = {}
             for col_name, column in table.columns.items():
                 value = data.get(col_name)
                 validated_record[col_name] = column.validate(value)
@@ -1790,7 +1786,7 @@ class Storage:
 
         return pks
 
-    def update(self, table_name: str, pk: Any, data: Dict[str, Any]) -> None:
+    def update(self, table_name: str, pk: Any, data: dict[str, Any]) -> None:
         """
         更新记录
 
@@ -1813,7 +1809,7 @@ class Storage:
         if self.auto_flush:
             self.flush()
 
-    def _update_native_sql(self, table_name: str, table: Table, pk: Any, data: Dict[str, Any]) -> None:
+    def _update_native_sql(self, table_name: str, table: Table, pk: Any, data: dict[str, Any]) -> None:
         """
         原生 SQL 更新
 
@@ -1827,7 +1823,7 @@ class Storage:
         connector = self._connector
 
         # 验证字段
-        validated_data: Dict[str, Any] = {}
+        validated_data: dict[str, Any] = {}
         for col_name, value in data.items():
             if col_name in table.columns:
                 column = table.columns[col_name]
@@ -1865,7 +1861,7 @@ class Storage:
         if self.auto_flush:
             self.flush()
 
-    def bulk_insert(self, table_name: str, records: List[Dict[str, Any]]) -> List[Any]:
+    def bulk_insert(self, table_name: str, records: list[dict[str, Any]]) -> list[Any]:
         """
         批量插入记录
 
@@ -1894,7 +1890,7 @@ class Storage:
 
         return pks
 
-    def bulk_update(self, table_name: str, updates: List[Tuple[Any, Dict[str, Any]]]) -> int:
+    def bulk_update(self, table_name: str, updates: list[tuple[Any, dict[str, Any]]]) -> int:
         """
         批量更新记录
 
@@ -1925,7 +1921,7 @@ class Storage:
 
         return count
 
-    def select(self, table_name: str, pk: Any) -> Dict[str, Any]:
+    def select(self, table_name: str, pk: Any) -> dict[str, Any]:
         """
         查询单条记录
 
@@ -1983,7 +1979,7 @@ class Storage:
         return table.record_count
 
     @staticmethod
-    def _deserialize_record(record: Dict[str, Any], columns: Dict[str, Column]) -> Dict[str, Any]:
+    def _deserialize_record(record: dict[str, Any], columns: dict[str, Column]) -> dict[str, Any]:
         """
         反序列化记录
 
@@ -1996,7 +1992,7 @@ class Storage:
         """
         from .types import TypeRegistry
 
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for col_name, value in record.items():
             if col_name in columns and value is not None:
                 column = columns[col_name]
@@ -2019,7 +2015,7 @@ class Storage:
               limit: Optional[int] = None,
               offset: int = 0,
               order_by: Optional[str] = None,
-              order_desc: bool = False) -> List[Dict[str, Any]]:
+              order_desc: bool = False) -> list[dict[str, Any]]:
         """
         查询多条记录
 
@@ -2042,8 +2038,8 @@ class Storage:
 
         # 内存模式
         # 分离简单条件和复合条件
-        simple_conditions: List[Condition] = []
-        composite_conditions: List[CompositeCondition] = []
+        simple_conditions: list[Condition] = []
+        composite_conditions: list[CompositeCondition] = []
 
         for condition in conditions:
             if isinstance(condition, CompositeCondition):
@@ -2054,7 +2050,7 @@ class Storage:
         # 优化：使用多索引联合查询（取所有匹配索引结果的交集）
         # 仅对简单条件使用索引优化
         candidate_pks = None
-        remaining_simple_conditions: List[Condition] = []
+        remaining_simple_conditions: list[Condition] = []
 
         for condition in simple_conditions:
             if condition.operator == '=' and condition.field in table.indexes:
@@ -2119,7 +2115,7 @@ class Storage:
             none_value_pks = [pk for pk in candidate_pks if pk not in indexed_pk_set]
 
             # 过滤 None 值记录
-            none_results: List[Dict[str, Any]] = []
+            none_results: list[dict[str, Any]] = []
             if none_value_pks:
                 for pk in none_value_pks:
                     try:
@@ -2135,10 +2131,10 @@ class Storage:
                         record_copy[PSEUDO_PK_NAME] = pk
                     none_results.append(record_copy)
 
-            results: List[Dict[str, Any]] = []
+            results: list[dict[str, Any]] = []
             skipped = 0
 
-            def _append_with_paging(rec: Dict[str, Any]) -> bool:
+            def _append_with_paging(rec: dict[str, Any]) -> bool:
                 """追加记录并处理分页，返回是否已达到 limit"""
                 nonlocal skipped
                 if offset > 0 and skipped < offset:
@@ -2202,7 +2198,7 @@ class Storage:
 
             # 排序
             if order_by and order_by in table.columns:
-                def sort_key(_record: Dict[str, Any]) -> tuple:
+                def sort_key(_record: dict[str, Any]) -> tuple:
                     """
                     排序键函数
 
@@ -2239,7 +2235,7 @@ class Storage:
         offset: int,
         order_by: Optional[str],
         order_desc: bool
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         原生 SQL 查询
 
@@ -2259,8 +2255,8 @@ class Storage:
         connector = self._connector
 
         # 构建 WHERE 子句
-        where_parts: List[str] = []
-        params: List[Any] = []
+        where_parts: list[str] = []
+        params: list[Any] = []
 
         for condition in conditions:
             if isinstance(condition, CompositeCondition):
@@ -2299,7 +2295,7 @@ class Storage:
     def _compile_composite_condition(
         self,
         condition: CompositeCondition
-    ) -> Tuple[str, List[Any]]:
+    ) -> tuple[str, list[Any]]:
         """
         编译复合条件为 SQL
 
@@ -2309,8 +2305,8 @@ class Storage:
         Returns:
             (SQL 片段, 参数列表)
         """
-        parts: List[str] = []
-        params: List[Any] = []
+        parts: list[str] = []
+        params: list[Any] = []
 
         if condition.operator == 'NOT':
             # NOT 只有一个子条件
@@ -2342,7 +2338,7 @@ class Storage:
             return connector_str.join(parts), params
 
     @staticmethod
-    def _compile_simple_condition(child: Condition) -> Tuple[str, List[Any]]:
+    def _compile_simple_condition(child: Condition) -> tuple[str, list[Any]]:
         """
         编译单个 Condition 为 SQL 片段和参数
 
@@ -2401,7 +2397,7 @@ class Storage:
                         offset: int = 0,
                         order_by: Optional[str] = None,
                         order_desc: bool = False,
-                        filters: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None) -> Dict[str, Any]:
+                        filters: Optional[Union[dict[str, Any], list[dict[str, Any]]]] = None) -> dict[str, Any]:
         """
         查询表数据（专为 Web UI 设计）
 
@@ -2412,18 +2408,18 @@ class Storage:
             order_by: 排序字段名
             order_desc: 是否降序排列
             filters: 过滤条件，支持两种格式：
-                - Dict[str, Any]: 等值过滤 {field: value}（向后兼容）
-                - List[Dict[str, Any]]: 带操作符过滤
+                - dict[str, Any]: 等值过滤 {field: value}（向后兼容）
+                - list[dict[str, Any]]: 带操作符过滤
                   [{'field': str, 'operator': str, 'value': Any}, ...]
                   支持的操作符: '=', '!=', '>', '<', '>=', '<=', 'IN',
                               'LIKE', 'STARTSWITH', 'ENDSWITH'
 
         Returns:
             {
-                'records': List[Dict[str, Any]],  # 实际数据行
+                'records': list[dict[str, Any]],  # 实际数据行
                 'total_count': int,               # 总记录数（应用过滤后）
                 'has_more': bool,                 # 是否还有更多数据
-                'schema': List[Dict],             # 列结构信息
+                'schema': list[dict],             # 列结构信息
             }
         """
         if table_name not in self.tables:
@@ -2432,7 +2428,7 @@ class Storage:
         table = self.get_table(table_name)
 
         # 统一解析 filters 为 backend_conditions 列表
-        backend_conditions: List[Dict[str, Any]] = []
+        backend_conditions: list[dict[str, Any]] = []
         if filters:
             if isinstance(filters, dict):
                 # 旧格式：{field: value} → 等值过滤
@@ -2478,7 +2474,7 @@ class Storage:
 
         # 使用内存分页（默认方式）
         # 构建查询条件
-        conditions: List[Condition] = []
+        conditions: list[Condition] = []
         for bc in backend_conditions:
             conditions.append(Condition(bc['field'], bc['operator'], bc['value']))
 
@@ -2563,7 +2559,6 @@ class Storage:
             self._transaction_snapshot = None
             self._in_transaction = False
 
-
     def _init_native_sql_mode(self) -> None:
         """
         初始化原生 SQL 模式
@@ -2614,9 +2609,6 @@ class Storage:
     def is_native_sql_mode(self) -> bool:
         """是否启用原生 SQL 模式"""
         return self._native_sql_mode
-
-
-
 
     def flush(self) -> None:
         """强制写入磁盘"""

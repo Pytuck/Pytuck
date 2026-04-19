@@ -9,7 +9,7 @@ import inspect
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Set, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Union, TYPE_CHECKING, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, ConfigurationError
@@ -21,7 +21,6 @@ from ..common.options import JsonBackendOptions
 if TYPE_CHECKING:
     from ..core.storage import Table
     from ..core.orm import Column
-
 
 class JSONBackend(StorageBackend):
     """JSON format storage engine (human-readable)"""
@@ -136,7 +135,7 @@ class JSONBackend(StorageBackend):
             f"Your custom logic must set self._dumps_func, self._loads_func, and self._impl_name"
         )
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """保存所有表数据到JSON文件"""
         data = {
             'format_version': self.FORMAT_VERSION,
@@ -172,7 +171,7 @@ class JSONBackend(StorageBackend):
                 pass
             raise SerializationError(f"Failed to save JSON file: {e}")
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """从JSON文件加载所有表数据"""
         if not self.exists():
             raise FileNotFoundError(f"JSON file not found: {self.file_path}")
@@ -201,7 +200,7 @@ class JSONBackend(StorageBackend):
         if self.file_path.exists():
             self.file_path.unlink()
 
-    def _serialize_table(self, table: 'Table') -> Dict[str, Any]:
+    def _serialize_table(self, table: 'Table') -> dict[str, Any]:
         """序列化表为JSON可序列化的字典"""
         return {
             'primary_key': table.primary_key,
@@ -225,7 +224,7 @@ class JSONBackend(StorageBackend):
             ]
         }
 
-    def _deserialize_table(self, table_name: str, table_data: Dict[str, Any]) -> 'Table':
+    def _deserialize_table(self, table_name: str, table_data: dict[str, Any]) -> 'Table':
         """反序列化表"""
         from ..core.storage import Table
         from ..core.orm import Column
@@ -281,14 +280,14 @@ class JSONBackend(StorageBackend):
         return table
 
     @staticmethod
-    def _serialize_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    def _serialize_record(record: dict[str, Any]) -> dict[str, Any]:
         """序列化记录（处理特殊类型）
 
         与其他后端保持一致，直接存储序列化值，反序列化时根据 schema 恢复类型。
         """
         from datetime import datetime, date, timedelta
 
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for key, value in record.items():
             if value is None:
                 result[key] = None
@@ -301,7 +300,7 @@ class JSONBackend(StorageBackend):
         return result
 
     @staticmethod
-    def _deserialize_record(record_data: Dict[str, Any], columns: Dict[str, 'Column']) -> Dict[str, Any]:
+    def _deserialize_record(record_data: dict[str, Any], columns: dict[str, 'Column']) -> dict[str, Any]:
         """反序列化记录
 
         根据 columns schema 中的类型信息恢复特殊类型。
@@ -318,7 +317,7 @@ class JSONBackend(StorageBackend):
                 result[key] = value
         return result
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
@@ -351,7 +350,7 @@ class JSONBackend(StorageBackend):
         }
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为 JSON 引擎格式
 
@@ -359,7 +358,7 @@ class JSONBackend(StorageBackend):
         只读取前 32KB 内容以提高性能。
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

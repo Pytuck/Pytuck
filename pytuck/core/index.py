@@ -6,8 +6,7 @@ Pytuck 索引实现
 
 from abc import ABC, abstractmethod
 from bisect import bisect_left, bisect_right
-from typing import Any, Dict, List, Optional, Set
-
+from typing import Any, Optional
 
 class BaseIndex(ABC):
     """索引基类（抽象接口）"""
@@ -44,7 +43,7 @@ class BaseIndex(ABC):
         ...
 
     @abstractmethod
-    def lookup(self, value: Any) -> Set[Any]:
+    def lookup(self, value: Any) -> set[Any]:
         """
         精确查找
 
@@ -76,7 +75,7 @@ class BaseIndex(ABC):
         max_val: Optional[Any] = None,
         include_min: bool = True,
         include_max: bool = True
-    ) -> Set[Any]:
+    ) -> set[Any]:
         """
         范围查询（默认不支持）
 
@@ -94,7 +93,6 @@ class BaseIndex(ABC):
         """
         raise NotImplementedError("This index does not support range queries")
 
-
 class HashIndex(BaseIndex):
     """
     哈希索引（基于 dict 实现）
@@ -110,7 +108,7 @@ class HashIndex(BaseIndex):
             column_name: 索引的列名
         """
         super().__init__(column_name)
-        self.map: Dict[Any, Set[Any]] = {}
+        self.map: dict[Any, set[Any]] = {}
 
     def insert(self, value: Any, pk: Any) -> None:
         """
@@ -143,7 +141,7 @@ class HashIndex(BaseIndex):
         if not pk_set:
             del self.map[value]
 
-    def lookup(self, value: Any) -> Set[Any]:
+    def lookup(self, value: Any) -> set[Any]:
         """
         查找索引
 
@@ -167,7 +165,6 @@ class HashIndex(BaseIndex):
     def __repr__(self) -> str:
         return f"HashIndex(column='{self.column_name}', entries={len(self)}, values={len(self.map)})"
 
-
 class SortedIndex(BaseIndex):
     """
     有序索引（基于 bisect 实现）
@@ -184,8 +181,8 @@ class SortedIndex(BaseIndex):
             column_name: 索引的列名
         """
         super().__init__(column_name)
-        self.sorted_values: List[Any] = []
-        self.value_to_pks: Dict[Any, Set[Any]] = {}
+        self.sorted_values: list[Any] = []
+        self.value_to_pks: dict[Any, set[Any]] = {}
 
     def insert(self, value: Any, pk: Any) -> None:
         """
@@ -224,7 +221,7 @@ class SortedIndex(BaseIndex):
             if idx < len(self.sorted_values) and self.sorted_values[idx] == value:
                 self.sorted_values.pop(idx)
 
-    def lookup(self, value: Any) -> Set[Any]:
+    def lookup(self, value: Any) -> set[Any]:
         """
         精确查找
 
@@ -255,7 +252,7 @@ class SortedIndex(BaseIndex):
         max_val: Optional[Any] = None,
         include_min: bool = True,
         include_max: bool = True
-    ) -> Set[Any]:
+    ) -> set[Any]:
         """
         范围查询
 
@@ -284,12 +281,12 @@ class SortedIndex(BaseIndex):
             else:
                 right = bisect_left(self.sorted_values, max_val)
 
-        result: Set[Any] = set()
+        result: set[Any] = set()
         for value in self.sorted_values[left:right]:
             result.update(self.value_to_pks[value])
         return result
 
-    def get_sorted_pks(self, reverse: bool = False) -> List[Any]:
+    def get_sorted_pks(self, reverse: bool = False) -> list[Any]:
         """
         获取按值排序的所有主键（用于 ORDER BY）
 
@@ -299,7 +296,7 @@ class SortedIndex(BaseIndex):
         Returns:
             排序后的主键列表
         """
-        result: List[Any] = []
+        result: list[Any] = []
         values = reversed(self.sorted_values) if reverse else self.sorted_values
         for value in values:
             result.extend(self.value_to_pks[value])

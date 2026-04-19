@@ -6,7 +6,7 @@ Pytuck SQLite存储引擎
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union, TYPE_CHECKING, Tuple
+from typing import Any, Optional, Union, TYPE_CHECKING
 from datetime import datetime
 
 from .base import StorageBackend
@@ -20,7 +20,6 @@ from ..common.options import SqliteBackendOptions
 
 if TYPE_CHECKING:
     from ..core.storage import Table
-
 
 class SQLiteBackend(StorageBackend):
     """SQLite format storage engine (built-in, ACID)
@@ -86,7 +85,7 @@ class SQLiteBackend(StorageBackend):
         """
         return self._use_native_sql
 
-    def populate_tables_with_data(self, tables: Dict[str, 'Table']) -> None:
+    def populate_tables_with_data(self, tables: dict[str, 'Table']) -> None:
         """
         从数据库填充表数据（用于原生 SQL 模式下的迁移场景）
 
@@ -130,7 +129,7 @@ class SQLiteBackend(StorageBackend):
                         table.next_id += 1
                 table.data[pk] = record
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """
         保存数据到 SQLite 数据库
 
@@ -142,7 +141,7 @@ class SQLiteBackend(StorageBackend):
         else:
             self._save_full(tables)
 
-    def save_full(self, tables: Dict[str, 'Table']) -> None:
+    def save_full(self, tables: dict[str, 'Table']) -> None:
         """
         全量保存所有表数据（用于迁移场景）
 
@@ -150,7 +149,7 @@ class SQLiteBackend(StorageBackend):
         """
         self._save_full(tables)
 
-    def _save_full(self, tables: Dict[str, 'Table']) -> None:
+    def _save_full(self, tables: dict[str, 'Table']) -> None:
         """全量保存所有表数据到SQLite数据库（兼容模式）"""
         try:
             # 创建连接器
@@ -178,7 +177,7 @@ class SQLiteBackend(StorageBackend):
         except Exception as e:
             raise SerializationError(f"Failed to save to SQLite: {e}")
 
-    def _save_schema_only(self, tables: Dict[str, 'Table']) -> None:
+    def _save_schema_only(self, tables: dict[str, 'Table']) -> None:
         """
         只保存 schema 元数据（原生 SQL 模式）
 
@@ -250,7 +249,7 @@ class SQLiteBackend(StorageBackend):
         except Exception as e:
             raise SerializationError(f"Failed to save schema to SQLite: {e}")
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """
         加载数据
 
@@ -265,7 +264,7 @@ class SQLiteBackend(StorageBackend):
         else:
             return self._load_full()
 
-    def _load_full(self) -> Dict[str, 'Table']:
+    def _load_full(self) -> dict[str, 'Table']:
         """全量加载所有表数据（兼容模式）"""
         try:
             # 创建连接器，使用默认选项
@@ -298,7 +297,7 @@ class SQLiteBackend(StorageBackend):
         except Exception as e:
             raise SerializationError(f"Failed to load from SQLite: {e}")
 
-    def _load_schema_only(self) -> Dict[str, 'Table']:
+    def _load_schema_only(self) -> dict[str, 'Table']:
         """
         只加载 schema 元数据（原生 SQL 模式）
 
@@ -320,7 +319,7 @@ class SQLiteBackend(StorageBackend):
             )
             table_rows = cursor.fetchall()
 
-            tables: Dict[str, 'Table'] = {}
+            tables: dict[str, 'Table'] = {}
 
             for table_name, primary_key, next_id, table_comment, columns_json in table_rows:
                 table = self._load_table_schema_only(
@@ -471,15 +470,15 @@ class SQLiteBackend(StorageBackend):
 
     @staticmethod
     def _serialize_record_for_sqlite(
-        record: Dict[str, Any], columns: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        record: dict[str, Any], columns: dict[str, Any]
+    ) -> dict[str, Any]:
         """序列化记录以适应 SQLite 存储
 
         注意：SQLite 原生支持 bytes (BLOB)，所以不需要 base64 编码
         """
         from datetime import datetime, date, timedelta
 
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for key, value in record.items():
             if value is None:
                 result[key] = None
@@ -500,9 +499,9 @@ class SQLiteBackend(StorageBackend):
     @staticmethod
     def _deserialize_row(
         row: tuple,
-        col_names: List[str],
-        columns: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        col_names: list[str],
+        columns: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         反序列化单行数据
 
@@ -516,7 +515,7 @@ class SQLiteBackend(StorageBackend):
         """
         from datetime import datetime, date, timedelta
 
-        record: Dict[str, Any] = {}
+        record: dict[str, Any] = {}
         for col_name, value in zip(col_names, row):
             if col_name not in columns:
                 record[col_name] = value
@@ -590,7 +589,7 @@ class SQLiteBackend(StorageBackend):
 
         return table
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
@@ -600,7 +599,7 @@ class SQLiteBackend(StorageBackend):
             file_size = file_stat.st_size
             modified_time = file_stat.st_mtime
 
-            metadata: Dict[str, Any] = {
+            metadata: dict[str, Any] = {
                 'engine': 'sqlite',
                 'file_size': file_size,
                 'modified': modified_time
@@ -644,11 +643,11 @@ class SQLiteBackend(StorageBackend):
 
     def query_with_pagination(self,
                              table_name: str,
-                             conditions: List[Dict[str, Any]],
+                             conditions: list[dict[str, Any]],
                              limit: Optional[int] = None,
                              offset: int = 0,
                              order_by: Optional[str] = None,
-                             order_desc: bool = False) -> Dict[str, Any]:
+                             order_desc: bool = False) -> dict[str, Any]:
         """
         使用 SQL LIMIT/OFFSET 实现后端分页
 
@@ -662,7 +661,7 @@ class SQLiteBackend(StorageBackend):
 
         Returns:
             {
-                'records': List[Dict[str, Any]],
+                'records': list[dict[str, Any]],
                 'total_count': int,
                 'has_more': bool,
             }
@@ -758,7 +757,7 @@ class SQLiteBackend(StorageBackend):
             raise NotImplementedError(f"SQLite pagination failed: {e}")
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为 SQLite 引擎格式
 
@@ -766,7 +765,7 @@ class SQLiteBackend(StorageBackend):
         使用只读模式连接并设置超时以确保安全和性能。
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

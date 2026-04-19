@@ -378,7 +378,7 @@ def main() -> None:
     print("=" * 70)
 
     # 导入类型提示所需模块
-    from typing import List, Optional
+    from typing import Optional
 
     db6 = Storage(in_memory=True)
     Base6: Type[CRUDBaseModel] = declarative_base(db6, crud=True)
@@ -411,8 +411,8 @@ def main() -> None:
         title = Column(str)
 
         # 一对多：文章 -> 评论列表
-        # 直接声明返回类型为 List[Comment]
-        comments: List[Comment] = Relationship(  # type: ignore[assignment]
+        # 直接声明返回类型为 list[Comment]
+        comments: list[Comment] = Relationship(  # type: ignore[assignment]
             'comments',
             foreign_key='article_id'
         )
@@ -431,10 +431,10 @@ def main() -> None:
     article_obj = Article.get(article.id)
 
     print(f"\n   类型提示示例：")
-    print(f"   - article_obj.comments 的类型提示为 List[Comment]")
+    print(f"   - article_obj.comments 的类型提示为 list[Comment]")
     print(f"   - 评论数量: {len(article_obj.comments)}")
 
-    # IDE 知道 comments 是 List[Comment]，可以获得正确的代码补全
+    # IDE 知道 comments 是 list[Comment]，可以获得正确的代码补全
     for comment in article_obj.comments:
         # IDE 知道 comment 是 Comment 类型
         # IDE 知道 comment.article 是 Optional[Article] 类型
@@ -481,11 +481,11 @@ def main() -> None:
 
     6. 类型提示（IDE 友好）
        - 直接声明返回类型获得精确 IDE 提示
-       - 一对多：List[TargetModel]
+       - 一对多：list[TargetModel]
        - 多对一：Optional[TargetModel]
        - 需要使用 type: ignore 抑制类型警告
        - 示例：
-         comments: List[Comment] = Relationship('comments', ...)  # type: ignore
+         comments: list[Comment] = Relationship('comments', ...)  # type: ignore
          user: Optional[User] = Relationship('users', ...)  # type: ignore
     """)
 

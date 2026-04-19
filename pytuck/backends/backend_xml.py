@@ -9,7 +9,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Set, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Union, TYPE_CHECKING, Optional
 from datetime import datetime, date, timedelta
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -21,7 +21,6 @@ from ..common.options import XmlBackendOptions
 if TYPE_CHECKING:
     from ..core.storage import Table
     from lxml import etree
-
 
 class XMLBackend(StorageBackend):
     """XML format storage engine (requires lxml)"""
@@ -43,7 +42,7 @@ class XMLBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 XmlBackendOptions 类型
         self.options: XmlBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """保存所有表数据到XML文件"""
         try:
             from lxml import etree
@@ -89,7 +88,7 @@ class XMLBackend(StorageBackend):
                 pass
             raise SerializationError(f"Failed to save XML file: {e}")
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """从XML文件加载所有表数据"""
         if not self.exists():
             raise FileNotFoundError(f"XML file not found: {self.file_path}")
@@ -295,7 +294,7 @@ class XMLBackend(StorageBackend):
 
         return table
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
@@ -324,7 +323,7 @@ class XMLBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为 XML 引擎格式
 
@@ -336,7 +335,7 @@ class XMLBackend(StorageBackend):
         2. 如果通过初步检查，从文件直接解析完整 XML（不使用截断的内容）
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

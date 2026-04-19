@@ -18,14 +18,13 @@ Pytuck 关系预取 API
     users = result.all()  # all() 返回后，orders 已批量加载
 """
 
-from typing import Any, Dict, List, Optional, Sequence, Type, Union, overload, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Type, Union, overload, TYPE_CHECKING
 
 from ..query.builder import Condition
 from .orm import PureBaseModel, Relationship, PSEUDO_PK_NAME
 
 if TYPE_CHECKING:
     from .storage import Storage
-
 
 class PrefetchOption:
     """
@@ -44,7 +43,6 @@ class PrefetchOption:
 
     def __repr__(self) -> str:
         return f"PrefetchOption({', '.join(repr(n) for n in self.rel_names)})"
-
 
 def prefetch(
     *args: Any
@@ -90,7 +88,6 @@ def prefetch(
         _do_prefetch(instances, *rel_names)
         return None
 
-
 def _do_prefetch(instances: Sequence[PureBaseModel], *rel_names: str) -> None:
     """
     执行批量预取
@@ -113,7 +110,6 @@ def _do_prefetch(instances: Sequence[PureBaseModel], *rel_names: str) -> None:
                 f"Available relationships: {list(owner_class.__relationships__.keys())}"
             )
         _prefetch_relationship(instances, rel, rel_name)
-
 
 def _prefetch_relationship(
     instances: Sequence[PureBaseModel],
@@ -155,7 +151,6 @@ def _prefetch_relationship(
             rel.foreign_key, cache_key
         )
 
-
 def _prefetch_one_to_many(
     instances: Sequence[PureBaseModel],
     storage: 'Storage',
@@ -181,7 +176,7 @@ def _prefetch_one_to_many(
         cache_key: 缓存属性名
     """
     # 1. 收集 owner 主键值
-    pk_values: List[Any] = []
+    pk_values: list[Any] = []
     for inst in instances:
         pk_val = getattr(inst, pk_attr, None)
         if pk_val is not None:
@@ -197,7 +192,7 @@ def _prefetch_one_to_many(
     records = storage.query(target_table, [condition])
 
     # 3. 将 records 转为 target_model 实例并按外键分组
-    grouped: Dict[Any, List[PureBaseModel]] = {}
+    grouped: dict[Any, list[PureBaseModel]] = {}
     for record in records:
         fk_val = record.get(foreign_key)
         target_instance = _record_to_instance(target_model, record)
@@ -207,7 +202,6 @@ def _prefetch_one_to_many(
     for inst in instances:
         pk_val = getattr(inst, pk_attr, None)
         setattr(inst, cache_key, grouped.get(pk_val, []))
-
 
 def _prefetch_many_to_one(
     instances: Sequence[PureBaseModel],
@@ -238,7 +232,7 @@ def _prefetch_many_to_one(
         if fk_val is not None:
             fk_set.add(fk_val)
 
-    fk_values: List[Any] = list(fk_set)
+    fk_values: list[Any] = list(fk_set)
 
     if not fk_values:
         for inst in instances:
@@ -258,7 +252,7 @@ def _prefetch_many_to_one(
     records = storage.query(target_table, [condition])
 
     # 3. 按主键建立映射
-    pk_map: Dict[Any, PureBaseModel] = {}
+    pk_map: dict[Any, PureBaseModel] = {}
     for record in records:
         target_instance = _record_to_instance(target_model, record)
         pk_val = getattr(target_instance, target_pk)
@@ -269,10 +263,9 @@ def _prefetch_many_to_one(
         fk_val = getattr(inst, foreign_key, None)
         setattr(inst, cache_key, pk_map.get(fk_val))
 
-
 def _record_to_instance(
     model_class: Type[PureBaseModel],
-    record: Dict[str, Any]
+    record: dict[str, Any]
 ) -> PureBaseModel:
     """
     将记录字典转换为模型实例
@@ -287,7 +280,7 @@ def _record_to_instance(
     Returns:
         模型实例
     """
-    mapped: Dict[str, Any] = {}
+    mapped: dict[str, Any] = {}
     for db_col_name, value in record.items():
         if db_col_name == PSEUDO_PK_NAME:
             continue

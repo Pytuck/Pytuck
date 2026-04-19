@@ -5,7 +5,7 @@ Pytuck 数据迁移工具
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Optional, Union
 
 from ..backends import get_backend
 from ..common.exceptions import MigrationError
@@ -13,7 +13,6 @@ from ..core.storage import Table
 from ..core.orm import Column
 from ..common.options import BackendOptions, ConnectorOptions, get_default_backend_options, get_default_connector_options
 from .adapters import get_source_adapter
-
 
 def migrate_engine(
     source_path: Union[str, Path],
@@ -24,7 +23,7 @@ def migrate_engine(
     overwrite: bool = False,
     source_options: Optional[BackendOptions] = None,
     target_options: Optional[BackendOptions] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     在不同存储引擎之间迁移数据
 
@@ -148,8 +147,7 @@ def migrate_engine(
         'target_path': target_path
     }
 
-
-def get_available_engines() -> Dict[str, bool]:
+def get_available_engines() -> dict[str, bool]:
     """
     获取所有可用的存储引擎及其状态
 
@@ -181,21 +179,20 @@ def get_available_engines() -> Dict[str, bool]:
         for name, info in get_backend_engines().items()
     }
 
-
 def import_from_database(
     source_path: Union[str, Path],
     target_path: Union[str, Path],
     target_engine: str = 'pytuck',
     *,
     source_type: str = 'sqlite',
-    tables: Optional[List[str]] = None,
-    primary_key_map: Optional[Dict[str, str]] = None,
-    exclude_tables: Optional[List[str]] = None,
+    tables: Optional[list[str]] = None,
+    primary_key_map: Optional[dict[str, str]] = None,
+    exclude_tables: Optional[list[str]] = None,
     schema_only: bool = False,
     overwrite: bool = False,
     source_options: Optional[ConnectorOptions] = None,
     target_options: Optional[BackendOptions] = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     从外部关系型数据库导入数据到 Pytuck 格式
 
@@ -295,9 +292,9 @@ def import_from_database(
     except ValueError as e:
         raise MigrationError(str(e))
 
-    pytuck_tables: Dict[str, Table] = {}
+    pytuck_tables: dict[str, Table] = {}
     total_records = 0
-    table_details: Dict[str, Dict[str, Any]] = {}
+    table_details: dict[str, dict[str, Any]] = {}
 
     try:
         with adapter:
@@ -333,7 +330,7 @@ def import_from_database(
                     })
 
                 # 创建 Column 列表
-                columns: List[Column] = []
+                columns: list[Column] = []
                 for col_info in columns_info:
                     col = Column(
                         col_info['type'],

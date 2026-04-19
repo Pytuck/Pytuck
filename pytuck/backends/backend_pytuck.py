@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, Tuple, TYPE_CHECKING, Union
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 from ..common.crypto import ENCRYPTION_LEVELS
 from ..common.exceptions import ConfigurationError
@@ -9,7 +9,6 @@ from .pytuck_store import PytuckStore, probe_pytuck
 
 if TYPE_CHECKING:
     from ..core.storage import Table
-
 
 class PytuckBackend(StorageBackend):
     ENGINE_NAME = 'pytuck'
@@ -26,7 +25,7 @@ class PytuckBackend(StorageBackend):
             raise ConfigurationError('加密需要提供密码')
         self.store = PytuckStore(self.file_path, self.options)
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         if not self.exists():
             raise FileNotFoundError(f'Pytuck file not found: {self.file_path}')
         return self.store.load_tables()
@@ -39,7 +38,7 @@ class PytuckBackend(StorageBackend):
         """Pytuck 在干净状态下支持通过后端路径执行分页查询。"""
         return True
 
-    def populate_tables_with_data(self, tables: Dict[str, 'Table']) -> None:
+    def populate_tables_with_data(self, tables: dict[str, 'Table']) -> None:
         """将已打开的 pytuck 表全部 materialize 到内存。"""
         for table in tables.values():
             table._ensure_all_loaded()
@@ -52,7 +51,7 @@ class PytuckBackend(StorageBackend):
         offset: int = 0,
         order_by: Optional[str] = None,
         order_desc: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """通过后端路径执行过滤、排序和分页。"""
         if not self.exists():
             return {'records': [], 'total_count': 0, 'has_more': False}
@@ -90,9 +89,9 @@ class PytuckBackend(StorageBackend):
 
     def save(
         self,
-        tables: Dict[str, 'Table'],
+        tables: dict[str, 'Table'],
         *,
-        changed_tables: Optional[Set[str]] = None,
+        changed_tables: Optional[set[str]] = None,
     ) -> None:
         self.store.replace_tables(tables)
         self.store.flush(changed_tables=changed_tables)
@@ -104,8 +103,7 @@ class PytuckBackend(StorageBackend):
         self.store.delete()
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         return probe_pytuck(file_path)
-
 
 __all__ = ['PytuckBackend']

@@ -12,7 +12,7 @@ import tempfile
 import threading
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, Set, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Union, TYPE_CHECKING, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError, EncryptionError
@@ -27,7 +27,6 @@ if TYPE_CHECKING:
 
 # 模块级锁，用于同步 csv.field_size_limit() 的全局修改（进程内线程安全）
 _CSV_FIELD_SIZE_LOCK = threading.Lock()
-
 
 class CSVBackend(StorageBackend):
     """CSV format storage engine (ZIP-based, Excel compatible)"""
@@ -49,7 +48,7 @@ class CSVBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 CsvBackendOptions 类型
         self.options: CsvBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """保存所有表数据到ZIP压缩包"""
         # 决定是否可以增量保存
         can_incremental = (
@@ -64,9 +63,9 @@ class CSVBackend(StorageBackend):
         else:
             self._save_full(tables)
 
-    def _build_tables_schema(self, tables: Dict[str, 'Table']) -> Dict[str, Dict[str, Any]]:
+    def _build_tables_schema(self, tables: dict[str, 'Table']) -> dict[str, dict[str, Any]]:
         """构建所有表的 schema 字典"""
-        tables_schema: Dict[str, Dict[str, Any]] = {}
+        tables_schema: dict[str, dict[str, Any]] = {}
         for table_name, table in tables.items():
             tables_schema[table_name] = {
                 'primary_key': table.primary_key,
@@ -87,7 +86,7 @@ class CSVBackend(StorageBackend):
             }
         return tables_schema
 
-    def _build_metadata_bytes(self, tables: Dict[str, 'Table']) -> bytes:
+    def _build_metadata_bytes(self, tables: dict[str, 'Table']) -> bytes:
         """构建 metadata JSON bytes"""
         tables_schema = self._build_tables_schema(tables)
         metadata = {
@@ -99,7 +98,7 @@ class CSVBackend(StorageBackend):
         }
         return json.dumps(metadata, indent=self.options.indent).encode('utf-8')
 
-    def _save_full(self, tables: Dict[str, 'Table']) -> None:
+    def _save_full(self, tables: dict[str, 'Table']) -> None:
         """全量保存所有表数据到ZIP压缩包"""
         # 使用 tempfile.mkstemp 创建安全临时文件
         fd, temp_path_str = tempfile.mkstemp(
@@ -140,7 +139,7 @@ class CSVBackend(StorageBackend):
                 pass
             raise SerializationError(f"Failed to save CSV archive: {e}")
 
-    def _save_incremental(self, tables: Dict[str, 'Table'], changed_tables: Set[str]) -> None:
+    def _save_incremental(self, tables: dict[str, 'Table'], changed_tables: set[str]) -> None:
         """增量保存：仅重写变更的表，从旧 ZIP 复制未变更的表"""
         fd, temp_path_str = tempfile.mkstemp(
             dir=str(self.file_path.parent),
@@ -155,7 +154,7 @@ class CSVBackend(StorageBackend):
             metadata_bytes = self._build_metadata_bytes(tables)
 
             # 收集旧 ZIP 中的表名
-            old_table_names: Set[str] = set()
+            old_table_names: set[str] = set()
 
             with zipfile.ZipFile(str(self.file_path), 'r') as old_zip:
                 for item in old_zip.infolist():
@@ -197,7 +196,7 @@ class CSVBackend(StorageBackend):
                 pass
             raise SerializationError(f"Failed to save CSV archive (incremental): {e}")
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """从ZIP压缩包加载所有表数据"""
         if not self.exists():
             raise FileNotFoundError(f"CSV archive not found: {self.file_path}")
@@ -217,13 +216,13 @@ class CSVBackend(StorageBackend):
                     pwd = None
 
                 # 读取元数据
-                metadata: Dict[str, Any] = {}
+                metadata: dict[str, Any] = {}
                 if '_metadata.json' in zf.namelist():
                     with zf.open('_metadata.json', pwd=pwd) as f:
                         metadata = json.load(f)
 
                 # 从 metadata 中获取所有表的 schema
-                tables_schema: Dict[str, Dict[str, Any]] = metadata.get('tables', {})
+                tables_schema: dict[str, dict[str, Any]] = metadata.get('tables', {})
 
                 # 找到所有CSV文件
                 tables = {}
@@ -281,7 +280,7 @@ class CSVBackend(StorageBackend):
         self,
         zf: zipfile.ZipFile,
         table_name: str,
-        schema: Dict[str, Any],
+        schema: dict[str, Any],
         pwd: Optional[bytes] = None
     ) -> 'Table':
         """从ZIP加载单个表"""
@@ -385,7 +384,7 @@ class CSVBackend(StorageBackend):
                 table.data[pk] = record
 
     @staticmethod
-    def _serialize_record(record: Dict[str, Any], columns: Dict[str, 'Column']) -> Dict[str, str]:
+    def _serialize_record(record: dict[str, Any], columns: dict[str, 'Column']) -> dict[str, str]:
         """序列化记录（处理特殊类型）"""
         result = {}
         for key, value in record.items():
@@ -406,9 +405,9 @@ class CSVBackend(StorageBackend):
         return result
 
     @staticmethod
-    def _deserialize_record(record_data: Dict[str, str], columns: Dict[str, 'Column']) -> Dict[str, Any]:
+    def _deserialize_record(record_data: dict[str, str], columns: dict[str, 'Column']) -> dict[str, Any]:
         """反序列化记录"""
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         for key, value in record_data.items():
             if key not in columns:
                 continue
@@ -424,7 +423,7 @@ class CSVBackend(StorageBackend):
 
         return result
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
@@ -482,7 +481,7 @@ class CSVBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为 CSV 引擎格式
 
@@ -490,7 +489,7 @@ class CSVBackend(StorageBackend):
         只检查 ZIP 结构和关键文件存在性，非常快速。
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

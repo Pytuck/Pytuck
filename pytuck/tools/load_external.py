@@ -5,13 +5,11 @@
 """
 
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type, TypeVar
+from typing import Any, Optional, Type, TypeVar
 
 from ..core.orm import PureBaseModel, Column
 
-
 T = TypeVar('T', bound=PureBaseModel)
-
 
 def load_table(
     model: Type[T],
@@ -20,7 +18,7 @@ def load_table(
     sheet_name: Optional[str] = None,
     encoding: str = 'utf-8-sig',
     delimiter: str = ',',
-) -> List[T]:
+) -> list[T]:
     """
     从外部 CSV/Excel 文件加载数据到模型对象列表
 
@@ -32,7 +30,7 @@ def load_table(
         delimiter: CSV 分隔符
 
     Returns:
-        List[T]: 模型对象列表
+        list[T]: 模型对象列表
 
     Raises:
         FileNotFoundError: 文件不存在
@@ -72,10 +70,10 @@ def load_table(
         raise ValueError(f"Unsupported file type: {suffix}")
 
     # 获取模型的列定义
-    columns: Dict[str, Column] = model.__columns__
+    columns: dict[str, Column] = model.__columns__
 
     # 转换每行数据为模型对象
-    result: List[T] = []
+    result: list[T] = []
     for row_idx, row in enumerate(rows):
         try:
             obj = _row_to_model(model, row, columns)
@@ -85,12 +83,11 @@ def load_table(
 
     return result
 
-
-def _load_csv(path: Path, encoding: str, delimiter: str) -> List[Dict[str, Any]]:
+def _load_csv(path: Path, encoding: str, delimiter: str) -> list[dict[str, Any]]:
     """加载 CSV 文件，返回字典列表"""
     import csv
 
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     with open(path, 'r', encoding=encoding, newline='') as f:
         reader = csv.DictReader(f, delimiter=delimiter)
         for row in reader:
@@ -98,8 +95,7 @@ def _load_csv(path: Path, encoding: str, delimiter: str) -> List[Dict[str, Any]]
 
     return rows
 
-
-def _load_excel(path: Path, sheet_name: Optional[str]) -> List[Dict[str, Any]]:
+def _load_excel(path: Path, sheet_name: Optional[str]) -> list[dict[str, Any]]:
     """加载 Excel 文件，返回字典列表"""
     try:
         from openpyxl import load_workbook
@@ -132,9 +128,9 @@ def _load_excel(path: Path, sheet_name: Optional[str]) -> List[Dict[str, Any]]:
     headers = [str(h) if h is not None else '' for h in header_row]
 
     # 读取数据行
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for row in rows_iter:
-        row_dict: Dict[str, Any] = {}
+        row_dict: dict[str, Any] = {}
         for i, value in enumerate(row):
             if i < len(headers) and headers[i]:
                 row_dict[headers[i]] = value
@@ -143,14 +139,13 @@ def _load_excel(path: Path, sheet_name: Optional[str]) -> List[Dict[str, Any]]:
     wb.close()
     return rows
 
-
 def _row_to_model(
     model: Type[T],
-    row: Dict[str, Any],
-    columns: Dict[str, Column]
+    row: dict[str, Any],
+    columns: dict[str, Column]
 ) -> T:
     """将一行数据转换为模型对象"""
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
 
     for attr_name, column in columns.items():
         # 优先使用 Column.name 查找（匹配 CSV/Excel 表头）

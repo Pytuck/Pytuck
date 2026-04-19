@@ -5,7 +5,7 @@ Session - 会话管理器
 """
 
 from collections import OrderedDict
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Type, Union, overload
+from typing import Any, Generator, Optional, Type, Union, overload
 from contextlib import contextmanager
 
 from ..common.typing import T
@@ -17,7 +17,6 @@ from ..query.statements import Statement, Insert, Select, Update, Delete
 from .storage import Storage
 from .orm import PureBaseModel, Column, PSEUDO_PK_NAME
 from .event import event
-
 
 class Session:
     """
@@ -63,20 +62,20 @@ class Session:
         self.autocommit = autocommit
 
         # 对象状态追踪
-        self._new_objects: List[PureBaseModel] = []      # 待插入对象
-        self._new_object_ids: Set[int] = set()           # 待插入对象 id，用于 O(1) 去重
-        self._dirty_objects: List[PureBaseModel] = []    # 待更新对象
-        self._deleted_objects: List[PureBaseModel] = []  # 待删除对象
+        self._new_objects: list[PureBaseModel] = []      # 待插入对象
+        self._new_object_ids: set[int] = set()           # 待插入对象 id，用于 O(1) 去重
+        self._dirty_objects: list[PureBaseModel] = []    # 待更新对象
+        self._deleted_objects: list[PureBaseModel] = []  # 待删除对象
 
         # 标识映射：缓存已加载的对象 {(model_class, pk): instance}
-        self._identity_map: Dict[Tuple[Type[PureBaseModel], Any], PureBaseModel] = {}
+        self._identity_map: dict[tuple[Type[PureBaseModel], Any], PureBaseModel] = {}
 
         # 事务状态
         self._in_transaction = False
 
         # 原生 SQL 插入缓冲区：{table_name: (model_class, [validated_data_dicts])}
         # 用于在 commit/flush 时批量提交，避免逐条 INSERT 的性能问题
-        self._insert_buffer: Dict[str, Tuple[Type[PureBaseModel], List[Dict[str, Any]]]] = {}
+        self._insert_buffer: dict[str, tuple[Type[PureBaseModel], list[dict[str, Any]]]] = {}
 
     def add(self, instance: PureBaseModel) -> None:
         """
@@ -93,7 +92,7 @@ class Session:
         if self.autocommit:
             self.commit()
 
-    def add_all(self, instances: List[PureBaseModel]) -> None:
+    def add_all(self, instances: list[PureBaseModel]) -> None:
         """
         批量添加对象到会话
 
@@ -148,7 +147,7 @@ class Session:
 
         # 1. 处理待插入对象
         if self._new_objects:
-            groups: "OrderedDict[Type[PureBaseModel], List[PureBaseModel]]" = OrderedDict()
+            groups: "OrderedDict[Type[PureBaseModel], list[PureBaseModel]]" = OrderedDict()
             for instance in self._new_objects:
                 model_class = instance.__class__
                 if model_class not in groups:
@@ -159,13 +158,13 @@ class Session:
                 table_name = model_class.__tablename__
                 assert table_name is not None, f"Model {model_class.__name__} must have __tablename__ defined"
 
-                records: List[Dict[str, Any]] = []
+                records: list[dict[str, Any]] = []
                 for instance in instances:
                     # 触发 before_insert 事件（可在回调中修改实例字段）
                     event.dispatch_model(model_class, 'before_insert', instance)
 
                     # 构建要插入的数据（使用 Column.name 作为存储键）
-                    data: Dict[str, Any] = {}
+                    data: dict[str, Any] = {}
                     for attr_name, column in instance.__columns__.items():
                         value = getattr(instance, attr_name, None)
                         if value is not None:
@@ -327,7 +326,7 @@ class Session:
         self._deleted_objects.clear()
         self._identity_map.clear()
 
-    def bulk_insert(self, instances: List[PureBaseModel]) -> List[Any]:
+    def bulk_insert(self, instances: list[PureBaseModel]) -> list[Any]:
         """
         批量插入模型实例（立即写入内存）
 
@@ -367,9 +366,9 @@ class Session:
         event.dispatch_model_bulk(model_class, 'before_bulk_insert', instances)
 
         # 构建数据字典列表
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         for instance in instances:
-            data: Dict[str, Any] = {}
+            data: dict[str, Any] = {}
             for attr_name, column in instance.__columns__.items():
                 value = getattr(instance, attr_name, None)
                 if value is not None:
@@ -399,7 +398,7 @@ class Session:
 
         return pks
 
-    def bulk_update(self, instances: List[PureBaseModel]) -> int:
+    def bulk_update(self, instances: list[PureBaseModel]) -> int:
         """
         批量更新模型实例（立即写入内存，更新全部字段）
 
@@ -436,7 +435,7 @@ class Session:
         event.dispatch_model_bulk(model_class, 'before_bulk_update', instances)
 
         # 构建 (pk, data) 元组列表
-        updates: List[Tuple[Any, Dict[str, Any]]] = []
+        updates: list[tuple[Any, dict[str, Any]]] = []
         for instance in instances:
             if pk_name:
                 pk = getattr(instance, pk_name, None)
@@ -448,7 +447,7 @@ class Session:
                     "Cannot bulk update instance without primary key or rowid"
                 )
 
-            data: Dict[str, Any] = {}
+            data: dict[str, Any] = {}
             for attr_name, column in instance.__columns__.items():
                 value = getattr(instance, attr_name, None)
                 db_col_name = column.name if column.name else attr_name
@@ -696,9 +695,9 @@ class Session:
 
             # 批量插入路径（values_list）
             if statement._values_list is not None:
-                validated_records: List[Dict[str, Any]] = []
+                validated_records: list[dict[str, Any]] = []
                 for record in statement._values_list:
-                    validated_data_batch: Dict[str, Any] = {}
+                    validated_data_batch: dict[str, Any] = {}
                     for attr_name, value in record.items():
                         if attr_name in statement.model_class.__columns__:
                             model_column = statement.model_class.__columns__[attr_name]
@@ -1242,7 +1241,7 @@ class Session:
     def reorder_columns(
         self,
         model_or_table: Union[Type[PureBaseModel], str],
-        new_order: List[str]
+        new_order: list[str]
     ) -> None:
         """
         重新排列列的顺序

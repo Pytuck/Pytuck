@@ -12,7 +12,7 @@ import tempfile
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Set, Tuple, TYPE_CHECKING, Union
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 from .base import StorageBackend
 from .backend_json import JSONBackend
@@ -23,7 +23,6 @@ from ..core.types import TypeRegistry
 
 if TYPE_CHECKING:
     from ..core.storage import Table
-
 
 class JSONLBackend(StorageBackend):
     """JSONL format storage engine (ZIP-based, line-oriented)."""
@@ -117,7 +116,7 @@ class JSONLBackend(StorageBackend):
             f"Your custom logic must set self._dumps_func, self._loads_func, and self._impl_name"
         )
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """保存所有表数据到 JSONL ZIP 文件"""
         # 决定是否可以增量保存
         can_incremental = (
@@ -132,11 +131,11 @@ class JSONLBackend(StorageBackend):
         else:
             self._save_full(tables)
 
-    def _build_metadata_bytes(self, tables: Dict[str, 'Table']) -> bytes:
+    def _build_metadata_bytes(self, tables: dict[str, 'Table']) -> bytes:
         """构建 metadata JSON bytes"""
         return self._dumps_func(self._build_metadata(tables)).encode('utf-8')
 
-    def _save_full(self, tables: Dict[str, 'Table']) -> None:
+    def _save_full(self, tables: dict[str, 'Table']) -> None:
         """全量保存所有表数据到 JSONL ZIP 文件"""
         metadata_bytes = self._build_metadata_bytes(tables)
 
@@ -170,7 +169,7 @@ class JSONLBackend(StorageBackend):
                 pass
             raise SerializationError(f'Failed to save JSONL archive: {e}')
 
-    def _save_incremental(self, tables: Dict[str, 'Table'], changed_tables: Set[str]) -> None:
+    def _save_incremental(self, tables: dict[str, 'Table'], changed_tables: set[str]) -> None:
         """增量保存：仅重写变更的表，从旧 ZIP 复制未变更的表"""
         fd, temp_path_str = tempfile.mkstemp(
             dir=str(self.file_path.parent),
@@ -185,7 +184,7 @@ class JSONLBackend(StorageBackend):
             metadata_bytes = self._build_metadata_bytes(tables)
 
             # 收集旧 ZIP 中的表名
-            old_table_names: Set[str] = set()
+            old_table_names: set[str] = set()
 
             with zipfile.ZipFile(str(self.file_path), 'r') as old_zip:
                 for item in old_zip.infolist():
@@ -229,7 +228,7 @@ class JSONLBackend(StorageBackend):
                 pass
             raise SerializationError(f'Failed to save JSONL archive (incremental): {e}')
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """从 JSONL ZIP 文件加载所有表数据"""
         if not self.exists():
             raise FileNotFoundError(f'JSONL archive not found: {self.file_path}')
@@ -283,7 +282,7 @@ class JSONLBackend(StorageBackend):
         if self.exists():
             self.file_path.unlink()
 
-    def _build_metadata(self, tables: Dict[str, 'Table']) -> Dict[str, Any]:
+    def _build_metadata(self, tables: dict[str, 'Table']) -> dict[str, Any]:
         """构建 JSONL 元数据"""
         return {
             'engine': self.ENGINE_NAME,
@@ -293,9 +292,9 @@ class JSONLBackend(StorageBackend):
             'tables': self._build_tables_schema(tables),
         }
 
-    def _build_tables_schema(self, tables: Dict[str, 'Table']) -> Dict[str, Dict[str, Any]]:
+    def _build_tables_schema(self, tables: dict[str, 'Table']) -> dict[str, dict[str, Any]]:
         """构建所有表的 schema 字典"""
-        tables_schema: Dict[str, Dict[str, Any]] = {}
+        tables_schema: dict[str, dict[str, Any]] = {}
         for table_name, table in tables.items():
             tables_schema[table_name] = {
                 'primary_key': table.primary_key,
@@ -324,7 +323,7 @@ class JSONLBackend(StorageBackend):
             buffer.write('\n')
         return buffer.getvalue().encode('utf-8')
 
-    def _load_metadata(self, zf: zipfile.ZipFile, pwd: Optional[bytes] = None) -> Dict[str, Any]:
+    def _load_metadata(self, zf: zipfile.ZipFile, pwd: Optional[bytes] = None) -> dict[str, Any]:
         """从 ZIP 中读取元数据"""
         if '_metadata.json' not in zf.namelist():
             raise SerializationError('Missing _metadata.json in JSONL archive')
@@ -337,7 +336,7 @@ class JSONLBackend(StorageBackend):
             raise SerializationError('Invalid JSONL metadata')
         return metadata
 
-    def _create_table_from_schema(self, table_name: str, schema: Dict[str, Any]) -> 'Table':
+    def _create_table_from_schema(self, table_name: str, schema: dict[str, Any]) -> 'Table':
         """根据 schema 重建 Table 对象"""
         from ..core.orm import Column
         from ..core.storage import Table
@@ -398,7 +397,7 @@ class JSONLBackend(StorageBackend):
                     )
                 table.data[pk] = record
 
-    def _rebuild_indexes(self, tables: Dict[str, 'Table']) -> None:
+    def _rebuild_indexes(self, tables: dict[str, 'Table']) -> None:
         """重建所有表的索引"""
         for table in tables.values():
             for col_name, column in table.columns.items():
@@ -407,7 +406,7 @@ class JSONLBackend(StorageBackend):
                         del table.indexes[col_name]
                     table.build_index(col_name)
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
@@ -463,12 +462,12 @@ class JSONLBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为 JSONL 引擎格式
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或 None)
+            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或 None)
         """
         try:
             path = Path(file_path).expanduser()

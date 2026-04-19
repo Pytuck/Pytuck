@@ -4,7 +4,7 @@ Result - 查询结果包装器
 提供简洁的查询结果处理接口，直接返回模型实例。
 """
 
-from typing import Any, Dict, List, Optional, Type, Generic, TYPE_CHECKING
+from typing import Any, Optional, Type, Generic, TYPE_CHECKING
 
 from ..common.typing import T
 from ..common.exceptions import QueryError, UnsupportedOperationError
@@ -13,7 +13,6 @@ from ..core.orm import PSEUDO_PK_NAME
 if TYPE_CHECKING:
     from ..core.session import Session
 
-
 class _ScalarResult(Generic[T]):
     """
     内部类：标量结果处理器。
@@ -21,15 +20,15 @@ class _ScalarResult(Generic[T]):
     负责将查询结果字典转换为模型实例，并处理 identity map。
     """
 
-    def __init__(self, records: List[Dict[str, Any]], model_class: Type[T], session: Optional['Session'] = None) -> None:
+    def __init__(self, records: list[dict[str, Any]], model_class: Type[T], session: Optional['Session'] = None) -> None:
         self._records = records
         self._model_class = model_class
         self._session = session
 
-    def _create_instance(self, record: Dict[str, Any]) -> T:
+    def _create_instance(self, record: dict[str, Any]) -> T:
         """创建模型实例并处理 identity map"""
         # 将 Column.name 映射为模型属性名
-        mapped: Dict[str, Any] = {}
+        mapped: dict[str, Any] = {}
         rowid = None
         for db_col_name, value in record.items():
             if db_col_name == PSEUDO_PK_NAME:
@@ -80,9 +79,9 @@ class _ScalarResult(Generic[T]):
                 setattr(new_instance, '_pytuck_rowid', rowid)
             return new_instance
 
-    def all(self) -> List[T]:
+    def all(self) -> list[T]:
         """返回所有模型实例"""
-        instances: List[T] = []
+        instances: list[T] = []
         for record in self._records:
             instance = self._create_instance(record)
             instances.append(instance)
@@ -110,7 +109,6 @@ class _ScalarResult(Generic[T]):
             raise QueryError(f"Expected at most one result, got {len(self._records)}")
         return self._create_instance(self._records[0])
 
-
 class Result(Generic[T]):
     """
     SELECT 查询结果包装器。
@@ -125,7 +123,7 @@ class Result(Generic[T]):
     Example:
         result = session.execute(select(User).where(User.age >= 18))
 
-        users = result.all()          # List[User]
+        users = result.all()          # list[User]
         user = result.first()         # Optional[User]
         user = result.one()           # User（必须恰好一条）
         user = result.one_or_none()   # Optional[User]（最多一条）
@@ -138,7 +136,7 @@ class Result(Generic[T]):
         _session: Session 实例，用于 identity map 管理
     """
 
-    def __init__(self, records: List[Dict[str, Any]], model_class: Type[T], operation: str = 'select', session: Optional['Session'] = None, options: Optional[List[Any]] = None) -> None:
+    def __init__(self, records: list[dict[str, Any]], model_class: Type[T], operation: str = 'select', session: Optional['Session'] = None, options: Optional[list[Any]] = None) -> None:
         """
         Args:
             records: 查询结果（字典列表）
@@ -152,9 +150,9 @@ class Result(Generic[T]):
         self._operation = operation
         self._session = session
         self._scalar_result = _ScalarResult(records, model_class, session)
-        self._options: List[Any] = options or []
+        self._options: list[Any] = options or []
 
-    def all(self) -> List[T]:
+    def all(self) -> list[T]:
         """返回所有结果为模型实例列表"""
         if self._operation != 'select':
             raise UnsupportedOperationError("all() not supported for non-select operations")
@@ -185,7 +183,7 @@ class Result(Generic[T]):
         """返回结果数量"""
         return len(self._records)
 
-    def _apply_prefetch(self, instances: List[T]) -> None:
+    def _apply_prefetch(self, instances: list[T]) -> None:
         """
         对查询结果执行预取选项
 
@@ -198,7 +196,6 @@ class Result(Generic[T]):
         for opt in self._options:
             if isinstance(opt, PrefetchOption):
                 _do_prefetch(instances, *opt.rel_names)
-
 
 class CursorResult(Result[T]):
     """
@@ -246,7 +243,7 @@ class CursorResult(Result[T]):
         """返回插入的主键（仅 INSERT）"""
         return self._inserted_pk
 
-    def all(self) -> List[T]:
+    def all(self) -> list[T]:
         raise UnsupportedOperationError(f"all() not supported for {self._operation} operation")
 
     def first(self) -> Optional[T]:

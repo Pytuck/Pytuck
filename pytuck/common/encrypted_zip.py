@@ -9,10 +9,9 @@ import struct
 import time
 import zlib
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 
 from .zipcrypto import ZipCryptoEncryptor
-
 
 class _ZipEntry:
     """ZIP 文件条目信息"""
@@ -34,7 +33,6 @@ class _ZipEntry:
         self.compress_type = compress_type
         self.encrypted = encrypted
         self.local_header_offset = local_header_offset
-
 
 class EncryptedZipFile:
     """
@@ -76,7 +74,7 @@ class EncryptedZipFile:
         self.path = Path(path)
         self.password = password.encode('utf-8') if password else None
         self.compression = compression
-        self._entries: List[_ZipEntry] = []
+        self._entries: list[_ZipEntry] = []
         self._file = open(self.path, 'wb')
         self._closed = False
 
@@ -87,19 +85,19 @@ class EncryptedZipFile:
         self.close()
 
     @staticmethod
-    def _get_dos_datetime() -> Tuple[int, int]:
+    def _get_dos_datetime() -> tuple[int, int]:
         """
         获取当前时间的 DOS 格式表示
 
         Returns:
-            Tuple[dos_time, dos_date]
+            tuple[dos_time, dos_date]
         """
         t = time.localtime()
         dos_time = (t.tm_hour << 11) | (t.tm_min << 5) | (t.tm_sec // 2)
         dos_date = ((t.tm_year - 1980) << 9) | (t.tm_mon << 5) | t.tm_mday
         return dos_time, dos_date
 
-    def _compress_data(self, data: bytes) -> Tuple[bytes, int]:
+    def _compress_data(self, data: bytes) -> tuple[bytes, int]:
         """
         压缩数据
 
@@ -107,7 +105,7 @@ class EncryptedZipFile:
             data: 原始数据
 
         Returns:
-            Tuple[压缩后的数据, 压缩方法]
+            tuple[压缩后的数据, 压缩方法]
         """
         if self.compression == self.COMPRESS_DEFLATED:
             # 使用 DEFLATE 压缩

@@ -7,14 +7,13 @@ SQLite 数据库连接器
 import json
 import sqlite3
 from datetime import datetime, date, timedelta
-from typing import Any, Dict, List, Tuple, Optional, Type
+from typing import Any, Optional, Type
 
 from .base import DatabaseConnector
 from ..common.options import SqliteConnectorOptions
 from ..common.exceptions import DatabaseConnectionError, TableNotFoundError
 from ..common.typing import ColumnTypes
 from ..core.types import TypeRegistry
-
 
 class SQLiteConnector(DatabaseConnector):
     """
@@ -35,9 +34,9 @@ class SQLiteConnector(DatabaseConnector):
     """
 
     DB_TYPE = 'sqlite'
-    REQUIRED_DEPENDENCIES: List[str] = []  # sqlite3 是内置模块
+    REQUIRED_DEPENDENCIES: list[str] = []  # sqlite3 是内置模块
 
-    TYPE_TO_SQL: Dict[ColumnTypes, str] = {
+    TYPE_TO_SQL: dict[ColumnTypes, str] = {
         # 基础类型
         int: 'INTEGER',
         str: 'TEXT',
@@ -52,7 +51,7 @@ class SQLiteConnector(DatabaseConnector):
         dict: 'TEXT',        # JSON 字符串存储
     }
 
-    SQL_TO_TYPE: Dict[str, ColumnTypes] = {
+    SQL_TO_TYPE: dict[str, ColumnTypes] = {
         # 整数类型
         'INTEGER': int,
         'INT': int,
@@ -99,7 +98,7 @@ class SQLiteConnector(DatabaseConnector):
     def connect(self) -> None:
         """连接到 SQLite 数据库"""
         # 构建连接参数，只包含非None的值
-        connect_kwargs: Dict[str, Any] = {
+        connect_kwargs: dict[str, Any] = {
             'check_same_thread': self.options.check_same_thread,
         }
 
@@ -123,7 +122,7 @@ class SQLiteConnector(DatabaseConnector):
         """检查是否已连接"""
         return self.conn is not None
 
-    def get_table_names(self, exclude_system: bool = True) -> List[str]:
+    def get_table_names(self, exclude_system: bool = True) -> list[str]:
         """
         获取所有表名
 
@@ -157,7 +156,7 @@ class SQLiteConnector(DatabaseConnector):
         )
         return cursor.fetchone() is not None
 
-    def get_table_schema(self, table_name: str) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    def get_table_schema(self, table_name: str) -> tuple[list[dict[str, Any]], Optional[str]]:
         """
         获取表结构
 
@@ -172,9 +171,9 @@ class SQLiteConnector(DatabaseConnector):
             raise TableNotFoundError(table_name)
 
         cursor = self.conn.execute(f"PRAGMA table_info('{table_name}')")
-        columns: List[Dict[str, Any]] = []
+        columns: list[dict[str, Any]] = []
         primary_key: Optional[str] = None
-        pk_columns: List[str] = []  # 收集所有主键列
+        pk_columns: list[str] = []  # 收集所有主键列
 
         for row in cursor.fetchall():
             # PRAGMA table_info 返回: cid, name, type, notnull, dflt_value, pk
@@ -212,7 +211,7 @@ class SQLiteConnector(DatabaseConnector):
 
         return columns, primary_key
 
-    def get_table_data(self, table_name: str) -> List[Dict[str, Any]]:
+    def get_table_data(self, table_name: str) -> list[dict[str, Any]]:
         """获取表中所有数据"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -230,7 +229,7 @@ class SQLiteConnector(DatabaseConnector):
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
         return self.conn.execute(sql, params)
 
-    def executemany(self, sql: str, params_list: List[tuple]) -> None:
+    def executemany(self, sql: str, params_list: list[tuple]) -> None:
         """批量执行 SQL 语句"""
         if self.conn is None:
             raise DatabaseConnectionError("数据库未连接，请先调用 connect()")
@@ -239,7 +238,7 @@ class SQLiteConnector(DatabaseConnector):
     def create_table(
         self,
         table_name: str,
-        columns: List[Dict[str, Any]],
+        columns: list[dict[str, Any]],
         primary_key: Optional[str]
     ) -> None:
         """创建表"""
@@ -276,8 +275,8 @@ class SQLiteConnector(DatabaseConnector):
     def insert_records(
         self,
         table_name: str,
-        columns: List[str],
-        records: List[Dict[str, Any]]
+        columns: list[str],
+        records: list[dict[str, Any]]
     ) -> None:
         """批量插入记录"""
         if self.conn is None:
@@ -316,7 +315,7 @@ class SQLiteConnector(DatabaseConnector):
     def insert_row(
         self,
         table_name: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         pk_column: str
     ) -> Any:
         """
@@ -353,7 +352,7 @@ class SQLiteConnector(DatabaseConnector):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        data: Dict[str, Any]
+        data: dict[str, Any]
     ) -> int:
         """
         更新一行数据
@@ -408,8 +407,8 @@ class SQLiteConnector(DatabaseConnector):
         table_name: str,
         pk_column: str,
         pk_value: Any,
-        columns: Optional[List[str]] = None
-    ) -> Optional[Dict[str, Any]]:
+        columns: Optional[list[str]] = None
+    ) -> Optional[dict[str, Any]]:
         """
         按主键查询一行
 
@@ -444,12 +443,12 @@ class SQLiteConnector(DatabaseConnector):
         self,
         table_name: str,
         where_clause: Optional[str] = None,
-        params: Tuple[Any, ...] = (),
-        columns: Optional[List[str]] = None,
+        params: tuple[Any, ...] = (),
+        columns: Optional[list[str]] = None,
         order_by: Optional[str] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         条件查询多行
 

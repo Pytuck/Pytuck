@@ -5,18 +5,16 @@ PTK7 排序索引块编码与解码。
 """
 
 import struct
-from typing import Any, List, Tuple
+from typing import Any
 
 from ..common.exceptions import SerializationError
 from ..core.orm import Column
 from ..core.types import TypeCode, TypeRegistry
 
-
 INDEX_HEADER_STRUCT = struct.Struct("<BI")
 PK_STRUCT = struct.Struct("<q")
 
-
-def encode_sorted_pairs(pairs: List[Tuple[Any, int]], column: Column) -> bytes:
+def encode_sorted_pairs(pairs: list[tuple[Any, int]], column: Column) -> bytes:
     type_code, codec = TypeRegistry.get_codec(column.col_type)
     encoded = bytearray()
     encoded.extend(INDEX_HEADER_STRUCT.pack(int(type_code), len(pairs)))
@@ -25,8 +23,7 @@ def encode_sorted_pairs(pairs: List[Tuple[Any, int]], column: Column) -> bytes:
         encoded.extend(PK_STRUCT.pack(int(pk)))
     return bytes(encoded)
 
-
-def decode_sorted_pairs(blob: bytes, column: Column) -> List[Tuple[Any, int]]:
+def decode_sorted_pairs(blob: bytes, column: Column) -> list[tuple[Any, int]]:
     if len(blob) < INDEX_HEADER_STRUCT.size:
         raise SerializationError(
             f"Not enough data to decode sorted pair header (need {INDEX_HEADER_STRUCT.size}, got {len(blob)})"
@@ -45,7 +42,7 @@ def decode_sorted_pairs(blob: bytes, column: Column) -> List[Tuple[Any, int]]:
         raise SerializationError(f"Unknown sorted pair type code: {stored_type_code}") from exc
 
     offset = INDEX_HEADER_STRUCT.size
-    pairs: List[Tuple[Any, int]] = []
+    pairs: list[tuple[Any, int]] = []
     for _ in range(count):
         value, consumed = codec.decode(blob[offset:])
         offset += consumed
@@ -55,7 +52,6 @@ def decode_sorted_pairs(blob: bytes, column: Column) -> List[Tuple[Any, int]]:
         offset += PK_STRUCT.size
         pairs.append((value, pk))
     return pairs
-
 
 __all__ = [
     "INDEX_HEADER_STRUCT",

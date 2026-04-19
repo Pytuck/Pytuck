@@ -9,7 +9,7 @@ import base64
 import os
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Set, Union, TYPE_CHECKING, Tuple, Optional
+from typing import Any, Union, TYPE_CHECKING, Optional
 from datetime import datetime
 from .base import StorageBackend
 from ..common.exceptions import SerializationError
@@ -21,7 +21,6 @@ from ..common.options import ExcelBackendOptions
 if TYPE_CHECKING:
     from ..core.storage import Table
     from openpyxl import Workbook
-
 
 class ExcelBackend(StorageBackend):
     """Excel format storage engine (requires openpyxl)"""
@@ -43,7 +42,7 @@ class ExcelBackend(StorageBackend):
         # 类型安全：将 options 转为具体的 ExcelBackendOptions 类型
         self.options: ExcelBackendOptions = options
 
-    def save(self, tables: Dict[str, 'Table'], *, changed_tables: Optional[Set[str]] = None) -> None:
+    def save(self, tables: dict[str, 'Table'], *, changed_tables: Optional[set[str]] = None) -> None:
         """保存所有表数据到Excel工作簿"""
         if self.options.read_only:
             raise SerializationError("Excel backend does not support read-only mode")
@@ -113,7 +112,7 @@ class ExcelBackend(StorageBackend):
                 pass
             raise SerializationError(f"Failed to save Excel file: {e}")
 
-    def load(self) -> Dict[str, 'Table']:
+    def load(self) -> dict[str, 'Table']:
         """从Excel工作簿加载所有表数据"""
         if not self.exists():
             raise FileNotFoundError(f"Excel file not found: {self.file_path}")
@@ -129,7 +128,7 @@ class ExcelBackend(StorageBackend):
             )
 
             # 从 _pytuck_tables 工作表读取所有表的 schema
-            tables_schema: Dict[str, Dict[str, Any]] = {}
+            tables_schema: dict[str, dict[str, Any]] = {}
             if '_pytuck_tables' in wb.sheetnames:
                 tables_sheet = wb['_pytuck_tables']
                 rows = list(tables_sheet.iter_rows(min_row=2, values_only=True))
@@ -185,7 +184,7 @@ class ExcelBackend(StorageBackend):
 
         # 写入数据行
         for record in table.data.values():
-            row: List[Any] = []
+            row: list[Any] = []
             for col_name in columns:
                 value = record.get(col_name)
                 column = table.columns.get(col_name)
@@ -204,7 +203,7 @@ class ExcelBackend(StorageBackend):
 
     @staticmethod
     def _load_table_from_workbook(
-        wb: 'Workbook', table_name: str, schema: Dict[str, Any]
+        wb: 'Workbook', table_name: str, schema: dict[str, Any]
     ) -> 'Table':
         """从工作簿加载单个表"""
         from ..core.storage import Table
@@ -256,7 +255,7 @@ class ExcelBackend(StorageBackend):
         if len(rows) > 1:
             headers = rows[0]
             for row_data in rows[1:]:
-                record: Dict[str, Any] = {}
+                record: dict[str, Any] = {}
                 for col_name, value in zip(headers, row_data):
                     if col_name not in table.columns:
                         continue
@@ -318,7 +317,7 @@ class ExcelBackend(StorageBackend):
 
         return table
 
-    def get_metadata(self) -> Dict[str, Any]:
+    def get_metadata(self) -> dict[str, Any]:
         """获取元数据"""
         if not self.exists():
             return {}
@@ -351,7 +350,7 @@ class ExcelBackend(StorageBackend):
             return {}
 
     @classmethod
-    def probe(cls, file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    def probe(cls, file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
         """
         轻量探测文件是否为 Excel 引擎格式
 
@@ -359,7 +358,7 @@ class ExcelBackend(StorageBackend):
         使用 ZIP 方式而非 openpyxl 以避免依赖问题和提高性能。
 
         Returns:
-            Tuple[bool, Optional[Dict]]: (是否匹配, 元数据信息或None)
+            tuple[bool, Optional[dict]]: (是否匹配, 元数据信息或None)
         """
         try:
             file_path = Path(file_path).expanduser()

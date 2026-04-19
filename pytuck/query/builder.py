@@ -4,7 +4,7 @@ Pytuck 查询构建器
 提供链式查询API
 """
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Generic, TYPE_CHECKING, Union
+from typing import Any, Callable, Optional, Type, Generic, TYPE_CHECKING, Union
 
 from ..common.typing import T
 from ..common.exceptions import QueryError
@@ -14,8 +14,7 @@ if TYPE_CHECKING:
     from ..core.orm import Column
     from ..core.storage import Storage
 
-
-_OPERATOR_EVAL: Dict[str, Callable[[Any, Any], bool]] = {
+_OPERATOR_EVAL: dict[str, Callable[[Any, Any], bool]] = {
     '=': lambda x, y: x == y,
     '>': lambda x, y: x > y,
     '<': lambda x, y: x < y,
@@ -27,7 +26,6 @@ _OPERATOR_EVAL: Dict[str, Callable[[Any, Any], bool]] = {
     'STARTSWITH': lambda x, y: isinstance(x, str) and isinstance(y, str) and x.lower().startswith(y.lower()),
     'ENDSWITH': lambda x, y: isinstance(x, str) and isinstance(y, str) and x.lower().endswith(y.lower()),
 }
-
 
 class Condition:
     """查询条件"""
@@ -68,7 +66,6 @@ class Condition:
     def __repr__(self) -> str:
         return f"Condition({self.field} {self.operator} {self.value})"
 
-
 class BinaryExpression:
     """
     二元表达式：表示 Column 和值之间的比较操作
@@ -98,10 +95,8 @@ class BinaryExpression:
     def __repr__(self) -> str:
         return f"BinaryExpression({self.column.name} {self.operator} {self.value})"
 
-
 # 表达式类型：BinaryExpression 或 LogicalExpression
 ExpressionType = Union['BinaryExpression', 'LogicalExpression']
-
 
 class CompositeCondition:
     """
@@ -110,7 +105,7 @@ class CompositeCondition:
     支持递归嵌套，可以表示任意复杂的布尔逻辑组合。
     """
 
-    def __init__(self, operator: str, conditions: List[Union[Condition, 'CompositeCondition']]):
+    def __init__(self, operator: str, conditions: list[Union[Condition, 'CompositeCondition']]):
         """
         初始化组合条件
 
@@ -146,7 +141,6 @@ class CompositeCondition:
         sep = f" {self.operator} "
         return f"({sep.join(repr(c) for c in self.conditions)})"
 
-
 class LogicalExpression:
     """
     逻辑组合表达式：表示 AND/OR/NOT 组合
@@ -167,7 +161,7 @@ class LogicalExpression:
         or_(User.role == 'admin', and_(User.age >= 21, User.verified == True))
     """
 
-    def __init__(self, operator: str, expressions: List[ExpressionType]):
+    def __init__(self, operator: str, expressions: list[ExpressionType]):
         """
         初始化逻辑表达式
 
@@ -187,7 +181,7 @@ class LogicalExpression:
         Returns:
             CompositeCondition 对象
         """
-        conditions: List[Union[Condition, CompositeCondition]] = []
+        conditions: list[Union[Condition, CompositeCondition]] = []
         for expr in self.expressions:
             if isinstance(expr, BinaryExpression):
                 conditions.append(expr.to_condition())
@@ -203,7 +197,6 @@ class LogicalExpression:
         func_name = 'or_' if self.operator == 'OR' else 'and_'
         args = ', '.join(repr(e) for e in self.expressions)
         return f"{func_name}({args})"
-
 
 def or_(*expressions: ExpressionType) -> LogicalExpression:
     """
@@ -235,7 +228,6 @@ def or_(*expressions: ExpressionType) -> LogicalExpression:
         raise QueryError("or_() requires at least 2 expressions")
     return LogicalExpression('OR', list(expressions))
 
-
 def and_(*expressions: ExpressionType) -> LogicalExpression:
     """
     创建 AND 组合表达式
@@ -264,7 +256,6 @@ def and_(*expressions: ExpressionType) -> LogicalExpression:
         raise QueryError("and_() requires at least 2 expressions")
     return LogicalExpression('AND', list(expressions))
 
-
 def not_(expression: ExpressionType) -> LogicalExpression:
     """
     创建 NOT 表达式
@@ -286,10 +277,8 @@ def not_(expression: ExpressionType) -> LogicalExpression:
     """
     return LogicalExpression('NOT', [expression])
 
-
 # 条件类型：Condition 或 CompositeCondition
 ConditionType = Union[Condition, CompositeCondition]
-
 
 class Query(Generic[T]):
     """查询构建器（支持链式调用）"""
@@ -304,8 +293,8 @@ class Query(Generic[T]):
         """
         self.model_class = model_class
         self.storage = storage  # 新 API：通过参数传入
-        self._conditions: List[ConditionType] = []
-        self._order_by_fields: List[Tuple[str, bool]] = []  # [(field, desc), ...]
+        self._conditions: list[ConditionType] = []
+        self._order_by_fields: list[tuple[str, bool]] = []  # [(field, desc), ...]
         self._limit_value: Optional[int] = None
         self._offset_value: int = 0
 
@@ -445,7 +434,7 @@ class Query(Generic[T]):
 
         return results[0] if results else None
 
-    def all(self) -> List[T]:
+    def all(self) -> list[T]:
         """
         执行查询并返回所有结果
 
@@ -486,7 +475,7 @@ class Query(Generic[T]):
         records = self._execute()
         return len(records)
 
-    def _execute(self) -> List[dict]:
+    def _execute(self) -> list[dict]:
         """
         执行查询（内部方法）
 
@@ -516,7 +505,7 @@ class Query(Generic[T]):
         if len(self._order_by_fields) == 1:
             # 单列排序：下推给 Storage.query（可利用 SortedIndex 优化）
             field, desc = self._order_by_fields[0]
-            records: List[dict] = storage.query(
+            records: list[dict] = storage.query(
                 table_name, self._conditions,
                 order_by=field, order_desc=desc
             )

@@ -29,7 +29,7 @@ T_CRUD = TypeVar('T_CRUD', bound='CRUDBaseModel')
 
 RelationshipT = TypeVar('RelationshipT')
 '''
-- Relationship 泛型参数（无 bound，因为可能是 List[T] 或 Optional[T]）
+- Relationship 泛型参数（无 bound，因为可能是 list[T] 或 Optional[T]）
 - 用于 Relationship 描述符的类型提示
 '''
 

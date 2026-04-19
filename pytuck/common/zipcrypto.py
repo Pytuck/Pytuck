@@ -9,10 +9,8 @@ Pytuck ZipCrypto 加密模块 - 纯 Python 实现
 """
 
 import os
-from typing import List, Tuple
 
-
-def _make_crc_table() -> List[int]:
+def _make_crc_table() -> list[int]:
     """生成 ZipCrypto 使用的 CRC32 查找表"""
     crc_table = []
     for n in range(256):
@@ -25,10 +23,8 @@ def _make_crc_table() -> List[int]:
         crc_table.append(c)
     return crc_table
 
-
 # 预计算的 CRC 表
 _CRC_TABLE = _make_crc_table()
-
 
 def _crc32_byte(crc: int, byte: int) -> int:
     """
@@ -44,7 +40,6 @@ def _crc32_byte(crc: int, byte: int) -> int:
         更新后的 CRC 值
     """
     return _CRC_TABLE[(crc ^ byte) & 0xFF] ^ (crc >> 8)
-
 
 class ZipCryptoEncryptor:
     """
@@ -133,7 +128,6 @@ class ZipCryptoEncryptor:
 
         return bytes(encrypted_header) + bytes(encrypted_data)
 
-
 class ZipCryptoDecryptor:
     """
     ZipCrypto 解密器
@@ -180,7 +174,7 @@ class ZipCryptoDecryptor:
         self._update_keys(plaintext_byte)
         return plaintext_byte
 
-    def decrypt(self, ciphertext: bytes) -> Tuple[bytes, int]:
+    def decrypt(self, ciphertext: bytes) -> tuple[bytes, int]:
         """
         解密数据（包含 12 字节加密头）
 
@@ -188,7 +182,7 @@ class ZipCryptoDecryptor:
             ciphertext: 密文数据（12 字节加密头 + 加密数据）
 
         Returns:
-            Tuple[明文数据, 加密头中的 CRC 校验字节]
+            tuple[明文数据, 加密头中的 CRC 校验字节]
         """
         if len(ciphertext) < 12:
             raise ValueError("Ciphertext too short (missing encryption header)")

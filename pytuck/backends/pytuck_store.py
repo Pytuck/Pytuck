@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 import struct
 import tempfile
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Optional, Union
 
 from ..common.crypto import CryptoProvider, ENCRYPTION_LEVELS, CipherType, get_cipher
 from ..common.exceptions import (
@@ -42,7 +42,6 @@ from .pytuck_format import (
 from .pytuck_index import decode_sorted_pairs, encode_sorted_pairs
 from ..core.index import BaseIndex, HashIndex, SortedIndex
 
-
 class _LazySortedIndex(SortedIndex):
     """延迟解码的有序索引子类，保持 isinstance 为 SortedIndex。"""
 
@@ -65,7 +64,7 @@ class _LazySortedIndex(SortedIndex):
         if column_name is not None:
             self._table.indexes[column_name] = self
 
-    def lookup(self, value: Any) -> Set[Any]:
+    def lookup(self, value: Any) -> set[Any]:
         self._materialize()
         return SortedIndex.lookup(self, value)
 
@@ -75,11 +74,11 @@ class _LazySortedIndex(SortedIndex):
         max_val: Optional[Any] = None,
         include_min: bool = True,
         include_max: bool = True,
-    ) -> Set[Any]:
+    ) -> set[Any]:
         self._materialize()
         return SortedIndex.range_query(self, min_val, max_val, include_min, include_max)
 
-    def get_sorted_pks(self, reverse: bool = False) -> List[Any]:
+    def get_sorted_pks(self, reverse: bool = False) -> list[Any]:
         self._materialize()
         return SortedIndex.get_sorted_pks(self, reverse)
 
@@ -98,7 +97,6 @@ class _LazySortedIndex(SortedIndex):
     def __len__(self) -> int:
         self._materialize()
         return SortedIndex.__len__(self)
-
 
 class _LazyHashIndex(HashIndex):
     """延迟解码的哈希索引子类，保持 isinstance 为 HashIndex。"""
@@ -122,7 +120,7 @@ class _LazyHashIndex(HashIndex):
         if column_name is not None:
             self._table.indexes[column_name] = self
 
-    def lookup(self, value: Any) -> Set[Any]:
+    def lookup(self, value: Any) -> set[Any]:
         self._materialize()
         return HashIndex.lookup(self, value)
 
@@ -142,24 +140,20 @@ class _LazyHashIndex(HashIndex):
         self._materialize()
         return HashIndex.__len__(self)
 
-
 RECORD_LENGTH_STRUCT = struct.Struct("<I")
-
 
 @dataclass
 class TableOverlay:
-    inserted: Dict[Any, Dict[str, Any]] = field(default_factory=dict)
-    updated: Dict[Any, Dict[str, Any]] = field(default_factory=dict)
-    deleted: Set[Any] = field(default_factory=set)
-    row_cache: Dict[Any, Dict[str, Any]] = field(default_factory=dict)
-
+    inserted: dict[Any, dict[str, Any]] = field(default_factory=dict)
+    updated: dict[Any, dict[str, Any]] = field(default_factory=dict)
+    deleted: set[Any] = field(default_factory=set)
+    row_cache: dict[Any, dict[str, Any]] = field(default_factory=dict)
 
 @dataclass
 class TableState:
     table: Table
-    pk_index: Dict[Any, Tuple[int, int]] = field(default_factory=dict)
+    pk_index: dict[Any, tuple[int, int]] = field(default_factory=dict)
     overlay: TableOverlay = field(default_factory=TableOverlay)
-
 
 class StorePTK7:
     def __init__(
@@ -169,7 +163,7 @@ class StorePTK7:
     ) -> None:
         self.file_path: Path = Path(file_path).expanduser()
         self.options: PytuckBackendOptions = options or PytuckBackendOptions()
-        self._tables: Dict[str, TableState] = {}
+        self._tables: dict[str, TableState] = {}
         self._cipher: Optional[CipherType] = None
         self._payload_offset: int = 0
         if self.file_path.exists():
@@ -190,7 +184,7 @@ class StorePTK7:
     def create_table(
         self,
         table_name: str,
-        columns: List[Column],
+        columns: list[Column],
         primary_key: Optional[str] = None,
         comment: Optional[str] = None,
     ) -> None:
@@ -198,7 +192,7 @@ class StorePTK7:
         table = Table(table_name, columns, primary_key=resolved_primary_key, comment=comment)
         self._tables[table_name] = TableState(table=table)
 
-    def insert(self, table_name: str, record: Dict[str, Any]) -> Any:
+    def insert(self, table_name: str, record: dict[str, Any]) -> Any:
         state = self.table_state(table_name)
         pk = state.table.insert(record.copy())
         state.overlay.inserted[pk] = state.table.data[pk].copy()
@@ -211,13 +205,13 @@ class StorePTK7:
             raise TableNotFoundError(table_name)
         return self._tables[table_name]
 
-    def replace_tables(self, tables: Dict[str, Table]) -> None:
+    def replace_tables(self, tables: dict[str, Table]) -> None:
         self._tables = {
             table_name: TableState(table=table)
             for table_name, table in tables.items()
         }
 
-    def load_tables(self) -> Dict[str, Table]:
+    def load_tables(self) -> dict[str, Table]:
         if not self._tables and self.exists():
             self.open()
         return {
@@ -253,7 +247,7 @@ class StorePTK7:
         ref_blob = self._read_region(header.table_ref_offset, header.table_ref_size)
         table_refs = _decode_table_refs(ref_blob)
 
-        tables: Dict[str, TableState] = {}
+        tables: dict[str, TableState] = {}
         for table_doc in schema_doc["tables"]:
             table_name = table_doc["name"]
             columns = [_column_from_schema(column_doc) for column_doc in table_doc["columns"]]
@@ -303,7 +297,7 @@ class StorePTK7:
 
         self._tables = tables
 
-    def select(self, table_name: str, pk: Any) -> Dict[str, Any]:
+    def select(self, table_name: str, pk: Any) -> dict[str, Any]:
         state = self.table_state(table_name)
         normalized_pk = state.table._normalize_pk(pk)
         if normalized_pk in state.overlay.deleted:
@@ -326,9 +320,9 @@ class StorePTK7:
         self,
         file_path: Path,
         offset: int,
-        columns: Dict[str, Column],
+        columns: dict[str, Column],
         pk: Any = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         del file_path
         length_data = self._read_payload_region(offset, RECORD_LENGTH_STRUCT.size)
         if len(length_data) < RECORD_LENGTH_STRUCT.size:
@@ -345,7 +339,7 @@ class StorePTK7:
             record[pk_name] = pk
         return record
 
-    def flush(self, *, changed_tables: Optional[Set[str]] = None) -> None:
+    def flush(self, *, changed_tables: Optional[set[str]] = None) -> None:
         del changed_tables
 
         encryption_level = getattr(self.options, 'encryption', None)
@@ -372,8 +366,8 @@ class StorePTK7:
         table_ref_offset = schema_offset + len(schema_bytes)
         payload_offset = table_ref_offset + table_ref_size
 
-        index_meta_blobs: List[bytes] = []
-        index_data_blobs: List[bytes] = []
+        index_meta_blobs: list[bytes] = []
+        index_data_blobs: list[bytes] = []
         for state in self._tables.values():
             table = state.table
             meta_entries = []
@@ -422,7 +416,7 @@ class StorePTK7:
             index_data_blobs.append(bytes(data_buf))
 
         payload_buffer = bytearray()
-        resolved_refs: List[TableBlockRef] = []
+        resolved_refs: list[TableBlockRef] = []
         for layout, meta_blob, data_blob in zip(table_layouts, index_meta_blobs, index_data_blobs):
             data_offset = payload_offset + len(payload_buffer)
             payload_buffer.extend(layout.data_bytes)
@@ -519,14 +513,14 @@ class StorePTK7:
             raise SerializationError("PTK7 encrypted payload offset is invalid")
         return self._cipher.decrypt_at(offset - self._payload_offset, data)
 
-    def _read_pk_index(self, ref: TableBlockRef) -> Dict[Any, Tuple[int, int]]:
+    def _read_pk_index(self, ref: TableBlockRef) -> dict[Any, tuple[int, int]]:
         if ref.pk_dir_size == 0:
             return {}
         blob = self._read_payload_region(ref.pk_dir_offset, ref.pk_dir_size)
         if len(blob) % PK_DIR_INT_STRUCT.size != 0:
             raise SerializationError("PTK7 pk directory size is invalid")
 
-        pk_index: Dict[Any, Tuple[int, int]] = {}
+        pk_index: dict[Any, tuple[int, int]] = {}
         offset = 0
         while offset < len(blob):
             entry = PkDirEntry.unpack_int(blob[offset: offset + PK_DIR_INT_STRUCT.size])
@@ -534,7 +528,7 @@ class StorePTK7:
             offset += PK_DIR_INT_STRUCT.size
         return pk_index
 
-    def _read_row_at(self, state: TableState, offset: int, length: int, pk: Any) -> Dict[str, Any]:
+    def _read_row_at(self, state: TableState, offset: int, length: int, pk: Any) -> dict[str, Any]:
         payload_length = length - RECORD_LENGTH_STRUCT.size
         if payload_length < 0:
             raise SerializationError("PTK7 record length is invalid")
@@ -554,25 +548,22 @@ class StorePTK7:
             record[state.table.primary_key] = pk
         return record
 
-
 @dataclass
 class _RecordLayout:
     pk: Any
     entry_bytes: bytes
 
-
 @dataclass
 class _TableLayout:
     table_name: str
     next_id: int
-    records: List[_RecordLayout]
+    records: list[_RecordLayout]
     data_bytes: bytes
     ref_size: int
 
-
 def _build_table_layout(state: TableState) -> _TableLayout:
     columns = list(state.table.columns.values())
-    records: List[_RecordLayout] = []
+    records: list[_RecordLayout] = []
     data_bytes = bytearray()
     for pk, record in sorted(state.table.data.items(), key=lambda item: item[0]):
         payload = encode_row(columns, record, pk_name=state.table.primary_key)
@@ -589,8 +580,7 @@ def _build_table_layout(state: TableState) -> _TableLayout:
         ref_size=ref_size,
     )
 
-
-def _encode_pk_dir(records: List[_RecordLayout], data_offset: int) -> bytes:
+def _encode_pk_dir(records: list[_RecordLayout], data_offset: int) -> bytes:
     pk_dir = bytearray()
     cursor = data_offset
     for record in records:
@@ -599,15 +589,13 @@ def _encode_pk_dir(records: List[_RecordLayout], data_offset: int) -> bytes:
         cursor += len(record.entry_bytes)
     return bytes(pk_dir)
 
-
-def _find_primary_key(columns: List[Column]) -> Optional[str]:
+def _find_primary_key(columns: list[Column]) -> Optional[str]:
     for column in columns:
         if column.primary_key:
             return column.name
     return None
 
-
-def _encode_schema_document(states: List[TableState]) -> bytes:
+def _encode_schema_document(states: list[TableState]) -> bytes:
     document = {
         "tables": [
             {
@@ -622,8 +610,7 @@ def _encode_schema_document(states: List[TableState]) -> bytes:
     }
     return json.dumps(document, ensure_ascii=False).encode("utf-8")
 
-
-def _decode_schema_document(blob: bytes) -> Dict[str, Any]:
+def _decode_schema_document(blob: bytes) -> dict[str, Any]:
     try:
         document = json.loads(blob.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -632,8 +619,7 @@ def _decode_schema_document(blob: bytes) -> Dict[str, Any]:
         raise SerializationError("Invalid PTK7 schema document")
     return document
 
-
-def _column_to_schema(column: Column) -> Dict[str, Any]:
+def _column_to_schema(column: Column) -> dict[str, Any]:
     return {
         "name": column.name,
         "type_name": TypeRegistry.get_type_name(column.col_type),
@@ -643,8 +629,7 @@ def _column_to_schema(column: Column) -> Dict[str, Any]:
         "comment": column.comment,
     }
 
-
-def _column_from_schema(document: Dict[str, Any]) -> Column:
+def _column_from_schema(document: dict[str, Any]) -> Column:
     return Column(
         TypeRegistry.get_type_by_name(document["type_name"]),
         name=document["name"],
@@ -654,9 +639,8 @@ def _column_from_schema(document: Dict[str, Any]) -> Column:
         comment=document.get("comment"),
     )
 
-
-def _decode_table_refs(blob: bytes) -> Dict[str, TableBlockRef]:
-    refs: Dict[str, TableBlockRef] = {}
+def _decode_table_refs(blob: bytes) -> dict[str, TableBlockRef]:
+    refs: dict[str, TableBlockRef] = {}
     offset = 0
     while offset < len(blob):
         if offset + TABLE_REF_PREFIX_STRUCT.size > len(blob):
@@ -668,8 +652,7 @@ def _decode_table_refs(blob: bytes) -> Dict[str, TableBlockRef]:
         offset += consumed
     return refs
 
-
-def probe_ptk7(file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, Any]]]:
+def probe_ptk7(file_path: Union[str, Path]) -> tuple[bool, Optional[dict[str, Any]]]:
     path = Path(file_path).expanduser()
     if not path.exists():
         return False, {"error": "file_not_found"}
@@ -697,7 +680,6 @@ def probe_ptk7(file_path: Union[str, Path]) -> Tuple[bool, Optional[Dict[str, An
         "confidence": "high",
         "table_count": header.table_count,
     }
-
 
 __all__ = [
     "TableOverlay",
