@@ -27,7 +27,7 @@ Storage(
 | `file_path` | `Optional[Union[str, Path]]` | `None` | 数据文件路径。`None` 表示纯内存模式 |
 | `in_memory` | `bool` | `False` | 是否纯内存模式（不持久化） |
 | `engine` | `str` | `'pytuck'` | 后端引擎名称：`'pytuck'`、`'json'`、`'jsonl'`、`'csv'`、`'sqlite'`、`'duckdb'`、`'excel'`、`'xml'` |
-| `auto_flush` | `bool` | `False` | 是否在每次 `commit()` / `save()` 后自动写入磁盘 |
+| `auto_flush` | `bool` | `False` | 是否在每次会修改数据或 schema 的 Storage 操作后自动写入磁盘；与 `Session` 配合时，`Session.commit()` 也会据此触发持久化 |
 | `backend_options` | `Optional[BackendOptions]` | `None` | 强类型后端配置选项。`None` 时使用引擎默认值 |
 
 ### 使用示例
@@ -207,6 +207,8 @@ def query(
     self,
     table_name: str,
     conditions: Sequence[ConditionType],
+    limit: Optional[int] = None,
+    offset: int = 0,
     order_by: Optional[str] = None,
     order_desc: bool = False,
 ) -> List[Dict[str, Any]]
@@ -216,6 +218,8 @@ def query(
 |------|------|
 | `table_name` | 表名 |
 | `conditions` | 条件列表（`Condition` 或 `CompositeCondition`） |
+| `limit` | 最多返回的记录数；`None` 表示不限制 |
+| `offset` | 跳过的记录数，默认 `0` |
 | `order_by` | 排序字段名（可选） |
 | `order_desc` | 是否降序（默认升序） |
 | **返回** | 匹配的记录字典列表 |
@@ -239,7 +243,7 @@ def query_table_data(
     self,
     table_name: str,
     limit: Optional[int] = None,
-    offset: Optional[int] = None,
+    offset: int = 0,
     order_by: Optional[str] = None,
     order_desc: bool = False,
     filters: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
@@ -249,12 +253,12 @@ def query_table_data(
 | 参数 | 说明 |
 |------|------|
 | `table_name` | 表名 |
-| `limit` | 每页记录数 |
-| `offset` | 偏移量 |
+| `limit` | 每页记录数；`None` 表示不限制 |
+| `offset` | 偏移量，默认 `0` |
 | `order_by` | 排序字段 |
 | `order_desc` | 是否降序 |
 | `filters` | 过滤条件（见下文） |
-| **返回** | `{'rows': [...], 'total': N, ...}` |
+| **返回** | `{'records': [...], 'total_count': N, 'has_more': bool, 'schema': [...]}` |
 
 **filters 参数格式**：
 
@@ -285,9 +289,15 @@ def create_table(
     name: str,
     columns: List[Column],
     comment: Optional[str] = None,
-    primary_key: Optional[str] = None,
-) -> Table
+) -> None
 ```
+
+| 参数 | 说明 |
+|------|------|
+| `name` | 表名 |
+| `columns` | 列定义列表；主键会从 `Column(primary_key=True)` 自动推断 |
+| `comment` | 表备注 |
+| **返回** | `None` |
 
 > 通常不直接调用。定义模型类并继承 Base 时会自动创建表。
 
@@ -454,4 +464,4 @@ db.close()
 | `auto_flush` | `bool` | 是否自动持久化 |
 | `tables` | `Dict[str, Table]` | 所有表对象 |
 | `backend` | `Optional[StorageBackend]` | 后端实例 |
-| `is_native_sql_mode` | `bool`（property） | 是否为原生 SQL 模式（目前仅 SQLite） |
+| `is_native_sql_mode` | `bool`（property） | 是否为原生 SQL 模式；在支持的后端（如 SQLite、DuckDB）启用 `use_native_sql=True` 时为 `True` |

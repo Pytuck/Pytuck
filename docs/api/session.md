@@ -80,7 +80,7 @@ def flush(self) -> None
 
 ### commit()
 
-提交事务：调用 `flush()`，若 `auto_flush=True` 则同时写入磁盘。
+提交事务：先调用 `flush()` 将待处理修改写入 Storage；若当前 Storage 处于原生 SQL 模式，则同时提交底层连接器事务；若 `storage.auto_flush=True`，最后再触发磁盘持久化。
 
 ```python
 def commit(self) -> None
@@ -115,7 +115,7 @@ def bulk_insert(self, instances: List[PureBaseModel]) -> List[Any]
 ```python
 users = [User(name='A'), User(name='B'), User(name='C')]
 pks = session.bulk_insert(users)
-session.commit()  # 仅负责 auto_flush 磁盘持久化
+session.commit()  # 如需提交原生 SQL 事务或触发 auto_flush，可再调用
 ```
 
 ### bulk_update()
@@ -260,13 +260,15 @@ def close(self) -> None
 
 ## Schema 操作
 
-Session 提供面向模型的 Schema 操作方法，参数接受模型类或表名字符串。
+Session 提供面向模型的 Schema 操作方法：`sync_schema()` 只接受模型类，其余 schema 方法接受模型类或表名字符串。
 
 ### sync_schema()
 
 ```python
 def sync_schema(self, model_class: Type[PureBaseModel], options: Optional[SyncOptions] = None) -> SyncResult
 ```
+
+`sync_schema()` 会从模型类的 `__columns__` 与 `__table_comment__` 生成目标 schema，因此这里只接受模型类，不接受表名字符串。
 
 ### add_column()
 
@@ -279,6 +281,8 @@ def add_column(self, model_or_table, column: Column, default_value: Any = None) 
 ```python
 def drop_column(self, model_or_table, column_name: str) -> None
 ```
+
+`column_name` 传入的是存储列名（`Column.name`），不是 Python 属性名。
 
 ### alter_column()
 
@@ -309,6 +313,8 @@ def update_table_comment(self, model_or_table, comment: Optional[str]) -> None
 ```python
 def update_column(self, model_or_table, column_name: str, comment=None, index=None) -> None
 ```
+
+`column_name` 传入的是存储列名（`Column.name`），不是 Python 属性名。
 
 ### drop_table()
 

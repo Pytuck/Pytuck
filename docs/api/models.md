@@ -382,7 +382,7 @@ pks = User.bulk_insert(users)
 
 ## Relationship
 
-关联关系描述符，支持一对多和多对一关联，延迟加载 + 自动缓存。
+关联关系描述符，支持一对多和多对一关联；当前真实行为是首次访问时加载并自动缓存结果。
 
 ```python
 from pytuck.core.orm import Relationship
@@ -394,7 +394,7 @@ from pytuck.core.orm import Relationship
 Relationship(
     target_model: Union[str, Type[PureBaseModel]],  # 目标模型类或表名
     foreign_key: str,           # 外键字段名
-    lazy: bool = True,          # 延迟加载
+    lazy: bool = True,          # 保留兼容参数，当前实现仍为首次访问时加载
     back_populates: Optional[str] = None,  # 反向属性名
     uselist: Optional[bool] = None,  # 返回类型
 )
@@ -406,7 +406,7 @@ Relationship(
 |------|------|--------|------|
 | `target_model` | `Union[str, Type]` | 必填 | 目标模型类或表名字符串（推荐使用表名，支持前向引用） |
 | `foreign_key` | `str` | 必填 | 外键字段名 |
-| `lazy` | `bool` | `True` | 是否延迟加载（首次访问时才查询） |
+| `lazy` | `bool` | `True` | 保留兼容参数；当前实现无论取值如何，都是首次访问时查询并缓存结果 |
 | `back_populates` | `Optional[str]` | `None` | 反向关联的属性名 |
 | `uselist` | `Optional[bool]` | `None` | `None`=自动判断, `True`=返回列表, `False`=返回单个对象 |
 
@@ -441,12 +441,12 @@ class Category(Base):
 
 ### 行为说明
 
-- **延迟加载**：首次访问关联属性时才执行查询
-- **自动缓存**：查询结果缓存到实例，后续访问不再查询
+- **当前真实行为**：首次访问关联属性时才执行查询，并把结果缓存到实例上；`lazy=False` 目前不会改为 eager load
 - **自动判断方向**：
   - 如果 `foreign_key` 在当前模型中 → 多对一（返回单个对象）
   - 如果 `foreign_key` 在目标模型中 → 一对多（返回列表）
   - 自引用场景需用 `uselist` 显式指定
+- **批量预取**：如需避免 N+1 查询，请使用 `prefetch(users, 'orders')` 或 `select(User).options(prefetch('orders'))`
 
 ---
 
