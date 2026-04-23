@@ -50,7 +50,7 @@ def sorted_index_storage(storage):
         {'name': 'Diana', 'age': 35, 'score': 80.0},
         {'name': 'Eve', 'age': 28, 'score': 88.0},
         {'name': 'Frank', 'age': 22, 'score': 92.0},
-        {'name': 'Grace', 'age': None, 'score': 70.0},  # age 为 None
+        {'name': 'Grace', 'age': None, 'score': None},  # age 和 score 为 None
         {'name': 'Henry', 'age': 40, 'score': 75.0},
     ]
 
@@ -346,6 +346,22 @@ class TestOrderByWithSortedIndex:
         scores = [r['score'] for r in results]
         non_none_scores = [s for s in scores if s is not None]
         assert non_none_scores == sorted(non_none_scores)
+        assert scores[-1] is None
+
+    def test_order_by_desc_without_sorted_index_with_none(self, sorted_index_storage):
+        """无 SortedIndex 的降序排序也应保持 None 在最前"""
+        storage, User, session = sorted_index_storage
+        results = storage.query('users', [], order_by='score', order_desc=True)
+        scores = [r['score'] for r in results]
+        assert scores[0] is None
+        assert scores[1:] == sorted([s for s in scores if s is not None], reverse=True)
+
+    def test_order_by_desc_without_sorted_index_with_none_limit_offset(self, sorted_index_storage):
+        """无 SortedIndex 的降序排序在分页后仍应保持 None 规则"""
+        storage, User, session = sorted_index_storage
+        results = storage.query('users', [], order_by='score', order_desc=True, offset=1, limit=3)
+        scores = [r['score'] for r in results]
+        assert scores == [95.0, 92.0, 90.0]
 
     def test_order_by_with_none_values(self, sorted_index_storage):
         """None 值的排序规则"""

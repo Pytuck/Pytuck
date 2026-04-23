@@ -262,6 +262,77 @@ class TestAllEngines:
         session.close()
         db.close()
 
+    def test_excel_round_trip_preserves_empty_values(self, tmp_path: Path) -> None:
+        """Excel 引擎重开后应保留 None、空字符串和空 bytes 的差异"""
+        if not is_engine_available('excel'):
+            pytest.skip(get_skip_reason('excel'))
+
+        db_file = tmp_path / 'test_null_round_trip.xlsx'
+
+        db = Storage(file_path=str(db_file), engine='excel')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class NullTest(Base):
+            __tablename__ = 'null_test'
+            id = Column(int, primary_key=True)
+            str_field = Column(str, nullable=True)
+            int_field = Column(int, nullable=True)
+            bytes_field = Column(bytes, nullable=True)
+
+        session = Session(db)
+        session.execute(insert(NullTest).values(str_field='test', int_field=1, bytes_field=b'data'))
+        session.execute(insert(NullTest).values(str_field=None, int_field=None, bytes_field=None))
+        session.execute(insert(NullTest).values(str_field='', int_field=0, bytes_field=b''))
+        session.commit()
+        db.flush()
+        session.close()
+        db.close()
+
+        db_reloaded = Storage(file_path=str(db_file), engine='excel')
+        ReloadedBase: Type[PureBaseModel] = declarative_base(db_reloaded)
+
+        class ReloadedNullTest(ReloadedBase):
+            __tablename__ = 'null_test'
+            id = Column(int, primary_key=True)
+            str_field = Column(str, nullable=True)
+            int_field = Column(int, nullable=True)
+            bytes_field = Column(bytes, nullable=True)
+
+        reloaded_session = Session(db_reloaded)
+        reloaded_records = reloaded_session.execute(select(ReloadedNullTest).order_by('id')).all()
+
+        assert [record.str_field for record in reloaded_records] == ['test', None, '']
+        assert [record.int_field for record in reloaded_records] == [1, None, 0]
+        assert [record.bytes_field for record in reloaded_records] == [b'data', None, b'']
+
+        reloaded_session.close()
+        db_reloaded.close()
+
+    def test_excel_external_headers_are_normalized_to_strings(self, tmp_path: Path) -> None:
+        """外部 Excel 的非字符串表头应规范化为字符串，避免内部键类型不一致。"""
+        if not is_engine_available('excel'):
+            pytest.skip(get_skip_reason('excel'))
+
+        import openpyxl
+
+        db_file = tmp_path / 'external_headers.xlsx'
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'users'
+        ws.append([123, 'name'])
+        ws.append(['oops', 'Alice'])
+        wb.save(str(db_file))
+        wb.close()
+
+        db = Storage(file_path=str(db_file), engine='excel')
+        table = db.get_table('users')
+
+        assert table is not None
+        assert '123' in table.columns
+        assert 123 not in table.columns
+        assert table.data[1]['123'] == 'oops'
+        db.close()
+
     @pytest.mark.parametrize("engine_name,file_ext", ALL_ENGINES)
     def test_engine_index_query(self, engine_name: str, file_ext: str, tmp_path: Path) -> None:
         """

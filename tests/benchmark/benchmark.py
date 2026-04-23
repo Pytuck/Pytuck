@@ -269,7 +269,7 @@ class EngineBenchmark:
         session = Session(db)
         return db, session, BenchmarkUser
 
-    def benchmark_insert(self, session: 'Session', model_class: type, count: int) -> float:
+    def benchmark_insert(self, session: 'Session', model_class: type[PureBaseModel], count: int) -> float:
         """测试插入性能"""
         with Timer() as t:
             for i in range(count):
@@ -284,7 +284,7 @@ class EngineBenchmark:
             session.commit()
         return t.elapsed
 
-    def benchmark_query_all(self, session: 'Session', model_class: type) -> float:
+    def benchmark_query_all(self, session: 'Session', model_class: type[PureBaseModel]) -> float:
         """测试全表扫描性能"""
         with Timer() as t:
             stmt = select(model_class)
@@ -292,7 +292,7 @@ class EngineBenchmark:
             records = result.all()
         return t.elapsed
 
-    def benchmark_query_indexed(self, session: 'Session', model_class: type, count: int) -> float:
+    def benchmark_query_indexed(self, session: 'Session', model_class: type[PureBaseModel], count: int) -> float:
         """测试索引查询性能（100次查询）"""
         with Timer() as t:
             for i in range(min(100, count)):
@@ -301,7 +301,7 @@ class EngineBenchmark:
                 record = result.first()
         return t.elapsed
 
-    def benchmark_query_non_indexed(self, session: 'Session', model_class: type, count: int) -> float:
+    def benchmark_query_non_indexed(self, session: 'Session', model_class: type[PureBaseModel], count: int) -> float:
         """测试非索引字段查询性能（100次查询）- 用于对比索引优势"""
         with Timer() as t:
             for i in range(min(100, count)):
@@ -311,7 +311,7 @@ class EngineBenchmark:
                 record = result.first()
         return t.elapsed
 
-    def benchmark_range_query(self, session: 'Session', model_class: type) -> Tuple[float, int]:
+    def benchmark_range_query(self, session: 'Session', model_class: type[PureBaseModel]) -> Tuple[float, int]:
         """测试范围查询性能（如 age BETWEEN 30 AND 50）"""
         with Timer() as t:
             stmt = select(model_class).where(model_class.age >= 30, model_class.age <= 50)
@@ -319,7 +319,7 @@ class EngineBenchmark:
             records = result.all()
         return t.elapsed, len(records)
 
-    def benchmark_batch_read(self, session: 'Session', model_class: type, count: int) -> float:
+    def benchmark_batch_read(self, session: 'Session', model_class: type[PureBaseModel], count: int) -> float:
         """测试批量顺序读取性能（读取前1000条记录）"""
         batch_size = min(1000, count)
         with Timer() as t:
@@ -328,7 +328,7 @@ class EngineBenchmark:
             records = result.all()
         return t.elapsed
 
-    def benchmark_query_filtered(self, session: 'Session', model_class: type) -> float:
+    def benchmark_query_filtered(self, session: 'Session', model_class: type[PureBaseModel]) -> float:
         """测试条件过滤查询性能"""
         with Timer() as t:
             stmt = select(model_class).where(model_class.age >= 30, model_class.age < 50)
@@ -336,7 +336,7 @@ class EngineBenchmark:
             records = result.all()
         return t.elapsed
 
-    def benchmark_update(self, session: 'Session', model_class: type, count: int) -> float:
+    def benchmark_update(self, session: 'Session', model_class: type[PureBaseModel], count: int) -> float:
         """测试更新性能（100次更新）"""
         update_count = min(100, count)
         with Timer() as t:
@@ -349,7 +349,7 @@ class EngineBenchmark:
             session.commit()
         return t.elapsed
 
-    def benchmark_delete(self, session: 'Session', model_class: type, count: int) -> float:
+    def benchmark_delete(self, session: 'Session', model_class: type[PureBaseModel], count: int) -> float:
         """测试删除性能（50次删除）"""
         delete_count = min(50, count)
         with Timer() as t:

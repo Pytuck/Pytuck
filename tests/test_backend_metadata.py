@@ -174,6 +174,43 @@ class TestMetadataStorageFormat:
         assert '_pytuck_tables' in wb.sheetnames
         wb.close()
 
+    def test_excel_metadata_ignores_non_string_keys(self, tmp_path):
+        """Excel 元数据只接受字符串键，忽略异常单元格类型"""
+        try:
+            import openpyxl
+        except ImportError:
+            pytest.skip("openpyxl not installed")
+
+        from pytuck.backends.backend_excel import ExcelBackend
+        from pytuck.common.options import ExcelBackendOptions
+
+        db_path = tmp_path / "test_malformed_metadata.xlsx"
+        db = Storage(file_path=str(db_path), engine='excel')
+
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        session = Session(db)
+        session.execute(insert(User).values(id=1, name='Alice'))
+        session.commit()
+        db.close()
+
+        wb = openpyxl.load_workbook(str(db_path))
+        metadata_sheet = wb['_metadata']
+        metadata_sheet.append([123, 'ignored'])
+        wb.save(str(db_path))
+        wb.close()
+
+        backend = ExcelBackend(db_path, ExcelBackendOptions())
+        metadata = backend.get_metadata()
+
+        assert 'engine' in metadata
+        assert 123 not in metadata
+
 
 class TestMetadataContent:
     """元数据内容完整性"""
