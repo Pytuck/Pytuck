@@ -13,7 +13,7 @@ from datetime import datetime, date, timedelta, timezone
 
 from ..common.exceptions import ValidationError, TypeConversionError, SchemaError
 from ..common.options import SyncOptions
-from ..common.typing import RelationshipT, ColumnTypes
+from ..common.typing import RelationshipT, ColumnTypes, T_CRUD
 from .types import TypeRegistry
 
 if TYPE_CHECKING:
@@ -1169,10 +1169,10 @@ def _create_pure_base(
 
             # 从 MRO 父类继承列（从最基础到最近的父类，子类覆盖父类）
             for parent in reversed(cls.__mro__[1:]):
-                parent_columns = parent.__dict__.get('__columns__')
+                parent_columns: dict[str, Column] | None  = parent.__dict__.get('__columns__')
                 if parent_columns:
                     cls.__columns__.update(parent_columns)
-                parent_rels = parent.__dict__.get('__relationships__')
+                parent_rels: dict[str, Relationship] | None = parent.__dict__.get('__relationships__')
                 if parent_rels:
                     cls.__relationships__.update(parent_rels)
 
@@ -1284,10 +1284,10 @@ def _create_crud_base(
 
             # 从 MRO 父类继承列（从最基础到最近的父类，子类覆盖父类）
             for parent in reversed(cls.__mro__[1:]):
-                parent_columns = parent.__dict__.get('__columns__')
+                parent_columns: dict[str, Column] | None = parent.__dict__.get('__columns__')
                 if parent_columns:
                     cls.__columns__.update(parent_columns)
-                parent_rels = parent.__dict__.get('__relationships__')
+                parent_rels: dict[str, Relationship] | None = parent.__dict__.get('__relationships__')
                 if parent_rels:
                     cls.__relationships__.update(parent_rels)
 
@@ -1569,7 +1569,7 @@ def _create_crud_base(
             return count
 
         @classmethod
-        def get(cls, pk: Any) -> 'DeclarativeCRUDBase | None':
+        def get(cls: type[T_CRUD], pk: Any) -> T_CRUD | None:
             """根据主键获取记录
 
             注意：无主键模型无法使用此方法，会返回 None。

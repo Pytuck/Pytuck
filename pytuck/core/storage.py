@@ -2198,25 +2198,20 @@ class Storage:
 
             # 排序
             if order_by and order_by in table.columns:
-                def sort_key(_record: dict[str, Any]) -> tuple:
-                    """
-                    排序键函数
-
-                    排序规则：
-                    - None 值在升序时排在最后，降序时排在最前
-                    - 使用元组 (优先级, 值) 实现：优先级 0 表示有值，1 表示 None
-                    """
-                    value = _record.get(order_by)
-                    # 处理 None 值：升序时 None 排在最后 (1, 0)，降序时排在最前 (0, 0)
-                    if value is None:
-                        return (1, 0) if not order_desc else (0, 0)
-                    return (0, value) if not order_desc else (1, value)
+                none_results = [record for record in results if record.get(order_by) is None]
+                non_none_results = [record for record in results if record.get(order_by) is not None]
 
                 try:
-                    results.sort(key=sort_key, reverse=order_desc)
+                    non_none_results.sort(key=lambda record: record[order_by], reverse=order_desc)
                 except TypeError:
                     # 如果比较失败（比如混合类型），按字符串排序
-                    results.sort(key=lambda r: str(r.get(order_by, '')), reverse=order_desc)
+                    non_none_results.sort(key=lambda record: str(record.get(order_by, '')), reverse=order_desc)
+
+                results = (
+                    none_results + non_none_results
+                    if order_desc
+                    else non_none_results + none_results
+                )
 
             # 分页
             if offset > 0:
