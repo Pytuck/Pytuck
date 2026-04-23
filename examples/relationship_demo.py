@@ -11,12 +11,12 @@ Pytuck Relationship 关联关系示例
 - 自引用关联（Self-Reference，树形结构）
 """
 
-import os
 import sys
+from pathlib import Path
 from typing import Type
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pytuck import Storage, declarative_base, Column, Relationship
 from pytuck import CRUDBaseModel

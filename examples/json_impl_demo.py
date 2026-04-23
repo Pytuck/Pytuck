@@ -7,13 +7,13 @@ Pytuck - JSON后端实现选择演示
 - 自定义JSON实现扩展机制
 """
 
-import os
 import sys
 import time
+from pathlib import Path
 from typing import Type
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from examples._common import get_project_temp_dir
 

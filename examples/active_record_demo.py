@@ -7,12 +7,12 @@ Pytuck Active Record 模式示例
 - 无需 Session，直接在模型上操作
 """
 
-import os
 import sys
+from pathlib import Path
 from typing import Type
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pytuck import Storage, declarative_base, Column
 from pytuck import CRUDBaseModel

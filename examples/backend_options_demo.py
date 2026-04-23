@@ -5,12 +5,12 @@ Pytuck - 后端配置选项演示
 这是 Pytuck 0.2.0 版本的新特性，使用 dataclass 替代了 **kwargs 参数。
 """
 
-import os
 import sys
+from pathlib import Path
 from typing import Type
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from examples._common import get_project_temp_dir
 
@@ -20,8 +20,6 @@ from pytuck.common.options import (
     JsonBackendOptions,
     CsvBackendOptions,
     SqliteBackendOptions,
-    ExcelBackendOptions,
-    XmlBackendOptions,
 )
 
 def demo_json_options():
@@ -83,7 +81,7 @@ def demo_json_options():
             print(f"  {line}")
 
     # 清理
-    os.remove(json_file)
+    json_file.unlink()
 
     # 演示使用orjson（如果安装了）
     print("\n" + "-"*40)
@@ -94,9 +92,9 @@ def demo_json_options():
         import orjson
         print("✓ 检测到 orjson，演示高性能JSON序列化")
 
-        orjson_file = os.path.join(temp_dir, 'demo_orjson.json')
-        if os.path.exists(orjson_file):
-            os.remove(orjson_file)
+        orjson_file = temp_dir / 'demo_orjson.json'
+        if orjson_file.exists():
+            orjson_file.unlink()
 
         # 使用 orjson
         json_orjson_opts = JsonBackendOptions(
@@ -128,7 +126,7 @@ def demo_json_options():
 
         session_orjson.close()
         db_orjson.close()
-        os.remove(orjson_file)
+        orjson_file.unlink()
 
     except ImportError:
         print("- orjson 未安装，跳过高性能JSON演示")
@@ -160,9 +158,9 @@ def demo_json_options():
     JSONBackend._setup_custom_json = setup_custom_rapidjson
 
     try:
-        custom_file = os.path.join(temp_dir, 'demo_custom_json.json')
-        if os.path.exists(custom_file):
-            os.remove(custom_file)
+        custom_file = temp_dir / 'demo_custom_json.json'
+        if custom_file.exists():
+            custom_file.unlink()
 
         # 使用自定义JSON实现
         json_custom_opts = JsonBackendOptions(
@@ -198,7 +196,7 @@ def demo_json_options():
 
         session_custom.close()
         db_custom.close()
-        os.remove(custom_file)
+        custom_file.unlink()
 
     except Exception as e:
         print(f"❌ 自定义实现演示失败: {e}")
@@ -214,11 +212,11 @@ def demo_csv_options():
 
     # 创建临时文件
     temp_dir = get_project_temp_dir()
-    csv_file = os.path.join(temp_dir, 'demo_csv_options.zip')
+    csv_file = temp_dir / 'demo_csv_options.zip'
 
     # 清理旧文件
-    if os.path.exists(csv_file):
-        os.remove(csv_file)
+    if csv_file.exists():
+        csv_file.unlink()
 
     # 配置 CSV 选项：使用 GBK 编码和分号分隔符
     csv_opts = CsvBackendOptions(
@@ -258,7 +256,7 @@ def demo_csv_options():
     print(f"  delimiter: '{csv_opts.delimiter}'")
 
     # 清理
-    os.remove(csv_file)
+    csv_file.unlink()
 
 def demo_sqlite_options():
     """演示 SQLite 引擎配置选项"""
@@ -268,11 +266,11 @@ def demo_sqlite_options():
 
     # 创建临时文件
     temp_dir = get_project_temp_dir()
-    sqlite_file = os.path.join(temp_dir, 'demo_sqlite_options.sqlite')
+    sqlite_file = temp_dir / 'demo_sqlite_options.sqlite'
 
     # 清理旧文件
-    if os.path.exists(sqlite_file):
-        os.remove(sqlite_file)
+    if sqlite_file.exists():
+        sqlite_file.unlink()
 
     # 配置 SQLite 选项
     sqlite_opts = SqliteBackendOptions(
@@ -312,7 +310,7 @@ def demo_sqlite_options():
     print(f"  timeout: {sqlite_opts.timeout}")
 
     # 清理
-    os.remove(sqlite_file)
+    sqlite_file.unlink()
 
 def demo_pytuck_default():
     """演示 Pytuck 引擎（默认选项）"""
@@ -322,11 +320,11 @@ def demo_pytuck_default():
 
     # 创建临时文件
     temp_dir = get_project_temp_dir()
-    pytuck_file = os.path.join(temp_dir, 'demo_pytuck_default.pytuck')
+    pytuck_file = temp_dir / 'demo_pytuck_default.pytuck'
 
     # 清理旧文件
-    if os.path.exists(pytuck_file):
-        os.remove(pytuck_file)
+    if pytuck_file.exists():
+        pytuck_file.unlink()
 
     # Pytuck 引擎默认可直接省略 backend_options
     db = Storage(file_path=pytuck_file, engine='pytuck')
@@ -358,11 +356,11 @@ def demo_pytuck_default():
     print("配置选项: 无（使用默认设置）")
 
     # 显示文件大小
-    file_size = os.path.getsize(pytuck_file)
+    file_size = pytuck_file.stat().st_size
     print(f"文件大小: {file_size} bytes")
 
     # 清理
-    os.remove(pytuck_file)
+    pytuck_file.unlink()
 
 def demo_without_options():
     """演示不显式指定选项（使用默认值）"""
@@ -372,11 +370,11 @@ def demo_without_options():
 
     # 创建临时文件
     temp_dir = get_project_temp_dir()
-    default_file = os.path.join(temp_dir, 'demo_default.json')
+    default_file = temp_dir / 'demo_default.json'
 
     # 清理旧文件
-    if os.path.exists(default_file):
-        os.remove(default_file)
+    if default_file.exists():
+        default_file.unlink()
 
     # 不指定 backend_options，系统会自动使用默认选项
     db = Storage(file_path=default_file, engine='json')  # 不传 backend_options
@@ -402,7 +400,7 @@ def demo_without_options():
     print(f"  ensure_ascii: {default_opts.ensure_ascii}")
 
     # 清理
-    os.remove(default_file)
+    default_file.unlink()
 
 def main():
     """主演示函数"""

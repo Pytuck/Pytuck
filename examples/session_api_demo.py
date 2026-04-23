@@ -8,12 +8,12 @@ Pytuck Session + Statement API 完整示例
 - Pythonic 查询表达式
 """
 
-import os
 import sys
+from pathlib import Path
 from typing import Type
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pytuck import Storage, declarative_base, Session, Column, Relationship
 from pytuck import PureBaseModel, select, insert, update, delete

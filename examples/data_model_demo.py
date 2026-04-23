@@ -10,9 +10,9 @@ Pytuck 数据模型特性演示
 """
 
 import sys
-import os
 import json
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import PureBaseModel, select, insert
