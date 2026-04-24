@@ -51,13 +51,13 @@ class JsonBackendOptions:
     """JSON 后端配置选项"""
     indent: int | None = None  # 缩进空格数
     ensure_ascii: bool = False  # 是否强制 ASCII 编码
-    impl: str | None = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
+    impl: str | None = None  # 指定 JSON 库名：'orjson'、'json' 或自定义实现名
 
 @dataclass
 class JsonlBackendOptions:
     """JSONL 后端配置选项"""
     ensure_ascii: bool = False  # 是否强制 ASCII 编码
-    impl: str | None = None  # 指定JSON库名：'orjson', 'ujson', 'json' 等
+    impl: str | None = None  # 指定 JSON 库名：'orjson'、'json' 或自定义实现名
     password: str | None = None  # ZIP 密码（仅允许 ASCII 字符）
 
     def __setattr__(self, name: str, value: Any) -> None:

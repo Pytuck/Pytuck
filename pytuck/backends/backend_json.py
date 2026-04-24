@@ -5,7 +5,6 @@ Pytuck JSON存储引擎
 """
 
 import json
-import inspect
 import os
 import tempfile
 from pathlib import Path
@@ -49,8 +48,6 @@ class JSONBackend(StorageBackend):
 
         if impl == 'orjson':
             self._setup_orjson()
-        elif impl == 'ujson':
-            self._setup_ujson()
         elif impl == 'json' or impl is None:
             self._setup_stdlib_json()
         else:
@@ -76,33 +73,6 @@ class JSONBackend(StorageBackend):
         self._dumps_func = dumps_func
         self._loads_func = orjson.loads
         self._impl_name = 'orjson'
-
-    def _setup_ujson(self) -> None:
-        """设置ujson实现，智能适配参数"""
-        try:
-            import ujson  # type: ignore
-        except ImportError:
-            raise ImportError(f"ujson not installed. Install with: pip install pytuck[ujson]")
-
-        def dumps_func(obj: Any) -> str:
-            # 检查ujson的dumps方法支持哪些参数，不支持的直接舍弃
-            kwargs = {}
-
-            try:
-                sig = inspect.signature(ujson.dumps)
-                if 'indent' in sig.parameters and self.options.indent:
-                    kwargs['indent'] = self.options.indent
-                if 'ensure_ascii' in sig.parameters:
-                    kwargs['ensure_ascii'] = self.options.ensure_ascii
-
-                return ujson.dumps(obj, **kwargs)  # type: ignore[arg-type]
-            except Exception:
-                # 如果参数检查失败，就使用最简单的方式
-                return ujson.dumps(obj)
-
-        self._dumps_func = dumps_func
-        self._loads_func = ujson.loads
-        self._impl_name = 'ujson'
 
     def _setup_stdlib_json(self) -> None:
         """设置标准库json实现"""

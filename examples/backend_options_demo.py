@@ -424,7 +424,7 @@ def main():
     print("✓ 编译时类型检查，减少运行时错误")
     print("✓ 清晰的配置接口，易于理解和维护")
     print("✓ 向后兼容，不指定选项时自动使用默认值")
-    print("✓ JSON引擎支持多种实现（orjson、ujson等）")
+    print("✓ JSON引擎支持标准库 json、orjson 和自定义实现")
 
     print("\n旧 API (不再支持):")
     print("❌ Storage('file.json', engine='json', indent=4)  # 错误")
@@ -433,7 +433,6 @@ def main():
     print("✅ Storage('file.json', engine='json', backend_options=opts)")
     print("\nJSON高性能实现:")
     print("✅ opts = JsonBackendOptions(impl='orjson')  # 2-3倍性能提升")
-    print("✅ opts = JsonBackendOptions(impl='ujson')   # 1.5-2倍性能提升")
     print("✅ 自定义实现: JSONBackend._setup_custom_json = your_function")
 
 if __name__ == '__main__':

@@ -2,7 +2,7 @@
 Pytuck - JSON后端实现选择演示
 
 演示Pytuck 0.3.0版本的新特性：
-- 支持多种JSON库（orjson、ujson等）
+- 支持标准库 json、orjson 和自定义 JSON 实现
 - 用户指定库优先，参数智能适配
 - 自定义JSON实现扩展机制
 """
@@ -113,44 +113,6 @@ def demo_performance_comparison():
             print("\n2. orjson 未安装，跳过性能测试")
             print("   安装方法: pip install pytuck[orjson]")
 
-        # 测试ujson（如果可用）
-        try:
-            import ujson
-            print("\n3. ujson 性能测试")
-            ujson_file = os.path.join(temp_dir, 'perf_ujson.json')
-            ujson_opts = JsonBackendOptions(impl='ujson', indent=2)
-
-            start_time = time.time()
-            db_ujson = Storage(file_path=ujson_file, engine='json', backend_options=ujson_opts)
-            Base_ujson: Type[PureBaseModel] = declarative_base(db_ujson)
-
-            class UjsonUser(Base_ujson):
-                __tablename__ = 'users'
-                id = Column(int, primary_key=True)
-                name = Column(str)
-                description = Column(str)
-
-            session_ujson = Session(db_ujson)
-            for data in test_data:
-                stmt = insert(UjsonUser).values(**data)
-                session_ujson.execute(stmt)
-            session_ujson.commit()
-            db_ujson.flush()  # 强制写入磁盘
-
-            ujson_write_time = time.time() - start_time
-            file_size_ujson = os.path.getsize(ujson_file)
-
-            print(f"   写入时间: {ujson_write_time:.3f}s")
-            print(f"   文件大小: {file_size_ujson:,} bytes")
-            print(f"   JSON实现: {db_ujson.backend._impl_name}")
-            print(f"   性能提升: {json_write_time/ujson_write_time:.1f}x 更快")
-
-            session_ujson.close()
-            db_ujson.close()
-
-        except ImportError:
-            print("\n3. ujson 未安装，跳过性能测试")
-            print("   安装方法: pip install pytuck[ujson]")
 
     finally:
         # 清理临时文件
@@ -435,7 +397,7 @@ def demo_error_handling():
 def main():
     """主演示函数"""
     print("Pytuck JSON后端实现选择演示")
-    print("支持orjson、ujson等高性能JSON库")
+    print("支持标准库 json、orjson 和自定义实现")
     print()
 
     # 运行所有演示
@@ -447,7 +409,7 @@ def main():
     print("\n" + "=" * 60)
     print("演示总结")
     print("=" * 60)
-    print("✅ 多种JSON实现支持：orjson (最快)、ujson (快速)、json (标准)")
+    print("✅ 多种JSON实现支持：orjson (高性能)、json (标准)")
     print("✅ 用户指定库优先：指定什么库就用什么库，不自动回退")
     print("✅ 智能参数处理：不兼容的参数自动舍弃，不影响功能")
     print("✅ 自定义实现扩展：通过覆盖方法支持任意JSON库")
@@ -455,13 +417,11 @@ def main():
 
     print("\n使用建议:")
     print("🚀 高性能场景: JsonBackendOptions(impl='orjson')")
-    print("⚡ 平衡性能: JsonBackendOptions(impl='ujson')")
     print("🔧 调试友好: JsonBackendOptions(impl='json', indent=4)")
     print("🎨 自定义需求: 覆盖 JSONBackend._setup_custom_json 方法")
 
     print(f"\n安装方法:")
     print("pip install pytuck[orjson]  # 安装orjson支持")
-    print("pip install pytuck[ujson]   # 安装ujson支持")
 
 if __name__ == '__main__':
     main()
