@@ -915,7 +915,7 @@ class Relationship(Generic[RelationshipT]):
     def __init__(self,
                  target_model: str | type[PureBaseModel],
                  foreign_key: str,
-                 lazy: bool = True,
+                 *,
                  back_populates: str | None = None,
                  uselist: bool | None = None,
                  storage: 'Storage | None' = None):
@@ -925,7 +925,6 @@ class Relationship(Generic[RelationshipT]):
         Args:
             target_model: 目标模型类或表名（字符串）
             foreign_key: 外键字段名
-            lazy: 是否延迟加载
             back_populates: 反向关联的属性名
             uselist: 是否返回列表（None=自动判断，True=强制列表，False=强制单个）
                 - 用于自引用等无法自动判断的场景
@@ -935,7 +934,6 @@ class Relationship(Generic[RelationshipT]):
         """
         self.target_model = target_model
         self.foreign_key = foreign_key
-        self.lazy = lazy
         self.back_populates = back_populates
         self._uselist = uselist  # 用户指定的值
         self.storage = storage
