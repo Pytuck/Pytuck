@@ -165,6 +165,17 @@ uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sq
 - `benchmark.py` 主表通常关注 `insert`、`query_indexed`、`query_non_indexed`、`range_query`、`save`、`load`、`file_size`
 - 如需补充观察某个引擎的特有指标，可在扩展结果中查看对应字段
 
+`tests/benchmark/benchmark_json_impl.py` 用于 `json` / `jsonl` 引擎下标准库 `json` 与 `orjson` 的专项对比：
+
+```bash
+# JSON / JSONL serializer 专项 benchmark
+uv run python tests/benchmark/benchmark_json_impl.py -n 100000 --output-json /tmp/pytuck-json-impl.json
+```
+
+- 该脚本只覆盖 `json` 与 `jsonl` 两种引擎
+- 对比口径聚焦 `save`、`load`、`reopen`、`reopen_first_query` 与文件大小
+- 适合评估是否值得在文本引擎场景下显式启用 `impl='orjson'`
+
 ---
 
 ## 事件钩子

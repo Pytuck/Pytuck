@@ -71,6 +71,8 @@ db = Storage(
 - 无外部依赖
 
 > 说明：`ujson` 已从当前文档与官方内置支持路径中移除；如需加速，优先使用 `orjson`，否则默认走标准库 `json`。
+>
+> 参考当前仓库内的专项 benchmark，在 `100000` 条记录口径下，`orjson` 相比标准库 `json` 在 JSON 引擎上的 `save` / `load` / `reopen` 大致有 `1.19x` 到 `1.32x` 的提升。详见 [`docs/guide/benchmark.md`](../guide/benchmark.md)。
 
 ### 配置
 
@@ -108,6 +110,8 @@ JSONL 文件打包为 ZIP 存储（每张表一个 `.jsonl` 文件 + 元数据 `
 - 无外部依赖
 
 > 说明：`ujson` 已从当前文档与官方内置支持路径中移除；如需加速，优先使用 `orjson`，否则默认走标准库 `json`。
+>
+> 参考当前仓库内的专项 benchmark，在 `100000` 条记录口径下，`orjson` 相比标准库 `json` 在 JSONL 引擎上的 `save` / `load` / `reopen` 大致有 `1.38x` 到 `1.77x` 的提升。详见 [`docs/guide/benchmark.md`](../guide/benchmark.md)。
 
 ### 配置
 

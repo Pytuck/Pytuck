@@ -63,6 +63,28 @@
 - 同口径优化前，`session.add_all() + commit()` 约为 `47.59s`；当前约为 `0.72s`
 - 主要收益来自两点：修复 `Session.add()` 对 `_new_objects` 的 O(N²) 去重瓶颈，以及让 `Session.flush()` 对新对象按模型类分组复用 `storage.bulk_insert()`
 
+## JSON / orjson 专项 benchmark
+
+> 测试时间：2026-04-24 22:57:26 CST
+>
+> 测试环境：macOS-26.4.1-arm64-arm-64bit-Mach-O / Python 3.13.11
+>
+> 数据规模：100000 条记录
+>
+> 测试范围：仅比较 `json` 与 `jsonl` 两种引擎在标准库 `json` / `orjson` 两种实现下的持久化相关路径。这里重点关注 `save`、`load`、`reopen`、`reopen_first_query` 与文件大小；常规查询路径不作为这一组专项 benchmark 的主要指标。
+
+| 引擎 | 实现 | 保存 | 加载 | 重开 | 重开后首次查询 | 文件大小 |
+|------|------|------|------|------|----------------|----------|
+| JSON | json | 154.51ms | 219.81ms | 226.54ms | 10.5μs | 20.99MB |
+| JSON | orjson | 117.12ms | 184.05ms | 178.87ms | 14.2μs | 19.65MB |
+| JSONL | json | 315.49ms | 326.85ms | 286.08ms | 5.2μs | 1.14MB |
+| JSONL | orjson | 177.94ms | 236.22ms | 198.88ms | 5.9μs | 1.15MB |
+
+- `json` 引擎下，`orjson` 相比标准库 `json`，`save` 约快 `1.32x`，`load` 约快 `1.19x`，`reopen` 约快 `1.27x`
+- `jsonl` 引擎下，`orjson` 的收益更明显：`save` 约快 `1.77x`，`load` 约快 `1.38x`，`reopen` 约快 `1.44x`
+- 文件大小方面，`JSON + orjson` 略小于 `JSON + json`；`JSONL` 两种实现的体积基本接近
+- `reopen_first_query` 基本都维持在微秒级，说明这组对比的主要差异仍集中在序列化 / 反序列化路径，而不是主键点查本身
+
 ## 结果解读
 
 ### Pytuck
@@ -129,6 +151,9 @@ uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sq
 
 # 只看单个引擎
 uv run python tests/benchmark/benchmark.py -e pytuck -n 100000 --extended --output-json /tmp/pytuck.json
+
+# 只看 JSON / JSONL 下 json vs orjson 的专项对比
+uv run python tests/benchmark/benchmark_json_impl.py -n 100000 --output-json /tmp/pytuck-json-impl.json
 ```
 
 ## 相关文档
