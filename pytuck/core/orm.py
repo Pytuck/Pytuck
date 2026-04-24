@@ -917,7 +917,8 @@ class Relationship(Generic[RelationshipT]):
                  foreign_key: str,
                  lazy: bool = True,
                  back_populates: str | None = None,
-                 uselist: bool | None = None):
+                 uselist: bool | None = None,
+                 storage: 'Storage | None' = None):
         """
         初始化关联关系
 
@@ -928,12 +929,16 @@ class Relationship(Generic[RelationshipT]):
             back_populates: 反向关联的属性名
             uselist: 是否返回列表（None=自动判断，True=强制列表，False=强制单个）
                 - 用于自引用等无法自动判断的场景
+            storage: 目标模型所在的 Storage。
+                当 target_model 为字符串且目标模型不在当前 owner 的 storage 中时，
+                可显式指定以支持跨 storage 解析。
         """
         self.target_model = target_model
         self.foreign_key = foreign_key
         self.lazy = lazy
         self.back_populates = back_populates
         self._uselist = uselist  # 用户指定的值
+        self.storage = storage
         self.is_one_to_many = False  # 自动判断的值
         self.name: str | None = None
         self.owner: type[PureBaseModel] | None = None
@@ -973,7 +978,7 @@ class Relationship(Generic[RelationshipT]):
             return getattr(instance, cache_key)
 
         # 延迟加载
-        target_model = self._resolve_target_model(owner)
+        target_model, _, _ = self.resolve_binding(owner)
 
         primary_key = getattr(owner, '__primary_key__', 'id')
 
@@ -1004,7 +1009,39 @@ class Relationship(Generic[RelationshipT]):
         setattr(instance, cache_key, results)
         return cast(RelationshipT, results)
 
-    def _resolve_target_model(self, owner: type[PureBaseModel] | None = None) -> type[PureBaseModel]:
+    def resolve_binding(
+        self,
+        owner: type[PureBaseModel] | None = None
+    ) -> tuple[type[PureBaseModel], 'Storage', str]:
+        """
+        统一解析 Relationship 绑定信息。
+
+        Returns:
+            (目标模型类, 目标 storage, 目标表名)
+        """
+        actual_owner = owner or self.owner
+        relationship_name = self.name or '<unnamed>'
+
+        if actual_owner is None:
+            raise ValidationError(
+                f"Cannot resolve relationship '{relationship_name}': owner not set"
+            )
+
+        preferred_storage = self.storage or getattr(actual_owner, '__storage__', None)
+        target_model = self._resolve_target_model(
+            actual_owner,
+            preferred_storage=preferred_storage,
+        )
+        target_storage = self._resolve_target_storage(actual_owner, target_model)
+        target_table = self._resolve_target_table(target_model)
+        return target_model, target_storage, target_table
+
+    def _resolve_target_model(
+        self,
+        owner: type[PureBaseModel] | None = None,
+        *,
+        preferred_storage: 'Storage | None' = None,
+    ) -> type[PureBaseModel]:
         """
         解析目标模型
 
@@ -1026,21 +1063,62 @@ class Relationship(Generic[RelationshipT]):
             )
 
         # 优先从 Storage 注册表按表名查找
-        storage = getattr(actual_owner, '__storage__', None)
-        if storage:
-            model = storage._get_model_by_table(self.target_model)
+        if preferred_storage:
+            model = preferred_storage._get_model_by_table(self.target_model)
             if model:
                 return model
 
         # 回退：从模块命名空间按类名查找（兼容旧用法）
         owner_module = sys.modules.get(actual_owner.__module__)
         if owner_module and hasattr(owner_module, self.target_model):
-            return getattr(owner_module, self.target_model)
+            model = getattr(owner_module, self.target_model)
+            if isinstance(model, type) and issubclass(model, PureBaseModel):
+                return model
 
         raise ValidationError(
-            f"Cannot find model for '{self.target_model}'. "
-            f"Use table name (e.g., 'users') or ensure the model class is defined."
+            f"Cannot resolve relationship target '{self.target_model}' "
+            f"for '{actual_owner.__name__}.{self.name or '<unnamed>'}'. "
+            "Pass the target model class directly or specify storage= when using a string target."
         )
+
+    def _resolve_target_storage(
+        self,
+        owner: type[PureBaseModel],
+        target_model: type[PureBaseModel],
+    ) -> 'Storage':
+        """解析目标 storage，并处理显式 storage 与模型绑定冲突。"""
+        relationship_name = self.name or '<unnamed>'
+        model_storage = getattr(target_model, '__storage__', None)
+
+        if self.storage is not None:
+            if model_storage is not None and model_storage is not self.storage:
+                raise ValidationError(
+                    f"Relationship '{owner.__name__}.{relationship_name}' explicitly uses "
+                    "storage=, but the target model is already bound to a different storage. "
+                    "Remove storage= or pass the matching storage."
+                )
+            return self.storage
+
+        if model_storage is not None:
+            return model_storage
+
+        owner_storage = getattr(owner, '__storage__', None)
+        if owner_storage is not None:
+            return owner_storage
+
+        raise ValidationError(
+            f"Cannot resolve storage for relationship '{owner.__name__}.{relationship_name}'. "
+            "Pass the target model class directly or specify storage=."
+        )
+
+    def _resolve_target_table(self, target_model: type[PureBaseModel]) -> str:
+        """解析目标表名。"""
+        target_table = getattr(target_model, '__tablename__', None)
+        if not target_table:
+            raise ValidationError(
+                f"Relationship target model '{target_model.__name__}' must define __tablename__"
+            )
+        return target_table
 
     def __repr__(self) -> str:
         return f"Relationship(target={self.target_model}, fk={self.foreign_key})"
