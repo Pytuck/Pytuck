@@ -1,5 +1,9 @@
 # Pytuck - 轻量级 Python 文档数据库
 
+<p style="text-align: center;">
+  <img src="https://raw.githubusercontent.com/Pytuck/Pytuck/main/logo.png" width="200" alt="logo">
+</p>
+
 [![Gitee](https://img.shields.io/badge/Gitee-Pytuck%2FPytuck-red)](https://gitee.com/Pytuck/Pytuck)
 [![GitHub](https://img.shields.io/badge/GitHub-Pytuck%2FPytuck-blue)](https://github.com/Pytuck/Pytuck)
 
