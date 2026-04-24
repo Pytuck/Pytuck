@@ -366,6 +366,79 @@ class TestAutoFlushThreading:
         db.flush()
         db.close()
 
+    def test_flush_serializes_concurrent_writes_on_same_storage(self, tmp_path):
+        """同一 Storage 的并发 flush 应串行化，避免重复进入后端 save。"""
+        db_path = tmp_path / "test_concurrent_flush.pytuck"
+        db = Storage(file_path=str(db_path), auto_flush=False)
+
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class User(Base):
+            __tablename__ = 'users'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        session = Session(db)
+        session.execute(insert(User).values(id=1, name='Alice'))
+        session.commit()
+        session.close()
+
+        assert db.backend is not None
+        original_save = db.backend.save
+
+        state_lock = threading.Lock()
+        first_save_entered = threading.Event()
+        release_first_save = threading.Event()
+        save_calls = 0
+        active_saves = 0
+        max_active_saves = 0
+
+        def wrapped_save(tables, *, changed_tables=None):
+            nonlocal save_calls, active_saves, max_active_saves
+            with state_lock:
+                save_calls += 1
+                current_call = save_calls
+                active_saves += 1
+                max_active_saves = max(max_active_saves, active_saves)
+                if current_call == 1:
+                    first_save_entered.set()
+
+            try:
+                if current_call == 1:
+                    assert release_first_save.wait(timeout=2), "timed out waiting for second flush attempt"
+                return original_save(tables, changed_tables=changed_tables)
+            finally:
+                with state_lock:
+                    active_saves -= 1
+
+        db.backend.save = wrapped_save
+
+        errors: List[Exception] = []
+
+        def do_flush():
+            try:
+                db.flush()
+            except Exception as e:
+                errors.append(e)
+
+        thread1 = threading.Thread(target=do_flush)
+        thread2 = threading.Thread(target=do_flush)
+
+        thread1.start()
+        assert first_save_entered.wait(timeout=2), "first flush did not enter backend.save"
+        thread2.start()
+        time.sleep(0.05)
+        release_first_save.set()
+
+        thread1.join()
+        thread2.join()
+
+        assert errors == []
+        assert save_calls == 1
+        assert max_active_saves == 1
+
+        db.close()
+
 
 class TestThreadSafety:
     """线程安全边界测试"""
