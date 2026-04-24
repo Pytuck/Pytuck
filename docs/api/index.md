@@ -64,7 +64,7 @@ from pytuck.core.orm import Relationship
 
 ## 版本
 
-当前版本：`1.3.0`
+当前版本：`1.4.0`
 
 ## 支持的 Python 版本
 

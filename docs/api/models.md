@@ -408,7 +408,7 @@ Relationship(
 | `foreign_key` | `str` | 必填 | 外键字段名 |
 | `back_populates` | `Optional[str]` | `None` | 反向关联的属性名 |
 | `uselist` | `Optional[bool]` | `None` | `None`=自动判断, `True`=返回列表, `False`=返回单个对象 |
-| `storage` | `Optional[Storage]` | `None` | 可选。目标模型不在当前模型绑定的 storage 中时，可显式指定目标模型所在的 `Storage`，用于按表名解析目标模型 |
+| `storage` | `Optional[Storage]` | `None` | 可选。目标模型不在当前模型绑定的 storage 中时，可显式指定目标模型所在的 `Storage`，用于按表名解析目标模型；此时目标模型应已注册到该 `Storage`（通常通过 `declarative_base(target_storage)` 绑定模型后自动注册） |
 
 ### 使用示例
 
@@ -465,6 +465,7 @@ class UserFavorite(FavoriteBase):
 
 - **当前真实行为**：首次访问关联属性时才执行查询，并把结果缓存到实例上
 - **跨 storage 说明**：可直接传目标模型类，或在字符串目标场景下通过 `storage=` 显式指定目标模型所在的 `Storage`；这同样适用于 `prefetch()`
+- **注册前提**：若 `target_model` 使用字符串表名，Pytuck 会按表名在对应 `Storage` 的模型注册表中解析目标模型，因此目标模型需要先绑定到该 `Storage`
 - **不支持 join**：跨表读取仍然只通过 `Relationship` / `prefetch()` 或业务侧分开查询后自行组合完成
 - **自动判断方向**：
   - 如果 `foreign_key` 在当前模型中 → 多对一（返回单个对象）

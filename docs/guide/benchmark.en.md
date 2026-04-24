@@ -63,6 +63,28 @@ The main comparison table includes:
 - Before the optimization, the same `session.add_all() + commit()` path took about `47.59s`; it is now about `0.72s`
 - The gain mainly comes from two fixes: removing the O(N²) duplicate-check bottleneck in `Session.add()`, and batching new objects in `Session.flush()` via `storage.bulk_insert()` grouped by model class
 
+## JSON / orjson focused benchmark
+
+> Test time: 2026-04-24 22:57:26 CST
+>
+> Environment: macOS-26.4.1-arm64-arm-64bit-Mach-O / Python 3.13.11
+>
+> Dataset: 100000 records
+>
+> Scope: this run compares only the `json` and `jsonl` engines under two serializer implementations: the standard-library `json` and `orjson`. It focuses on serialization-sensitive paths: `save`, `load`, `reopen`, `reopen_first_query`, and file size.
+
+| Engine | Impl | Save | Load | Reopen | First Query After Reopen | Size |
+|--------|------|------|------|--------|--------------------------|------|
+| JSON | json | 154.51ms | 219.81ms | 226.54ms | 10.5μs | 20.99MB |
+| JSON | orjson | 117.12ms | 184.05ms | 178.87ms | 14.2μs | 19.65MB |
+| JSONL | json | 315.49ms | 326.85ms | 286.08ms | 5.2μs | 1.14MB |
+| JSONL | orjson | 177.94ms | 236.22ms | 198.88ms | 5.9μs | 1.15MB |
+
+- On the `json` engine, `orjson` is about `1.32x` faster on `save`, `1.19x` on `load`, and `1.27x` on `reopen`
+- On the `jsonl` engine, the gain is larger: `orjson` is about `1.77x` faster on `save`, `1.38x` on `load`, and `1.44x` on `reopen`
+- File size changes are small: `JSON + orjson` is slightly smaller than `JSON + json`, while `JSONL` stays nearly identical across implementations
+- `reopen_first_query` remains in the microsecond range for all four combinations, which suggests the main difference is still in serialization/deserialization rather than primary-key lookup itself
+
 ## Notes
 
 ### Pytuck
@@ -129,6 +151,9 @@ uv run python tests/benchmark/benchmark.py -n 100000 -e pytuck json jsonl csv sq
 
 # Single-engine run
 uv run python tests/benchmark/benchmark.py -e pytuck -n 100000 --extended --output-json /tmp/pytuck.json
+
+# Focused json vs orjson comparison for JSON / JSONL only
+uv run python tests/benchmark/benchmark_json_impl.py -n 100000 --output-json /tmp/pytuck-json-impl.json
 ```
 
 ## Related docs

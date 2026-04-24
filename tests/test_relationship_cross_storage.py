@@ -11,7 +11,7 @@ from typing import Callable
 
 import pytest
 
-from pytuck import Column, CRUDBaseModel, Storage, declarative_base, prefetch
+from pytuck import Column, CRUDBaseModel, Session, Storage, ValidationError, declarative_base, prefetch, select
 from pytuck.backends import BackendRegistry
 from pytuck.core.orm import Relationship
 
@@ -308,3 +308,81 @@ def test_cross_storage_prefetch_one_to_many(
     assert len(favorites) == 2
     assert {favorite.user_id for favorite in favorites} == {10, 11}
     assert all(favorite.product_id == product.id for favorite in favorites)
+
+
+def test_select_options_prefetch_supports_cross_storage_string_target(
+    engine_pair: tuple[Storage, Storage, tuple[str, str]]
+) -> None:
+    """跨 storage 的 select().options(prefetch()) 应支持字符串目标与显式 storage。"""
+    product_db, favorite_db, engines = engine_pair
+
+    captured_models: list[tuple[type[CRUDBaseModel], type[CRUDBaseModel]]] = []
+
+    def build_models() -> None:
+        captured_models.append(
+            build_cross_storage_models(
+                product_db,
+                favorite_db,
+                use_string_target=True,
+                target_storage=product_db,
+            )
+        )
+
+    assert_only_missing_storage_parameter_gap(
+        build_models,
+        source_engine=engines[1],
+        target_engine=engines[0],
+    )
+
+    Product, UserFavorite = captured_models[0]
+    product = Product.create(name="Widget")
+    favorite = UserFavorite.create(user_id=1, product_id=product.id)
+
+    session = Session(favorite_db)
+    try:
+        stmt = select(UserFavorite).options(prefetch("product"))
+        favorites = session.execute(stmt).all()
+    finally:
+        session.close()
+
+    assert len(favorites) == 1
+    assert favorites[0].id == favorite.id
+    loaded_product = favorites[0].product
+    assert loaded_product is not None
+    assert loaded_product.id == product.id
+    assert loaded_product.name == "Widget"
+
+
+def test_relationship_storage_conflict_raises_validation_error(
+    engine_pair: tuple[Storage, Storage, tuple[str, str]]
+) -> None:
+    """当显式 storage 与目标模型绑定 storage 冲突时，应抛出明确异常。"""
+    product_db, favorite_db, _ = engine_pair
+    ProductBase = declarative_base(product_db, crud=True)
+    FavoriteBase = declarative_base(favorite_db, crud=True)
+
+    class Product(ProductBase):
+        __tablename__ = "products"
+
+        id = Column(int, primary_key=True)
+        name = Column(str)
+
+    class UserFavorite(FavoriteBase):
+        __tablename__ = "favorites"
+
+        id = Column(int, primary_key=True)
+        product_id = Column(int)
+        product = Relationship(
+            Product,
+            foreign_key="product_id",
+            storage=favorite_db,
+            uselist=False,
+        )
+
+    product = Product.create(name="Widget")
+    favorite = UserFavorite.create(product_id=product.id)
+    reloaded_favorite = UserFavorite.get(favorite.id)
+    assert reloaded_favorite is not None
+
+    with pytest.raises(ValidationError, match="different storage"):
+        _ = reloaded_favorite.product
