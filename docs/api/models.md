@@ -397,6 +397,7 @@ Relationship(
     lazy: bool = True,          # 保留兼容参数，当前实现仍为首次访问时加载
     back_populates: Optional[str] = None,  # 反向属性名
     uselist: Optional[bool] = None,  # 返回类型
+    storage: Optional[Storage] = None,  # 显式指定目标模型所在的 Storage
 )
 ```
 
@@ -409,6 +410,7 @@ Relationship(
 | `lazy` | `bool` | `True` | 保留兼容参数；当前实现无论取值如何，都是首次访问时查询并缓存结果 |
 | `back_populates` | `Optional[str]` | `None` | 反向关联的属性名 |
 | `uselist` | `Optional[bool]` | `None` | `None`=自动判断, `True`=返回列表, `False`=返回单个对象 |
+| `storage` | `Optional[Storage]` | `None` | 可选。目标模型不在当前模型绑定的 storage 中时，可显式指定目标模型所在的 `Storage`，用于按表名解析目标模型 |
 
 ### 使用示例
 
@@ -436,6 +438,28 @@ class Category(Base):
     )  # type: ignore
     children: List['Category'] = Relationship(
         'categories', foreign_key='parent_id', uselist=True
+    )  # type: ignore
+
+# 跨 storage 场景：按表名引用目标模型时，显式指定目标 storage
+product_db = Storage(file_path='products.sqlite', engine='sqlite')
+favorite_db = Storage(file_path='favorites.json', engine='json')
+
+ProductBase = declarative_base(product_db, crud=True)
+FavoriteBase = declarative_base(favorite_db, crud=True)
+
+class Product(ProductBase):
+    __tablename__ = 'products'
+    id = Column(int, primary_key=True)
+    name = Column(str)
+
+class UserFavorite(FavoriteBase):
+    __tablename__ = 'favorites'
+    id = Column(int, primary_key=True)
+    product_id = Column(int)
+    product: Optional[Product] = Relationship(
+        'products',
+        foreign_key='product_id',
+        storage=product_db,
     )  # type: ignore
 ```
 
