@@ -44,7 +44,7 @@ class DuckDBConnector(DatabaseConnector):
         bool: 'BOOLEAN',
         bytes: 'BLOB',
         # 扩展类型（尽量使用 DuckDB 原生类型）
-        datetime: 'TIMESTAMP',
+        datetime: 'TIMESTAMPTZ',
         date: 'DATE',
         timedelta: 'INTERVAL',
         list: 'JSON',
