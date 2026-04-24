@@ -68,7 +68,6 @@ pip install pytuck[duckdb]  # DuckDB 引擎（需要 duckdb）
 pip install pytuck[excel]   # Excel 引擎（需要 openpyxl）
 pip install pytuck[xml]     # XML 引擎（需要 lxml）
 pip install pytuck[orjson]  # JSON / JSONL 可选加速
-pip install pytuck[ujson]   # JSON / JSONL 可选加速
 
 # 安装所有可选依赖
 pip install pytuck[all]

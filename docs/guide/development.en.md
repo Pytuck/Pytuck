@@ -16,7 +16,6 @@ pip install pytuck[duckdb]   # DuckDB support only
 pip install pytuck[excel]    # Excel support only
 pip install pytuck[xml]      # XML support only
 pip install pytuck[orjson]   # Optional JSON / JSONL acceleration
-pip install pytuck[ujson]    # Optional JSON / JSONL acceleration
 pip install pytuck[dev]      # Development tools
 ```
 
@@ -34,7 +33,6 @@ uv add "pytuck[duckdb]"    # DuckDB support only
 uv add "pytuck[excel]"     # Excel support only
 uv add "pytuck[xml]"       # XML support only
 uv add "pytuck[orjson]"    # Optional JSON / JSONL acceleration
-uv add "pytuck[ujson]"     # Optional JSON / JSONL acceleration
 ```
 
 ## Contributors: Sync the Development Environment

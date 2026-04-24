@@ -56,6 +56,7 @@ db = Storage(
 ### 限制
 - 文件格式不可人工阅读或编辑
 - 当前单文件新写入支持无加密 / `low` / `medium` / `high`
+- 第三方工具无法直接检查或修复内部数据，排障通常需要通过 Pytuck 自身 API 导出
 - 如果更看重原生 SQL、服务端分页或超大数据集，优先考虑 SQLite / DuckDB
 
 ---
@@ -66,7 +67,7 @@ db = Storage(
 
 ### 特性
 - 人类可读，可手动编辑
-- 支持多种 JSON 库加速（`orjson`、`ujson`）
+- 支持 `orjson` 可选加速
 - 无外部依赖
 
 ### 配置
@@ -89,6 +90,7 @@ db = Storage(
 - 每次保存完整重写文件
 - 大文件场景 I/O 开销较高
 - `datetime`、`date`、`timedelta` 序列化为字符串，`bytes` 序列化为 Base64
+- 虽然可手动编辑，但若直接修改 schema、类型名或编码后的值，重新加载时可能出现类型恢复失败
 
 ---
 
@@ -99,7 +101,7 @@ JSONL 文件打包为 ZIP 存储（每张表一个 `.jsonl` 文件 + 元数据 `
 ### 特性
 - 人类可读（解压后）
 - 每行一条记录，便于逐行处理和外部工具消费
-- 支持多种 JSON 库加速（`orjson`、`ujson`）
+- 支持 `orjson` 可选加速
 - 支持 ZIP 密码保护
 - 无外部依赖
 
@@ -128,6 +130,7 @@ db = Storage(
 - ZIP 密码仅允许 ASCII 可打印字符（不支持中文、日文、空格等）
 - 当前保存策略为全量重写，适合交换、归档、调试，不适合超大文件高频更新
 - `datetime`、`date`、`timedelta` 序列化为字符串，`bytes` 序列化为 Base64
+- 解压后手工修改 `.jsonl` 或重新打包 ZIP 时，如果破坏 `_metadata.json` 与表数据的一致性，类型恢复可能失败
 
 ---
 
@@ -222,6 +225,7 @@ db = Storage(
 - `bool` 类型存储为 `0` / `1`（SQLite 无原生布尔类型）
 - `list` / `dict` 类型序列化为 JSON 字符串存储
 - `datetime` / `date` / `timedelta` 序列化为文本存储
+- 直接使用外部 SQL 工具修改 schema 或表名后，若与 Pytuck 模型定义不一致，重开时可能出现映射偏差
 
 ---
 
@@ -261,6 +265,7 @@ pip install duckdb
 - 需要安装 `duckdb`
 - 当前 ORM / Session 的逐条写入路径不适合大批量写入 benchmark；DuckDB 更适合分析查询和原生 SQL 场景
 - `list` / `dict` 类型以 JSON 形式存储
+- 直接在外部工具中修改表结构、schema 或注释后，需要确保与 Pytuck 模型定义保持一致
 
 ---
 
@@ -297,6 +302,8 @@ pip install openpyxl
 - 需要安装 `openpyxl`
 - 每次保存完整重写文件
 - 大文件写入较慢
+- Excel 空单元格无法区分 `None`、空字符串 `''` 和空 bytes `b''`；重新加载时会按空单元格语义合并处理
+- 直接在 Excel / WPS 中手工改表头、隐藏元数据工作表或单元格文本，可能破坏列类型恢复与表结构识别
 - 行号映射功能（`row_number_mapping`）可追踪原始 Excel 行号
 
 ---
@@ -333,6 +340,8 @@ pip install lxml
 - 需要安装 `lxml`
 - 每次保存完整重写文件
 - XML 解析性能一般
+- `bytes` 以 Base64 文本保存，`list` / `dict` 以 JSON 文本保存；手工编辑时需要保留对应编码语义
+- 若手工修改 `null`、`encoding`、`type` 等属性，重新加载时可能出现类型恢复错误
 
 ---
 
