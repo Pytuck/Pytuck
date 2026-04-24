@@ -21,6 +21,12 @@
 | [性能基准报告](../guide/benchmark.md) | 最新 benchmark 结果、测试环境与复现命令 |
 | [开发与发布指南](../guide/development.md) | 安装细节、uv 工作流、贡献开发与打包发布 |
 
+## 近期 API / 运行时重点更新
+
+- **JSON / JSONL 已不再记录 `ujson` 支持路径**：当前文档与官方内置实现统一以标准库 `json` 与可选 `orjson` 为主，减少实现分叉
+- **`Storage.flush()` 增加多线程写锁保护**：用于降低同一 `Storage` 实例在多线程场景下并发写盘时的竞态风险，详见 [存储引擎](storage.md)
+- **`Relationship` / `prefetch()` 支持跨 storage 关联加载**：适合基础库与用户库分离、且引擎可不同的场景；Pytuck 仍不支持 join，详见 [模型定义](models.md)
+
 ## 快速导入参考
 
 ```python

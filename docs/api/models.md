@@ -394,7 +394,6 @@ from pytuck.core.orm import Relationship
 Relationship(
     target_model: Union[str, Type[PureBaseModel]],  # 目标模型类或表名
     foreign_key: str,           # 外键字段名
-    lazy: bool = True,          # 保留兼容参数，当前实现仍为首次访问时加载
     back_populates: Optional[str] = None,  # 反向属性名
     uselist: Optional[bool] = None,  # 返回类型
     storage: Optional[Storage] = None,  # 显式指定目标模型所在的 Storage
@@ -407,7 +406,6 @@ Relationship(
 |------|------|--------|------|
 | `target_model` | `Union[str, Type]` | 必填 | 目标模型类或表名字符串（推荐使用表名，支持前向引用） |
 | `foreign_key` | `str` | 必填 | 外键字段名 |
-| `lazy` | `bool` | `True` | 保留兼容参数；当前实现无论取值如何，都是首次访问时查询并缓存结果 |
 | `back_populates` | `Optional[str]` | `None` | 反向关联的属性名 |
 | `uselist` | `Optional[bool]` | `None` | `None`=自动判断, `True`=返回列表, `False`=返回单个对象 |
 | `storage` | `Optional[Storage]` | `None` | 可选。目标模型不在当前模型绑定的 storage 中时，可显式指定目标模型所在的 `Storage`，用于按表名解析目标模型 |
@@ -465,7 +463,9 @@ class UserFavorite(FavoriteBase):
 
 ### 行为说明
 
-- **当前真实行为**：首次访问关联属性时才执行查询，并把结果缓存到实例上；`lazy=False` 目前不会改为 eager load
+- **当前真实行为**：首次访问关联属性时才执行查询，并把结果缓存到实例上
+- **跨 storage 说明**：可直接传目标模型类，或在字符串目标场景下通过 `storage=` 显式指定目标模型所在的 `Storage`；这同样适用于 `prefetch()`
+- **不支持 join**：跨表读取仍然只通过 `Relationship` / `prefetch()` 或业务侧分开查询后自行组合完成
 - **自动判断方向**：
   - 如果 `foreign_key` 在当前模型中 → 多对一（返回单个对象）
   - 如果 `foreign_key` 在目标模型中 → 一对多（返回列表）
