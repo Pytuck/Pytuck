@@ -16,7 +16,6 @@ pip install pytuck[duckdb]   # 仅 DuckDB 支持
 pip install pytuck[excel]    # 仅 Excel 支持
 pip install pytuck[xml]      # 仅 XML 支持
 pip install pytuck[orjson]   # JSON / JSONL 可选加速
-pip install pytuck[ujson]    # JSON / JSONL 可选加速
 pip install pytuck[dev]      # 开发工具
 ```
 
@@ -34,7 +33,6 @@ uv add "pytuck[duckdb]"    # 仅 DuckDB 支持
 uv add "pytuck[excel]"     # 仅 Excel 支持
 uv add "pytuck[xml]"       # 仅 XML 支持
 uv add "pytuck[orjson]"    # JSON / JSONL 可选加速
-uv add "pytuck[ujson]"     # JSON / JSONL 可选加速
 ```
 
 ## 贡献者：同步源码开发环境

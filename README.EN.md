@@ -37,6 +37,14 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 - **Type safety**: Built-in conversion, strict mode, and custom `validator`
 - **Flexible persistence**: Manual `flush()` or `auto_flush=True`
 
+## Recent Highlights
+
+Compared with the previous public release, these are the three updates worth noticing first:
+
+- **`ujson` is no longer part of the documented or built-in JSON / JSONL support path**: the supported built-in path is now the standard-library `json` plus optional `orjson`, which keeps behavior more predictable and reduces implementation branching
+- **`Storage.flush()` now uses a multi-thread write lock**: this lowers the risk of concurrent disk-write races when the same `Storage` instance is flushed from multiple threads; it does not change Pytuck's overall single-process embedded-database positioning
+- **`Relationship` / `prefetch()` now support cross-storage relationship loading**: this fits split-database layouts such as a read-mostly base catalog plus a user-data database, even when the two files use different engines; Pytuck still **does not support joins**, so cross-table reads remain relationship-driven or manually composed from separate queries
+
 ## Documentation Map
 
 The README home page now focuses on project positioning, installation, and minimal getting-started examples. Detailed explanations have been split into `docs/`:
@@ -68,7 +76,6 @@ pip install pytuck[duckdb]  # DuckDB engine (requires duckdb)
 pip install pytuck[excel]   # Excel engine (requires openpyxl)
 pip install pytuck[xml]     # XML engine (requires lxml)
 pip install pytuck[orjson]  # Optional JSON / JSONL acceleration
-pip install pytuck[ujson]   # Optional JSON / JSONL acceleration
 
 # Install all optional dependencies
 pip install pytuck[all]

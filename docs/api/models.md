@@ -382,7 +382,7 @@ pks = User.bulk_insert(users)
 
 ## Relationship
 
-关联关系描述符，支持一对多和多对一关联，延迟加载 + 自动缓存。
+关联关系描述符，支持一对多和多对一关联；当前真实行为是首次访问时加载并自动缓存结果。
 
 ```python
 from pytuck.core.orm import Relationship
@@ -394,9 +394,9 @@ from pytuck.core.orm import Relationship
 Relationship(
     target_model: Union[str, Type[PureBaseModel]],  # 目标模型类或表名
     foreign_key: str,           # 外键字段名
-    lazy: bool = True,          # 延迟加载
     back_populates: Optional[str] = None,  # 反向属性名
     uselist: Optional[bool] = None,  # 返回类型
+    storage: Optional[Storage] = None,  # 显式指定目标模型所在的 Storage
 )
 ```
 
@@ -406,9 +406,9 @@ Relationship(
 |------|------|--------|------|
 | `target_model` | `Union[str, Type]` | 必填 | 目标模型类或表名字符串（推荐使用表名，支持前向引用） |
 | `foreign_key` | `str` | 必填 | 外键字段名 |
-| `lazy` | `bool` | `True` | 是否延迟加载（首次访问时才查询） |
 | `back_populates` | `Optional[str]` | `None` | 反向关联的属性名 |
 | `uselist` | `Optional[bool]` | `None` | `None`=自动判断, `True`=返回列表, `False`=返回单个对象 |
+| `storage` | `Optional[Storage]` | `None` | 可选。目标模型不在当前模型绑定的 storage 中时，可显式指定目标模型所在的 `Storage`，用于按表名解析目标模型 |
 
 ### 使用示例
 
@@ -437,16 +437,40 @@ class Category(Base):
     children: List['Category'] = Relationship(
         'categories', foreign_key='parent_id', uselist=True
     )  # type: ignore
+
+# 跨 storage 场景：按表名引用目标模型时，显式指定目标 storage
+product_db = Storage(file_path='products.sqlite', engine='sqlite')
+favorite_db = Storage(file_path='favorites.json', engine='json')
+
+ProductBase = declarative_base(product_db, crud=True)
+FavoriteBase = declarative_base(favorite_db, crud=True)
+
+class Product(ProductBase):
+    __tablename__ = 'products'
+    id = Column(int, primary_key=True)
+    name = Column(str)
+
+class UserFavorite(FavoriteBase):
+    __tablename__ = 'favorites'
+    id = Column(int, primary_key=True)
+    product_id = Column(int)
+    product: Optional[Product] = Relationship(
+        'products',
+        foreign_key='product_id',
+        storage=product_db,
+    )  # type: ignore
 ```
 
 ### 行为说明
 
-- **延迟加载**：首次访问关联属性时才执行查询
-- **自动缓存**：查询结果缓存到实例，后续访问不再查询
+- **当前真实行为**：首次访问关联属性时才执行查询，并把结果缓存到实例上
+- **跨 storage 说明**：可直接传目标模型类，或在字符串目标场景下通过 `storage=` 显式指定目标模型所在的 `Storage`；这同样适用于 `prefetch()`
+- **不支持 join**：跨表读取仍然只通过 `Relationship` / `prefetch()` 或业务侧分开查询后自行组合完成
 - **自动判断方向**：
   - 如果 `foreign_key` 在当前模型中 → 多对一（返回单个对象）
   - 如果 `foreign_key` 在目标模型中 → 一对多（返回列表）
   - 自引用场景需用 `uselist` 显式指定
+- **批量预取**：如需避免 N+1 查询，请使用 `prefetch(users, 'orders')` 或 `select(User).options(prefetch('orders'))`
 
 ---
 

@@ -47,7 +47,7 @@ class JsonBackendOptions:
 |------|------|--------|------|
 | `indent` | `Optional[int]` | `None` | 缩进空格数。`None` 为紧凑格式 |
 | `ensure_ascii` | `bool` | `False` | 是否强制 ASCII 编码 |
-| `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'ujson'`、`'json'` 等 |
+| `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'json'` 或自定义实现名 |
 
 ### JsonlBackendOptions
 
@@ -62,7 +62,7 @@ class JsonlBackendOptions:
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `ensure_ascii` | `bool` | `False` | 是否强制 ASCII 编码 |
-| `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'ujson'`、`'json'` 等 |
+| `impl` | `Optional[str]` | `None` | 指定 JSON 库：`'orjson'`、`'json'` 或自定义实现名 |
 | `password` | `Optional[str]` | `None` | ZIP 密码（仅 ASCII 可打印字符）；设置后 JSONL ZIP 将启用密码保护 |
 
 ### CsvBackendOptions

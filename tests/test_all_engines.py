@@ -262,6 +262,77 @@ class TestAllEngines:
         session.close()
         db.close()
 
+    def test_excel_round_trip_coalesces_empty_values(self, tmp_path: Path) -> None:
+        """Excel 引擎会将 None、空字符串和空 bytes 合并为空单元格语义。"""
+        if not is_engine_available('excel'):
+            pytest.skip(get_skip_reason('excel'))
+
+        db_file = tmp_path / 'test_null_round_trip.xlsx'
+
+        db = Storage(file_path=str(db_file), engine='excel')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class NullTest(Base):
+            __tablename__ = 'null_test'
+            id = Column(int, primary_key=True)
+            str_field = Column(str, nullable=True)
+            int_field = Column(int, nullable=True)
+            bytes_field = Column(bytes, nullable=True)
+
+        session = Session(db)
+        session.execute(insert(NullTest).values(str_field='test', int_field=1, bytes_field=b'data'))
+        session.execute(insert(NullTest).values(str_field=None, int_field=None, bytes_field=None))
+        session.execute(insert(NullTest).values(str_field='', int_field=0, bytes_field=b''))
+        session.commit()
+        db.flush()
+        session.close()
+        db.close()
+
+        db_reloaded = Storage(file_path=str(db_file), engine='excel')
+        ReloadedBase: Type[PureBaseModel] = declarative_base(db_reloaded)
+
+        class ReloadedNullTest(ReloadedBase):
+            __tablename__ = 'null_test'
+            id = Column(int, primary_key=True)
+            str_field = Column(str, nullable=True)
+            int_field = Column(int, nullable=True)
+            bytes_field = Column(bytes, nullable=True)
+
+        reloaded_session = Session(db_reloaded)
+        reloaded_records = reloaded_session.execute(select(ReloadedNullTest).order_by('id')).all()
+
+        assert [record.str_field for record in reloaded_records] == ['test', None, None]
+        assert [record.int_field for record in reloaded_records] == [1, None, 0]
+        assert [record.bytes_field for record in reloaded_records] == [b'data', None, None]
+
+        reloaded_session.close()
+        db_reloaded.close()
+
+    def test_excel_external_headers_are_normalized_to_strings(self, tmp_path: Path) -> None:
+        """外部 Excel 的非字符串表头应规范化为字符串，避免内部键类型不一致。"""
+        if not is_engine_available('excel'):
+            pytest.skip(get_skip_reason('excel'))
+
+        import openpyxl
+
+        db_file = tmp_path / 'external_headers.xlsx'
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'users'
+        ws.append([123, 'name'])
+        ws.append(['oops', 'Alice'])
+        wb.save(str(db_file))
+        wb.close()
+
+        db = Storage(file_path=str(db_file), engine='excel')
+        table = db.get_table('users')
+
+        assert table is not None
+        assert '123' in table.columns
+        assert 123 not in table.columns
+        assert table.data[1]['123'] == 'oops'
+        db.close()
+
     @pytest.mark.parametrize("engine_name,file_ext", ALL_ENGINES)
     def test_engine_index_query(self, engine_name: str, file_ext: str, tmp_path: Path) -> None:
         """
@@ -446,6 +517,105 @@ class TestAllEngines:
 
         session2.close()
         db2.close()
+
+    @pytest.mark.parametrize("engine_name,file_ext", ALL_ENGINES)
+    def test_engine_supported_type_round_trip(self, engine_name: str, file_ext: str, tmp_path: Path) -> None:
+        """
+        测试每个引擎对全部内置支持类型的 round-trip 保真。
+
+        这里集中覆盖：
+        int / str / float / bool / bytes / datetime / date /
+        timedelta / list / dict。
+        """
+        if not is_engine_available(engine_name):
+            pytest.skip(get_skip_reason(engine_name))
+
+        db_file = tmp_path / f'test_supported_types_{engine_name}.{file_ext}'
+
+        db = Storage(file_path=str(db_file), engine=engine_name)
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class SupportedTypes(Base):
+            __tablename__ = 'supported_types'
+            id = Column(int, primary_key=True)
+            int_field = Column(int)
+            str_field = Column(str)
+            float_field = Column(float)
+            bool_field = Column(bool)
+            bytes_field = Column(bytes)
+            datetime_field = Column(datetime)
+            date_field = Column(date)
+            timedelta_field = Column(timedelta)
+            list_field = Column(list)
+            dict_field = Column(dict)
+
+        aware_datetime = datetime(
+            2024, 2, 29, 23, 45, 12, 654321,
+            tzinfo=timezone(timedelta(hours=8, minutes=30))
+        )
+        exact_date = date(2024, 2, 29)
+        exact_duration = timedelta(days=2, hours=3, minutes=4, seconds=5, microseconds=678901)
+        binary_payload = bytes([0, 1, 2, 127, 128, 255]) + '你好'.encode('utf-8')
+        list_payload = ['alpha', 1, True, None, {'nested': ['x', 2]}]
+        dict_payload = {
+            'name': '类型覆盖',
+            'enabled': False,
+            'threshold': 0.125,
+            'items': ['a', {'deep': [1, 2, 3]}],
+        }
+
+        session = Session(db)
+        session.execute(insert(SupportedTypes).values(
+            int_field=-123456789,
+            str_field='Hello, 类型 round-trip',
+            float_field=-1234.56789,
+            bool_field=False,
+            bytes_field=binary_payload,
+            datetime_field=aware_datetime,
+            date_field=exact_date,
+            timedelta_field=exact_duration,
+            list_field=list_payload,
+            dict_field=dict_payload,
+        ))
+        session.commit()
+        db.flush()
+        session.close()
+        db.close()
+
+        db_reloaded = Storage(file_path=str(db_file), engine=engine_name)
+        ReloadedBase: Type[PureBaseModel] = declarative_base(db_reloaded)
+
+        class ReloadedSupportedTypes(ReloadedBase):
+            __tablename__ = 'supported_types'
+            id = Column(int, primary_key=True)
+            int_field = Column(int)
+            str_field = Column(str)
+            float_field = Column(float)
+            bool_field = Column(bool)
+            bytes_field = Column(bytes)
+            datetime_field = Column(datetime)
+            date_field = Column(date)
+            timedelta_field = Column(timedelta)
+            list_field = Column(list)
+            dict_field = Column(dict)
+
+        reloaded_session = Session(db_reloaded)
+        record = reloaded_session.get(ReloadedSupportedTypes, 1)
+
+        assert record is not None
+        assert record.int_field == -123456789
+        assert record.str_field == 'Hello, 类型 round-trip'
+        assert record.float_field == pytest.approx(-1234.56789)
+        assert record.bool_field is False
+        assert record.bytes_field == binary_payload
+        assert record.datetime_field == aware_datetime
+        assert record.date_field == exact_date
+        assert record.timedelta_field == exact_duration
+        assert record.list_field == list_payload
+        assert record.dict_field == dict_payload
+
+        reloaded_session.close()
+        db_reloaded.close()
 
     @pytest.mark.parametrize("engine_name,file_ext", ALL_ENGINES)
     def test_engine_column_name_mapping(self, engine_name: str, file_ext: str, tmp_path: Path) -> None:

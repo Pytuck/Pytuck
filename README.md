@@ -1,5 +1,9 @@
 # Pytuck - 轻量级 Python 文档数据库
 
+<p style="text-align: center;">
+  <img src="https://raw.githubusercontent.com/Pytuck/Pytuck/main/logo.png" width="200" alt="logo">
+</p>
+
 [![Gitee](https://img.shields.io/badge/Gitee-Pytuck%2FPytuck-red)](https://gitee.com/Pytuck/Pytuck)
 [![GitHub](https://img.shields.io/badge/GitHub-Pytuck%2FPytuck-blue)](https://github.com/Pytuck/Pytuck)
 
@@ -37,6 +41,14 @@
 - **类型安全**：内置类型转换、严格模式、自定义 `validator`
 - **可选持久化策略**：支持手动 `flush()` 与 `auto_flush=True`
 
+## 近期重点更新
+
+相较上一个公开版本，当前文档建议优先关注以下三点：
+
+- **JSON / JSONL 文档与实现已不再包含 `ujson` 支持**：当前官方内置路径收敛为标准库 `json` 与可选 `orjson`，以减少实现分叉与行为差异
+- **`Storage.flush()` 增加多线程写锁保护**：用于降低同一 `Storage` 实例在多线程场景下并发写盘时的竞态风险；这不改变项目“单进程嵌入式数据库”的总体定位
+- **`Relationship` / `prefetch()` 支持跨 storage 关联加载**：适合“基础库 + 用户库”这类分库场景，且两个文件可以使用不同引擎；Pytuck 仍然**不支持 join**，跨表读取依旧依赖 `Relationship` 或分开查询后自行组合
+
 ## 文档导航
 
 README 首页现在只保留项目定位、安装与最小上手示例；详细说明已拆分到 `docs/`：
@@ -68,7 +80,6 @@ pip install pytuck[duckdb]  # DuckDB 引擎（需要 duckdb）
 pip install pytuck[excel]   # Excel 引擎（需要 openpyxl）
 pip install pytuck[xml]     # XML 引擎（需要 lxml）
 pip install pytuck[orjson]  # JSON / JSONL 可选加速
-pip install pytuck[ujson]   # JSON / JSONL 可选加速
 
 # 安装所有可选依赖
 pip install pytuck[all]

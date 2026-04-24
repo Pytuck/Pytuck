@@ -66,7 +66,7 @@ def build_db(
     index_type: Any,
     record_count: int,
     ages: List[int]
-) -> Tuple[Storage, Session, type]:
+) -> Tuple[Storage, Session, type[PureBaseModel]]:
     """
     创建并填充内存数据库
 
@@ -129,9 +129,9 @@ def bench_select_range(
     session_none: Session,
     session_hash: Session,
     session_sorted: Session,
-    model_none: type,
-    model_hash: type,
-    model_sorted: type,
+    model_none: type[PureBaseModel],
+    model_hash: type[PureBaseModel],
+    model_sorted: type[PureBaseModel],
     range_pairs: List[Tuple[int, int]],
 ) -> Tuple[float, float, float]:
     """select() API 范围查询测试"""

@@ -14,7 +14,7 @@
 | `type_validation_demo.py` | 类型验证与转换 | 展示宽松/严格模式、None 处理、布尔转换规则等 Column 类型行为 |
 | `typing_demo.py` | 泛型类型提示 | 展示 `Select[User]`、`Result[User]` 等泛型如何提升 IDE 补全和类型推断 |
 | `backend_options_demo.py` | 后端配置选项 | 展示各引擎的强类型 dataclass 选项（JSON/CSV/SQLite/Excel/XML/Pytuck） |
-| `json_impl_demo.py` | JSON 实现选择 | 展示 orjson/ujson 等多种 JSON 库切换、性能对比和自定义实现 |
+| `json_impl_demo.py` | JSON 实现选择 | 展示标准库 JSON、orjson、自定义实现切换与性能对比 |
 | `migration_tools_demo.py` | 数据迁移工具 | 展示 `migrate_engine()` 跨引擎迁移和 `import_from_database()` 外部导入 |
 | `_common.py` | 内部工具 | 提供临时目录等示例共用的辅助函数（不直接运行） |
 

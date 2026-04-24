@@ -7,11 +7,11 @@ Pytuck 事务功能演示
 - 演示事务的成功提交和自动回滚
 """
 
-import os
 import sys
+from pathlib import Path
 
 # 添加父目录到路径
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from pytuck import Storage, declarative_base, Session, Column
 from pytuck import select, insert, update

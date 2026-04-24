@@ -6,6 +6,7 @@ Pytuck 存储引擎
 
 import copy
 import json
+import threading
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Any, Iterator, Generator, TYPE_CHECKING, Sequence
@@ -1017,6 +1018,7 @@ class Storage:
         self.auto_flush = auto_flush
         self.tables: dict[str, Table] = {}
         self._dirty = False
+        self._write_lock = threading.RLock()
 
         # 事务管理属性
         self._in_transaction: bool = False
@@ -2198,25 +2200,20 @@ class Storage:
 
             # 排序
             if order_by and order_by in table.columns:
-                def sort_key(_record: dict[str, Any]) -> tuple:
-                    """
-                    排序键函数
-
-                    排序规则：
-                    - None 值在升序时排在最后，降序时排在最前
-                    - 使用元组 (优先级, 值) 实现：优先级 0 表示有值，1 表示 None
-                    """
-                    value = _record.get(order_by)
-                    # 处理 None 值：升序时 None 排在最后 (1, 0)，降序时排在最前 (0, 0)
-                    if value is None:
-                        return (1, 0) if not order_desc else (0, 0)
-                    return (0, value) if not order_desc else (1, value)
+                none_results = [record for record in results if record.get(order_by) is None]
+                non_none_results = [record for record in results if record.get(order_by) is not None]
 
                 try:
-                    results.sort(key=sort_key, reverse=order_desc)
+                    non_none_results.sort(key=lambda record: record[order_by], reverse=order_desc)
                 except TypeError:
                     # 如果比较失败（比如混合类型），按字符串排序
-                    results.sort(key=lambda r: str(r.get(order_by, '')), reverse=order_desc)
+                    non_none_results.sort(key=lambda record: str(record.get(order_by, '')), reverse=order_desc)
+
+                results = (
+                    none_results + non_none_results
+                    if order_desc
+                    else non_none_results + none_results
+                )
 
             # 分页
             if offset > 0:
@@ -2612,50 +2609,52 @@ class Storage:
 
     def flush(self) -> None:
         """强制写入磁盘"""
-        # 原生 SQL 模式：提交连接器事务确保数据持久化
-        if self._native_sql_mode and self._native_sql_in_transaction:
-            self._native_sql_commit_transaction()
+        with self._write_lock:
+            # 原生 SQL 模式：提交连接器事务确保数据持久化
+            if self._native_sql_mode and self._native_sql_in_transaction:
+                self._native_sql_commit_transaction()
 
-        if self.backend and self._dirty:
-            event.dispatch_storage(self, 'before_flush')
+            if self.backend and self._dirty:
+                event.dispatch_storage(self, 'before_flush')
 
-            # 收集变更的表名（用于后端增量保存优化）
-            changed_tables = {
-                name for name, table in self.tables.items()
-                if table.is_dirty
-            }
+                # 收集变更的表名（用于后端增量保存优化）
+                changed_tables = {
+                    name for name, table in self.tables.items()
+                    if table.is_dirty
+                }
 
-            # 当前 pytuck 单文件后端会在 flush 时写出完整表数据，
-            # 因此 flush 前必须把所有 lazy 表 materialize，避免未改动表被写成空表。
-            for table in self.tables.values():
-                if table._lazy_loaded:
-                    table._ensure_all_loaded()
+                # 当前 pytuck 单文件后端会在 flush 时写出完整表数据，
+                # 因此 flush 前必须把所有 lazy 表 materialize，避免未改动表被写成空表。
+                for table in self.tables.values():
+                    if table._lazy_loaded:
+                        table._ensure_all_loaded()
 
-            self.backend.save(self.tables, changed_tables=changed_tables)
-            self._dirty = False
-            # 重置所有表的脏标记
-            for table in self.tables.values():
-                table.reset_dirty()
+                self.backend.save(self.tables, changed_tables=changed_tables)
+                self._dirty = False
+                # 重置所有表的脏标记
+                for table in self.tables.values():
+                    table.reset_dirty()
 
-            event.dispatch_storage(self, 'after_flush')
+                event.dispatch_storage(self, 'after_flush')
 
     def close(self) -> None:
         """关闭数据库"""
-        self.flush()
+        with self._write_lock:
+            self.flush()
 
-        # 关闭原生 SQL 模式的后端连接
-        if self._native_sql_mode and self.backend:
-            # 提交未完成的事务
-            if self._native_sql_in_transaction and self._connector:
-                if hasattr(self._connector, 'commit_transaction'):
-                    try:
-                        self._connector.commit_transaction()
-                    except Exception:
-                        pass
-                self._native_sql_in_transaction = False
-            if hasattr(self.backend, 'close'):
-                self.backend.close()
-            self._connector = None
+            # 关闭原生 SQL 模式的后端连接
+            if self._native_sql_mode and self.backend:
+                # 提交未完成的事务
+                if self._native_sql_in_transaction and self._connector:
+                    if hasattr(self._connector, 'commit_transaction'):
+                        try:
+                            self._connector.commit_transaction()
+                        except Exception:
+                            pass
+                    self._native_sql_in_transaction = False
+                if hasattr(self.backend, 'close'):
+                    self.backend.close()
+                self._connector = None
 
     def __repr__(self) -> str:
         return f"Storage(tables={len(self.tables)}, in_memory={self.in_memory})"

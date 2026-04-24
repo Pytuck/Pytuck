@@ -14,12 +14,22 @@ if TYPE_CHECKING:
     from ..core.orm import Column
     from ..core.storage import Storage
 
+
+def _safe_compare(operator: Callable[[Any, Any], bool]) -> Callable[[Any, Any], bool]:
+    def compare(x: Any, y: Any) -> bool:
+        if x is None or y is None:
+            return False
+        return operator(x, y)
+
+    return compare
+
+
 _OPERATOR_EVAL: dict[str, Callable[[Any, Any], bool]] = {
     '=': lambda x, y: x == y,
-    '>': lambda x, y: x > y,
-    '<': lambda x, y: x < y,
-    '>=': lambda x, y: x >= y,
-    '<=': lambda x, y: x <= y,
+    '>': _safe_compare(lambda x, y: x > y),
+    '<': _safe_compare(lambda x, y: x < y),
+    '>=': _safe_compare(lambda x, y: x >= y),
+    '<=': _safe_compare(lambda x, y: x <= y),
     '!=': lambda x, y: x != y,
     'IN': lambda x, y: x in y,
     'LIKE': lambda x, y: isinstance(x, str) and isinstance(y, str) and y.lower() in x.lower(),

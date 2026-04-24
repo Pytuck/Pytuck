@@ -125,14 +125,7 @@ def _prefetch_relationship(
         rel_name: 关系属性名
     """
     owner_class = type(instances[0])
-    target_model = rel._resolve_target_model(owner_class)
-    storage: 'Storage | None' = getattr(owner_class, '__storage__', None)
-    if storage is None:
-        raise ValueError(f"Model '{owner_class.__name__}' is not bound to a Storage")
-
-    target_table: str | None = getattr(target_model, '__tablename__', None)
-    if target_table is None:
-        raise ValueError(f"Target model has no __tablename__")
+    target_model, target_storage, target_table = rel.resolve_binding(owner_class)
 
     primary_key = getattr(owner_class, '__primary_key__', None) or '_pytuck_rowid'
     use_list = rel._uselist if rel._uselist is not None else rel.is_one_to_many
@@ -141,13 +134,13 @@ def _prefetch_relationship(
     if use_list:
         # 一对多
         _prefetch_one_to_many(
-            instances, storage, target_model, target_table,
+            instances, target_storage, target_model, target_table,
             primary_key, rel.foreign_key, cache_key
         )
     else:
         # 多对一
         _prefetch_many_to_one(
-            instances, storage, target_model, target_table,
+            instances, target_storage, target_model, target_table,
             rel.foreign_key, cache_key
         )
 
