@@ -29,6 +29,20 @@ class ExcelBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['openpyxl']
     FORMAT_VERSION = get_format_version('excel')
 
+    @staticmethod
+    def _non_empty_string(value: Any) -> str | None:
+        """仅接受非空字符串键，过滤 openpyxl 宽联合类型噪音。"""
+        if isinstance(value, str) and value:
+            return value
+        return None
+
+    @staticmethod
+    def _normalize_header_name(value: Any) -> str | None:
+        """将外部 Excel 表头规范化为字符串，保留列位置并避免内部键类型不一致。"""
+        if value is None or value == '':
+            return None
+        return str(value)
+
     def __init__(self, file_path: str | Path, options: ExcelBackendOptions):
         """
         初始化 Excel 后端
@@ -133,13 +147,16 @@ class ExcelBackend(StorageBackend):
                 tables_sheet = wb['_pytuck_tables']
                 rows = list(tables_sheet.iter_rows(min_row=2, values_only=True))
                 for row in rows:
-                    if row[0]:  # table_name 不为空
-                        table_name = row[0]
+                    table_name = self._non_empty_string(row[0])
+                    if table_name is not None:
+                        primary_key = self._non_empty_string(row[1])
+                        comment = row[3] if isinstance(row[3], str) and row[3] else None
+                        columns = json.loads(row[4]) if isinstance(row[4], str) and row[4] else []
                         tables_schema[table_name] = {
-                            'primary_key': row[1],
+                            'primary_key': primary_key,
                             'next_id': int(row[2]) if row[2] else 1,
-                            'comment': row[3] if row[3] else None,
-                            'columns': json.loads(row[4]) if row[4] else []
+                            'comment': comment,
+                            'columns': columns
                         }
 
             # 获取所有数据表名（排除元数据表）
@@ -168,8 +185,8 @@ class ExcelBackend(StorageBackend):
         if self.exists():
             self.file_path.unlink()
 
-    @staticmethod
-    def _save_table_to_workbook(wb: 'Workbook', table_name: str, table: 'Table') -> None:
+    @classmethod
+    def _save_table_to_workbook(cls, wb: 'Workbook', table_name: str, table: 'Table') -> None:
         """保存单个表的数据到工作簿"""
         # 数据工作表
         data_sheet = wb.create_sheet(table_name)
@@ -188,22 +205,19 @@ class ExcelBackend(StorageBackend):
             for col_name in columns:
                 value = record.get(col_name)
                 column = table.columns.get(col_name)
-
                 if value is None:
                     row.append('')
                 elif column and column.col_type == bool:
-                    # Excel 特殊处理：bool 转字符串 'TRUE'/'FALSE'
                     row.append('TRUE' if value else 'FALSE')
                 elif column:
-                    # 使用 TypeRegistry 统一序列化
                     row.append(TypeRegistry.serialize_for_text(value, column.col_type))
                 else:
                     row.append(value)
             data_sheet.append(row)
 
-    @staticmethod
+    @classmethod
     def _load_table_from_workbook(
-        wb: 'Workbook', table_name: str, schema: dict[str, Any]
+        cls, wb: 'Workbook', table_name: str, schema: dict[str, Any]
     ) -> 'Table':
         """从工作簿加载单个表"""
         from ..core.storage import Table
@@ -237,9 +251,10 @@ class ExcelBackend(StorageBackend):
             data_sheet = wb[table_name]
             rows_preview = list(data_sheet.iter_rows(values_only=True, max_row=1))
             if rows_preview:
-                headers = [h for h in rows_preview[0] if h]
+                headers = [cls._normalize_header_name(header) for header in rows_preview[0]]
                 for name in headers:
-                    columns.append(Column(str, name=name, nullable=True, primary_key=False))
+                    if name is not None:
+                        columns.append(Column(str, name=name, nullable=True, primary_key=False))
             # 外部 Excel 不添加主键列，使用无主键模式
 
         # 创建表（primary_key 可能为 None）
@@ -253,32 +268,29 @@ class ExcelBackend(StorageBackend):
         max_int_pk = 0  # 用于更新 next_id
 
         if len(rows) > 1:
-            headers = rows[0]
+            headers = [cls._normalize_header_name(header) for header in rows[0]]
             for row_data in rows[1:]:
                 record: dict[str, Any] = {}
                 for col_name, value in zip(headers, row_data):
+                    if col_name is None:
+                        continue
                     if col_name not in table.columns:
                         continue
 
                     column = table.columns[col_name]
-
-                    # 处理空值
                     if value == '' or value is None:
                         value = None
                     elif column.col_type == bool:
-                        # Excel 的 bool 特殊处理
                         if isinstance(value, bool):
-                            pass  # 保持原样
+                            pass
                         elif isinstance(value, str):
                             value = (value.upper() == 'TRUE')
                         else:
                             value = bool(value)
                     elif column.col_type == bytes:
-                        # bytes 需要特殊处理（base64 解码）
                         if value:
                             value = base64.b64decode(value)
                     elif column.col_type in (datetime, date, timedelta, list, dict, int, float):
-                        # 使用 TypeRegistry 统一反序列化
                         value = TypeRegistry.deserialize_from_text(value, column.col_type)
 
                     record[col_name] = value
@@ -340,8 +352,9 @@ class ExcelBackend(StorageBackend):
             if '_metadata' in wb.sheetnames:
                 sheet = wb['_metadata']
                 for row in sheet.iter_rows(min_row=2, values_only=True):
-                    if row[0] and row[1]:
-                        metadata[row[0]] = row[1]
+                    metadata_key = self._non_empty_string(row[0])
+                    if metadata_key is not None and row[1] is not None:
+                        metadata[metadata_key] = row[1]
 
             wb.close()
             return metadata
@@ -421,12 +434,13 @@ class ExcelBackend(StorageBackend):
                             if '_metadata' in wb.sheetnames:
                                 metadata_sheet = wb['_metadata']
                                 for row in metadata_sheet.iter_rows(min_row=2, values_only=True):
-                                    if row[0] and row[1]:
-                                        if row[0] == 'format_version':
+                                    metadata_key = cls._non_empty_string(row[0])
+                                    if metadata_key is not None and row[1] is not None:
+                                        if metadata_key == 'format_version':
                                             format_version = row[1]
-                                        elif row[0] == 'timestamp':
+                                        elif metadata_key == 'timestamp':
                                             timestamp = row[1]
-                                        elif row[0] == 'table_count':
+                                        elif metadata_key == 'table_count':
                                             table_count = row[1]
 
                             wb.close()
