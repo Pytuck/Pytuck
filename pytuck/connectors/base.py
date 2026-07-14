@@ -46,7 +46,7 @@ class DatabaseConnector(ABC):
     # SQL 类型到 Python 类型的映射
     SQL_TO_TYPE: dict[str, ColumnTypes] = {}
 
-    def __init__(self, db_path: str, options: ConnectorOptions):
+    def __init__(self, db_path: str, options: ConnectorOptions) -> None:
         """
         初始化连接器
 

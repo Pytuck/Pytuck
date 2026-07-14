@@ -98,7 +98,7 @@ class DuckDBConnector(DatabaseConnector):
         'TIME': str,  # Pytuck 暂不支持 time 类型，用 str
     }
 
-    def __init__(self, db_path: str, options: DuckdbConnectorOptions):
+    def __init__(self, db_path: str, options: DuckdbConnectorOptions) -> None:
         """
         初始化 DuckDB 连接器
 

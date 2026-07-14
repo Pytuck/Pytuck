@@ -33,7 +33,7 @@ class DuckDBBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['duckdb']
     FORMAT_VERSION = get_format_version('duckdb')
 
-    def __init__(self, file_path: str | Path, options: DuckdbBackendOptions):
+    def __init__(self, file_path: str | Path, options: DuckdbBackendOptions) -> None:
         """
         初始化 DuckDB 后端
 

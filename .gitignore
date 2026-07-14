@@ -4,6 +4,7 @@ __pycache__/
 *.pyc
 .vscode/
 .worktrees/
+.codegraph/
 .DS_Store
 tmp
 docs/superpowers/

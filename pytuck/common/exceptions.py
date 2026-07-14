@@ -29,7 +29,7 @@ class PytuckException(Exception):
         column_name: str | None = None,
         pk: Any = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         self.message = message
         self.table_name = table_name
         self.column_name = column_name
@@ -65,7 +65,7 @@ class PytuckException(Exception):
 class TableNotFoundError(PytuckException):
     """表不存在异常"""
 
-    def __init__(self, table_name: str):
+    def __init__(self, table_name: str) -> None:
         super().__init__(
             f"Table '{table_name}' not found",
             table_name=table_name
@@ -74,7 +74,7 @@ class TableNotFoundError(PytuckException):
 class RecordNotFoundError(PytuckException):
     """记录不存在异常"""
 
-    def __init__(self, table_name: str, pk: Any):
+    def __init__(self, table_name: str, pk: Any) -> None:
         super().__init__(
             f"Record with primary key '{pk}' not found in table '{table_name}'",
             table_name=table_name,
@@ -84,7 +84,7 @@ class RecordNotFoundError(PytuckException):
 class DuplicateKeyError(PytuckException):
     """主键重复异常"""
 
-    def __init__(self, table_name: str, pk: Any):
+    def __init__(self, table_name: str, pk: Any) -> None:
         super().__init__(
             f"Duplicate primary key '{pk}' in table '{table_name}'",
             table_name=table_name,
@@ -94,7 +94,7 @@ class DuplicateKeyError(PytuckException):
 class ColumnNotFoundError(PytuckException):
     """列不存在异常"""
 
-    def __init__(self, table_name: str, column_name: str):
+    def __init__(self, table_name: str, column_name: str) -> None:
         super().__init__(
             f"Column '{column_name}' not found in table '{table_name}'",
             table_name=table_name,
@@ -120,7 +120,7 @@ class ValidationError(PytuckException):
         column_name: str | None = None,
         pk: Any = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(
             message,
             table_name=table_name,
@@ -149,7 +149,7 @@ class TypeConversionError(ValidationError):
         target_type: str | None = None,
         column_name: str | None = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         extra_details = details or {}
         if value is not None:
             extra_details['value'] = repr(value)
@@ -181,7 +181,7 @@ class ConfigurationError(PytuckException):
         message: str,
         *,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, details=details)
 
 class SchemaError(ConfigurationError):
@@ -198,7 +198,7 @@ class SchemaError(ConfigurationError):
         *,
         table_name: str | None = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         # 需要重新调用 PytuckException.__init__ 以设置 table_name
         PytuckException.__init__(
             self,
@@ -225,7 +225,7 @@ class QueryError(PytuckException):
         table_name: str | None = None,
         column_name: str | None = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(
             message,
             table_name=table_name,
@@ -249,7 +249,7 @@ class TransactionError(PytuckException):
         message: str,
         *,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, details=details)
 
 # =============================================================================
@@ -268,7 +268,7 @@ class DatabaseConnectionError(PytuckException):
         message: str,
         *,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, details=details)
 
 # =============================================================================
@@ -288,7 +288,7 @@ class SerializationError(PytuckException):
         *,
         table_name: str | None = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, table_name=table_name, details=details)
 
 # =============================================================================
@@ -307,7 +307,7 @@ class EncryptionError(PytuckException):
         message: str,
         *,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, details=details)
 
 # =============================================================================
@@ -326,7 +326,7 @@ class MigrationError(PytuckException):
         message: str,
         *,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, details=details)
 
 # =============================================================================
@@ -347,7 +347,7 @@ class PytuckIndexError(PytuckException):
         table_name: str | None = None,
         column_name: str | None = None,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(
             message,
             table_name=table_name,
@@ -372,5 +372,5 @@ class UnsupportedOperationError(PytuckException):
         message: str,
         *,
         details: dict[str, Any] | None = None
-    ):
+    ) -> None:
         super().__init__(message, details=details)

@@ -35,7 +35,7 @@ class CSVBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = []  # 标准库
     FORMAT_VERSION = get_format_version('csv')
 
-    def __init__(self, file_path: str | Path, options: CsvBackendOptions):
+    def __init__(self, file_path: str | Path, options: CsvBackendOptions) -> None:
         """
         初始化 CSV 后端
 

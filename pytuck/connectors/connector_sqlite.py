@@ -83,7 +83,7 @@ class SQLiteConnector(DatabaseConnector):
         'TIME': str,  # Pytuck 暂不支持 time 类型，用 str
     }
 
-    def __init__(self, db_path: str, options: SqliteConnectorOptions):
+    def __init__(self, db_path: str, options: SqliteConnectorOptions) -> None:
         """
         初始化 SQLite 连接器
 

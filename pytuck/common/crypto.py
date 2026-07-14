@@ -8,7 +8,9 @@ Pytuck 加密模块 - 纯 Python 实现，零外部依赖
 """
 
 import hashlib
+import hmac
 import struct
+from collections.abc import Iterable
 
 from .exceptions import ConfigurationError
 
@@ -71,7 +73,32 @@ class CryptoProvider:
         Returns:
             密钥是否匹配
         """
-        return CryptoProvider.compute_key_check(key) == key_check
+        return hmac.compare_digest(CryptoProvider.compute_key_check(key), key_check)
+
+    @staticmethod
+    def derive_encryption_key(key: bytes) -> bytes:
+        """为带认证的新格式派生独立的载荷加密子密钥。"""
+        return hmac.new(key, b'pytuck-v7-encryption', hashlib.sha256).digest()
+
+    @staticmethod
+    def create_authenticator(key: bytes) -> hmac.HMAC:
+        """创建使用独立认证子密钥的 HMAC-SHA256 计算器。"""
+        auth_key = hmac.new(key, b'pytuck-v7-authentication', hashlib.sha256).digest()
+        return hmac.new(auth_key, digestmod=hashlib.sha256)
+
+    @staticmethod
+    def compute_auth_tag(key: bytes, chunks: Iterable[bytes]) -> bytes:
+        """计算若干文件片段的认证标签。"""
+        authenticator = CryptoProvider.create_authenticator(key)
+        for chunk in chunks:
+            authenticator.update(chunk)
+        return authenticator.digest()
+
+    @staticmethod
+    def verify_auth_tag(key: bytes, chunks: Iterable[bytes], tag: bytes) -> bool:
+        """以常量时间比较认证标签。"""
+        expected = CryptoProvider.compute_auth_tag(key, chunks)
+        return hmac.compare_digest(expected, tag)
 
 class XORCipher:
     """

@@ -28,7 +28,7 @@ class JSONBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = []  # 标准库
     FORMAT_VERSION = get_format_version('json')
 
-    def __init__(self, file_path: str | Path, options: JsonBackendOptions):
+    def __init__(self, file_path: str | Path, options: JsonBackendOptions) -> None:
         """
         初始化 JSON 后端
 

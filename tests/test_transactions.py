@@ -231,6 +231,34 @@ class TestTransactionNesting(unittest.TestCase):
                     self.session.execute(stmt)
 
 
+class TestTransactionSchemaRollback(unittest.TestCase):
+    """事务回滚必须恢复完整表映射和结构。"""
+
+    def test_schema_changes_are_rolled_back(self) -> None:
+        db = Storage(in_memory=True)
+        db.create_table(
+            'existing',
+            [
+                Column(int, name='id', primary_key=True),
+                Column(str, name='value'),
+            ],
+        )
+
+        with self.assertRaises(RuntimeError):
+            with db.transaction():
+                db.create_table(
+                    'created',
+                    [Column(int, name='id', primary_key=True)],
+                )
+                db.alter_column('existing', 'value', col_type=int)
+                db.rename_table('existing', 'renamed')
+                raise RuntimeError('rollback')
+
+        self.assertEqual(set(db.tables), {'existing'})
+        self.assertEqual(db.tables['existing'].name, 'existing')
+        self.assertIs(db.tables['existing'].columns['value'].col_type, str)
+        db.close()
+
 class TestSessionContextManager(unittest.TestCase):
     """Session 上下文管理器测试"""
 

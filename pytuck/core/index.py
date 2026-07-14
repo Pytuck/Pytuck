@@ -11,7 +11,7 @@ from typing import Any
 class BaseIndex(ABC):
     """索引基类（抽象接口）"""
 
-    def __init__(self, column_name: str):
+    def __init__(self, column_name: str) -> None:
         """
         初始化索引
 
@@ -100,7 +100,7 @@ class HashIndex(BaseIndex):
     用于等值查询，O(1) 的插入、删除和查找性能。
     """
 
-    def __init__(self, column_name: str):
+    def __init__(self, column_name: str) -> None:
         """
         初始化哈希索引
 
@@ -173,7 +173,7 @@ class SortedIndex(BaseIndex):
     插入和删除为 O(n)，查找为 O(log n)，范围查询为 O(log n + k)。
     """
 
-    def __init__(self, column_name: str):
+    def __init__(self, column_name: str) -> None:
         """
         初始化有序索引
 

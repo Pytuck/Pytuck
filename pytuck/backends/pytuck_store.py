@@ -5,6 +5,7 @@ PTK7 主存储路径实现。
 """
 
 from dataclasses import dataclass, field
+import hmac
 import json
 import os
 from pathlib import Path
@@ -26,6 +27,7 @@ from ..core.orm import Column
 from ..core.storage import Table
 from ..core.types import TypeRegistry
 from .pytuck_format import (
+    AUTH_TAG_SIZE,
     CRYPTO_META_STRUCT,
     CryptoMetadataV7,
     FileHeaderV7,
@@ -239,7 +241,13 @@ class StorePTK7:
             key = CryptoProvider.derive_key(self.options.password, metadata.salt, encryption_level)
             if not CryptoProvider.verify_key(key, metadata.key_check):
                 raise EncryptionError("密码错误")
-            self._cipher = get_cipher(encryption_level, key)
+            if header.is_authenticated():
+                self._verify_file_authentication(header, key)
+                cipher_key = CryptoProvider.derive_encryption_key(key)
+            else:
+                # 兼容读取认证标签引入前写出的 PTK7 加密文件。
+                cipher_key = key
+            self._cipher = get_cipher(encryption_level, cipher_key)
             self._payload_offset = header.table_ref_offset + header.table_ref_size
 
         schema_blob = self._read_region(header.schema_offset, header.schema_size)
@@ -344,6 +352,7 @@ class StorePTK7:
 
         encryption_level = getattr(self.options, 'encryption', None)
         cipher: CipherType | None = None
+        master_key: bytes | None = None
         crypto_metadata: CryptoMetadataV7 | None = None
         metadata_size = 0
         if encryption_level is not None:
@@ -352,9 +361,14 @@ class StorePTK7:
             if not self.options.password:
                 raise ConfigurationError("加密需要提供密码")
             salt = os.urandom(16)
-            key = CryptoProvider.derive_key(self.options.password, salt, encryption_level)
-            key_check = CryptoProvider.compute_key_check(key)
-            cipher = get_cipher(encryption_level, key)
+            master_key = CryptoProvider.derive_key(
+                self.options.password,
+                salt,
+                encryption_level,
+            )
+            key_check = CryptoProvider.compute_key_check(master_key)
+            cipher_key = CryptoProvider.derive_encryption_key(master_key)
+            cipher = get_cipher(encryption_level, cipher_key)
             crypto_metadata = CryptoMetadataV7(salt=salt, key_check=key_check)
             metadata_size = CRYPTO_META_STRUCT.size
 
@@ -459,10 +473,30 @@ class StorePTK7:
             schema_size=len(schema_bytes),
             table_ref_offset=table_ref_offset,
             table_ref_size=len(table_ref_bytes),
-            file_size=payload_offset + len(payload_bytes),
+            file_size=(
+                payload_offset
+                + len(payload_bytes)
+                + (AUTH_TAG_SIZE if master_key is not None else 0)
+            ),
         )
         if encryption_level is not None:
-            header = header.set_encryption(encryption_level)
+            header = header.set_encryption(encryption_level).set_authenticated()
+
+        crypto_metadata_bytes = (
+            crypto_metadata.pack() if crypto_metadata is not None else b""
+        )
+        auth_tag = b""
+        if master_key is not None:
+            auth_tag = CryptoProvider.compute_auth_tag(
+                master_key,
+                (
+                    header.pack(),
+                    crypto_metadata_bytes,
+                    schema_bytes,
+                    table_ref_bytes,
+                    payload_bytes,
+                ),
+            )
 
         fd, temp_path_str = tempfile.mkstemp(
             dir=str(self.file_path.parent),
@@ -473,11 +507,11 @@ class StorePTK7:
         try:
             with os.fdopen(fd, "wb") as handle:
                 handle.write(header.pack())
-                if crypto_metadata is not None:
-                    handle.write(crypto_metadata.pack())
+                handle.write(crypto_metadata_bytes)
                 handle.write(schema_bytes)
                 handle.write(table_ref_bytes)
                 handle.write(payload_bytes)
+                handle.write(auth_tag)
             temp_path.replace(self.file_path)
             self._cipher = cipher
             self._payload_offset = payload_offset if cipher is not None else 0
@@ -492,6 +526,30 @@ class StorePTK7:
         with open(self.file_path, "rb") as handle:
             header_data = handle.read(HEADER_STRUCT.size)
         return FileHeaderV7.unpack(header_data)
+
+    def _verify_file_authentication(self, header: FileHeaderV7, key: bytes) -> None:
+        """流式校验新 PTK7 文件的长度与 HMAC-SHA256 认证标签。"""
+        actual_size = self.file_path.stat().st_size
+        if header.file_size != actual_size or actual_size < AUTH_TAG_SIZE:
+            raise EncryptionError("PTK7 文件完整性校验失败：文件长度不匹配")
+
+        authenticated_size = actual_size - AUTH_TAG_SIZE
+        authenticator = CryptoProvider.create_authenticator(key)
+        with open(self.file_path, "rb") as handle:
+            remaining = authenticated_size
+            while remaining:
+                chunk = handle.read(min(1024 * 1024, remaining))
+                if not chunk:
+                    raise EncryptionError("PTK7 文件完整性校验失败：文件被截断")
+                authenticator.update(chunk)
+                remaining -= len(chunk)
+            stored_tag = handle.read(AUTH_TAG_SIZE)
+
+        if len(stored_tag) != AUTH_TAG_SIZE or not hmac.compare_digest(
+            authenticator.digest(),
+            stored_tag,
+        ):
+            raise EncryptionError("PTK7 文件完整性校验失败：认证标签无效")
 
     def _read_region(self, offset: int, size: int) -> bytes:
         with open(self.file_path, "rb") as handle:

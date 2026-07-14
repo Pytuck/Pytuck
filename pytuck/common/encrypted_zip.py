@@ -9,6 +9,7 @@ import struct
 import time
 import zlib
 from pathlib import Path
+from types import TracebackType
 
 from .zipcrypto import ZipCryptoEncryptor
 
@@ -80,7 +81,12 @@ class EncryptedZipFile:
     def __enter__(self) -> 'EncryptedZipFile':
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         self.close()
 
     @staticmethod

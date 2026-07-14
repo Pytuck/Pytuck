@@ -147,7 +147,9 @@ class QueryCompiler:
             for field, desc in stmt._order_by_fields:
                 order_expr = self._quote(field)
                 if desc:
-                    order_expr += ' DESC'
+                    order_expr += ' DESC NULLS FIRST'
+                else:
+                    order_expr += ' ASC NULLS LAST'
                 order_parts.append(order_expr)
             sql += f' ORDER BY {", ".join(order_parts)}'
 

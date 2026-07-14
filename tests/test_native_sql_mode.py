@@ -332,6 +332,55 @@ class TestNativeSqlPersistence:
         session2.close()
         db2.close()
 
+    def test_session_begin_commits_before_close(self, tmp_path: Path) -> None:
+        """Session.begin 成功退出后必须提交 SQLite 原生事务。"""
+        db_file = tmp_path / 'begin_commit.sqlite'
+        db = Storage(file_path=db_file, engine='sqlite')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class BeginModel(Base):
+            __tablename__ = 'begin_items'
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        session = Session(db)
+        with session.begin():
+            session.add(BeginModel(name='persisted'))
+        session.close()
+        db.close()
+
+        reopened = Storage(file_path=db_file, engine='sqlite')
+        assert reopened.count_rows('begin_items') == 1
+        reopened.close()
+
+    def test_native_schema_changes_are_rolled_back(self, tmp_path: Path) -> None:
+        """SQLite DDL 与内存表映射必须在同一事务中回滚。"""
+        db_file = tmp_path / 'schema_rollback.sqlite'
+        db = Storage(file_path=db_file, engine='sqlite')
+        db.create_table(
+            'existing',
+            [
+                Column(int, name='id', primary_key=True),
+                Column(str, name='value'),
+            ],
+        )
+
+        with pytest.raises(RuntimeError, match='rollback'):
+            with db.transaction():
+                db.create_table(
+                    'created',
+                    [Column(int, name='id', primary_key=True)],
+                )
+                db.rename_table('existing', 'renamed')
+                raise RuntimeError('rollback')
+
+        assert set(db.tables) == {'existing'}
+        assert db._connector is not None
+        assert db._connector.table_exists('existing') is True
+        assert db._connector.table_exists('created') is False
+        assert db._connector.table_exists('renamed') is False
+        db.close()
+
 
 class TestNativeSqlModeConsistency:
     """验证原生模式与兼容模式行为一致"""
@@ -397,6 +446,39 @@ class TestNativeSqlModeConsistency:
         # 比较结果
         assert len(native_result) == len(memory_result) == 2
         assert {r.name for r in native_result} == {r.name for r in memory_result}
+
+    def test_null_ordering_matches_memory_mode(self, tmp_path: Path) -> None:
+        """原生 SQL 与内存模式应统一为 ASC NULLS LAST / DESC NULLS FIRST。"""
+        results: dict[bool, tuple[list[int], list[int]]] = {}
+
+        for native in (False, True):
+            db = Storage(
+                file_path=tmp_path / f'null_order_{native}.sqlite',
+                engine='sqlite',
+                backend_options=SqliteBackendOptions(use_native_sql=native),
+            )
+            Base: Type[PureBaseModel] = declarative_base(db)
+
+            class Item(Base):
+                __tablename__ = 'items'
+                id = Column(int, primary_key=True)
+                score = Column(int, nullable=True, index='sorted')
+
+            session = Session(db)
+            for item_id, score in ((1, 2), (2, None), (3, 1)):
+                session.execute(insert(Item).values(id=item_id, score=score))
+            session.commit()
+
+            asc = session.execute(select(Item).order_by('score')).all()
+            desc = session.execute(select(Item).order_by('score', desc=True)).all()
+            results[native] = (
+                [item.id for item in asc],
+                [item.id for item in desc],
+            )
+            session.close()
+            db.close()
+
+        assert results[False] == results[True] == ([3, 1, 2], [2, 1, 3])
 
 
 class TestNativeSqlSchemaOnlyLoad:

@@ -50,7 +50,7 @@ class Session:
             session.add(User(name='Charlie'))
     """
 
-    def __init__(self, storage: Storage, autocommit: bool = False):
+    def __init__(self, storage: Storage, autocommit: bool = False) -> None:
         """
         初始化 Session
 
@@ -242,10 +242,10 @@ class Session:
             data = {}
             for attr_name, column in instance.__columns__.items():
                 value = getattr(instance, attr_name, None)
-                if value is not None:
-                    # 使用 Column.name 作为存储键
-                    db_col_name = column.name if column.name else attr_name
-                    data[db_col_name] = value
+                # 使用 Column.name 作为存储键。必须保留显式 None，
+                # 否则 nullable 字段无法通过 Session 被清空。
+                db_col_name = column.name if column.name else attr_name
+                data[db_col_name] = value
 
             # 更新数据库
             self.storage.update(table_name, pk, data)

@@ -44,7 +44,7 @@ class StorageBackend(ABC):
             raise ConfigurationError(f'The engine name is already registered: "{cls.ENGINE_NAME}"')
         BackendRegistry.register(cls)
 
-    def __init__(self, file_path: str | Path, options: BackendOptions):
+    def __init__(self, file_path: str | Path, options: BackendOptions) -> None:
         """
         初始化后端
 

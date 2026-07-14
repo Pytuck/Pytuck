@@ -125,6 +125,20 @@ class TestDirtyTracking:
 
         db.close()
 
+    def test_dirty_tracking_can_clear_nullable_field(self) -> None:
+        """Session 更新必须保留显式 None，以便清空可空字段。"""
+        db, session, User = self._setup()
+        user = User(name='Alice', age=20)
+        session.add(user)
+        session.commit()
+
+        user.age = None
+        session.commit()
+
+        assert user.age is None
+        assert db.select('dt_users', user.id)['age'] is None
+        db.close()
+
 
 # ---------- merge ----------
 

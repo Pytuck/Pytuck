@@ -36,7 +36,7 @@ class SQLiteBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['sqlite3']  # 内置 sqlite3
     FORMAT_VERSION = get_format_version('sqlite')
 
-    def __init__(self, file_path: str | Path, options: SqliteBackendOptions):
+    def __init__(self, file_path: str | Path, options: SqliteBackendOptions) -> None:
         """
         初始化 SQLite 后端
 

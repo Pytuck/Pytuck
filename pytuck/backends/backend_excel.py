@@ -43,7 +43,7 @@ class ExcelBackend(StorageBackend):
             return None
         return str(value)
 
-    def __init__(self, file_path: str | Path, options: ExcelBackendOptions):
+    def __init__(self, file_path: str | Path, options: ExcelBackendOptions) -> None:
         """
         初始化 Excel 后端
 

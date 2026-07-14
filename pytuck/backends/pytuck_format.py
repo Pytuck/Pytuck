@@ -20,6 +20,7 @@ TABLE_REF_PREFIX_STRUCT = struct.Struct("<H")
 TABLE_REF_BODY_STRUCT = struct.Struct("<QQQQQQQQQQ")
 PK_DIR_INT_STRUCT = struct.Struct("<qQI")
 NULL_BITMAP_STRUCT = struct.Struct("<I")
+AUTH_TAG_SIZE = 32
 
 @dataclass(frozen=True)
 class CryptoMetadataV7:
@@ -46,6 +47,7 @@ class FileHeaderV7:
     FLAG_ENCRYPTION_ENABLED = 0x02
     FLAG_ENCRYPTION_LEVEL_MASK = 0x0C
     FLAG_ENCRYPTION_LEVEL_SHIFT = 2
+    FLAG_AUTHENTICATED = 0x10
 
     magic: bytes = MAGIC_V7
     version: int = 7
@@ -77,6 +79,10 @@ class FileHeaderV7:
     def is_encrypted(self) -> bool:
         return (self.flags & self.FLAG_ENCRYPTION_ENABLED) != 0
 
+    def is_authenticated(self) -> bool:
+        """返回文件是否带有覆盖全部文件内容的认证标签。"""
+        return (self.flags & self.FLAG_AUTHENTICATED) != 0
+
     def get_encryption_level(self) -> str | None:
         if not self.is_encrypted():
             return None
@@ -90,6 +96,10 @@ class FileHeaderV7:
         flags = self.flags | self.FLAG_ENCRYPTION_ENABLED
         flags = (flags & ~self.FLAG_ENCRYPTION_LEVEL_MASK) | (level_code << self.FLAG_ENCRYPTION_LEVEL_SHIFT)
         return replace(self, flags=flags)
+
+    def set_authenticated(self) -> "FileHeaderV7":
+        """标记文件使用带独立子密钥的认证加密布局。"""
+        return replace(self, flags=self.flags | self.FLAG_AUTHENTICATED)
 
     @classmethod
     def unpack(cls, data: bytes) -> "FileHeaderV7":
@@ -220,6 +230,7 @@ __all__ = [
     "MAGIC_V7",
     "HEADER_STRUCT",
     "CRYPTO_META_STRUCT",
+    "AUTH_TAG_SIZE",
     "PK_DIR_INT_STRUCT",
     "CryptoMetadataV7",
     "FileHeaderV7",

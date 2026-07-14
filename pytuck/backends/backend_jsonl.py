@@ -30,7 +30,7 @@ class JSONLBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = []
     FORMAT_VERSION = get_format_version('jsonl')
 
-    def __init__(self, file_path: str | Path, options: JsonlBackendOptions):
+    def __init__(self, file_path: str | Path, options: JsonlBackendOptions) -> None:
         """
         初始化 JSONL 后端
 

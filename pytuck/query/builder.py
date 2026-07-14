@@ -40,7 +40,7 @@ _OPERATOR_EVAL: dict[str, Callable[[Any, Any], bool]] = {
 class Condition:
     """查询条件"""
 
-    def __init__(self, field: str, operator: str, value: Any):
+    def __init__(self, field: str, operator: str, value: Any) -> None:
         """
         初始化条件
 
@@ -84,7 +84,7 @@ class BinaryExpression:
     例如：Student.age >= 18 会创建 BinaryExpression(Student.age, '>=', 18)
     """
 
-    def __init__(self, column: 'Column', operator: str, value: Any):
+    def __init__(self, column: 'Column', operator: str, value: Any) -> None:
         """
         初始化二元表达式
 
@@ -115,7 +115,7 @@ class CompositeCondition:
     支持递归嵌套，可以表示任意复杂的布尔逻辑组合。
     """
 
-    def __init__(self, operator: str, conditions: list[Condition | 'CompositeCondition']):
+    def __init__(self, operator: str, conditions: list[Condition | 'CompositeCondition']) -> None:
         """
         初始化组合条件
 
@@ -171,7 +171,7 @@ class LogicalExpression:
         or_(User.role == 'admin', and_(User.age >= 21, User.verified == True))
     """
 
-    def __init__(self, operator: str, expressions: list[ExpressionType]):
+    def __init__(self, operator: str, expressions: list[ExpressionType]) -> None:
         """
         初始化逻辑表达式
 

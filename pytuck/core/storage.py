@@ -40,14 +40,17 @@ class TransactionSnapshot:
     采用深拷贝策略确保数据隔离。
     """
 
-    def __init__(self, tables: dict[str, 'Table']):
+    def __init__(self, tables: dict[str, 'Table']) -> None:
         """
         创建快照
 
         Args:
             tables: 当前所有表的字典 {table_name: Table}
         """
-        self.table_snapshots: dict[str, dict] = {}
+        self.table_snapshots: dict[str, dict[str, Any]] = {}
+        # 保存事务开始时的表对象与名称映射。回滚时先恢复映射，
+        # 因而能够移除事务中新建的表，并恢复被删除或重命名的表。
+        self.table_refs = dict(tables)
 
         # 深拷贝所有表的关键状态
         for table_name, table in tables.items():
@@ -58,6 +61,10 @@ class TransactionSnapshot:
             lazy_loaded = table._lazy_loaded
 
             self.table_snapshots[table_name] = {
+                'name': table.name,
+                'columns': copy.deepcopy(table.columns),
+                'primary_key': table.primary_key,
+                'comment': table.comment,
                 'data': copy.deepcopy(table.data),
                 'indexes': copy.deepcopy(table.indexes),
                 'next_id': table.next_id,
@@ -76,21 +83,27 @@ class TransactionSnapshot:
         Args:
             tables: 要恢复的表字典
         """
-        for table_name, snapshot in self.table_snapshots.items():
-            if table_name in tables:
-                table = tables[table_name]
-                # 直接替换引用（快照已经是深拷贝）
-                table.data = snapshot['data']
-                table.indexes = snapshot['indexes']
-                table.next_id = snapshot['next_id']
+        tables.clear()
+        tables.update(self.table_refs)
 
-                # 恢复 lazy 相关运行时元数据，确保回滚后仍可按需加载
-                table._pk_offsets = copy.deepcopy(snapshot.get('pk_offsets'))
-                table._lazy_loaded = bool(snapshot.get('_lazy_loaded', False))
-                table._data_file = copy.deepcopy(snapshot.get('_data_file'))
-                table._backend = snapshot.get('_backend')
-                table._data_dirty = bool(snapshot.get('_data_dirty', False))
-                table._schema_dirty = bool(snapshot.get('_schema_dirty', False))
+        for table_name, snapshot in self.table_snapshots.items():
+            table = self.table_refs[table_name]
+            table.name = snapshot['name']
+            table.columns = snapshot['columns']
+            table.primary_key = snapshot['primary_key']
+            table.comment = snapshot['comment']
+            # 直接替换引用（快照已经是深拷贝）
+            table.data = snapshot['data']
+            table.indexes = snapshot['indexes']
+            table.next_id = snapshot['next_id']
+
+            # 恢复 lazy 相关运行时元数据，确保回滚后仍可按需加载
+            table._pk_offsets = copy.deepcopy(snapshot.get('pk_offsets'))
+            table._lazy_loaded = bool(snapshot.get('_lazy_loaded', False))
+            table._data_file = copy.deepcopy(snapshot.get('_data_file'))
+            table._backend = snapshot.get('_backend')
+            table._data_dirty = bool(snapshot.get('_data_dirty', False))
+            table._schema_dirty = bool(snapshot.get('_schema_dirty', False))
 
 class Table:
     """表管理"""
@@ -101,7 +114,7 @@ class Table:
         columns: list[Column],
         primary_key: str | None = None,
         comment: str | None = None
-    ):
+    ) -> None:
         """
         初始化表
 
@@ -997,7 +1010,7 @@ class Storage:
         engine: str = 'pytuck',
         auto_flush: bool = False,
         backend_options: BackendOptions | None = None,
-    ):
+    ) -> None:
         """
         初始化存储引擎
 
@@ -1166,7 +1179,7 @@ class Storage:
                 for col_name, col in table.columns.items():
                     connector.set_column_comment(table_name, col_name, col.comment)
 
-            connector.commit()
+            self._commit_native_schema_change()
 
     def get_table(self, name: str) -> Table:
         """
@@ -1519,6 +1532,17 @@ class Storage:
 
     # ========== 原生 SQL 模式的 Schema 操作 ==========
 
+    def _commit_native_schema_change(self) -> None:
+        """在非显式事务中提交原生 SQL 结构变更，并维持隐式事务状态。"""
+        if self._connector is None or self._in_transaction:
+            return
+
+        if self._native_sql_in_transaction:
+            self._native_sql_commit_transaction()
+        else:
+            self._connector.commit()
+            self._native_sql_begin_transaction()
+
     def _add_column_native_sql(
         self,
         table_name: str,
@@ -1546,7 +1570,7 @@ class Storage:
         self._connector.execute(sql)
         if hasattr(self._connector, 'set_column_comment'):
             self._connector.set_column_comment(table_name, column.name, column.comment)
-        self._connector.commit()
+        self._commit_native_schema_change()
 
     def _drop_column_native_sql(self, table_name: str, column_name: str) -> None:
         """在原生 SQL 模式下删除列（需要 SQLite 3.35+）"""
@@ -1558,7 +1582,7 @@ class Storage:
             f'DROP COLUMN {self._quote_sql_identifier(column_name)}'
         )
         self._connector.execute(sql)
-        self._connector.commit()
+        self._commit_native_schema_change()
 
     def _drop_table_native_sql(self, table_name: str) -> None:
         """在原生 SQL 模式下删除表"""
@@ -1567,7 +1591,7 @@ class Storage:
 
         sql = f'DROP TABLE IF EXISTS {self._quote_sql_identifier(table_name)}'
         self._connector.execute(sql)
-        self._connector.commit()
+        self._commit_native_schema_change()
 
     def _rename_table_native_sql(self, old_name: str, new_name: str) -> None:
         """在原生 SQL 模式下重命名表"""
@@ -1579,7 +1603,7 @@ class Storage:
             f'RENAME TO {self._quote_sql_identifier(new_name)}'
         )
         self._connector.execute(sql)
-        self._connector.commit()
+        self._commit_native_schema_change()
 
     @staticmethod
     def _quote_sql_identifier(identifier: str) -> str:
@@ -2273,7 +2297,10 @@ class Storage:
         order_by_clause = None
         if order_by and order_by in table.columns:
             direction = 'DESC' if order_desc else 'ASC'
-            order_by_clause = f'{self._quote_sql_identifier(order_by)} {direction}'
+            nulls = 'FIRST' if order_desc else 'LAST'
+            order_by_clause = (
+                f'{self._quote_sql_identifier(order_by)} {direction} NULLS {nulls}'
+            )
 
         # 执行查询
         rows = connector.query_rows(
@@ -2530,6 +2557,7 @@ class Storage:
         self._in_transaction = True
         self._transaction_snapshot = TransactionSnapshot(self.tables)
         self._transaction_dirty_flag = self._dirty
+        model_registry_snapshot = self._model_registry.copy()
 
         # 3. 临时禁用 auto_flush
         old_auto_flush = self.auto_flush
@@ -2539,14 +2567,20 @@ class Storage:
             # 4. 执行事务体
             yield self
 
-            # 5. 提交成功：恢复 auto_flush 并刷新
-            if old_auto_flush:
+            # 5. 提交成功：原生 SQL 提交真实连接器事务；
+            # 文件型后端仅在原 auto_flush 开启时写盘。
+            if self._native_sql_mode:
+                self._native_sql_commit_transaction()
+            elif old_auto_flush:
                 self.flush()
 
         except Exception:
             # 6. 回滚：恢复快照和状态
+            if self._native_sql_mode:
+                self._native_sql_rollback_transaction()
             if self._transaction_snapshot:
                 self._transaction_snapshot.restore(self.tables)
+            self._model_registry = model_registry_snapshot
             self._dirty = self._transaction_dirty_flag
             raise
 

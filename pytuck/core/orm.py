@@ -284,7 +284,7 @@ class Column:
                  foreign_key: tuple | None = None,
                  comment: str | None = None,
                  strict: bool = False,
-                 validator: Callable[[Any], bool] | list[Callable[[Any], bool]] | None = None):
+                 validator: Callable[[Any], bool] | list[Callable[[Any], bool]] | None = None) -> None:
         """
         初始化列定义
 
@@ -581,7 +581,7 @@ class PureBaseModel:
     __primary_key__: str | None = None  # None 表示无主键，使用隐式 rowid
     __relationships__: dict[str, 'Relationship'] = {}
 
-    def __init__(self, **kwargs: Any):
+    def __init__(self, **kwargs: Any) -> None:
         """初始化模型实例
 
         - 此方法应由 declarative_base 方法来重写。
@@ -918,7 +918,7 @@ class Relationship(Generic[RelationshipT]):
                  *,
                  back_populates: str | None = None,
                  uselist: bool | None = None,
-                 storage: 'Storage | None' = None):
+                 storage: 'Storage | None' = None) -> None:
         """
         初始化关联关系
 
@@ -1235,7 +1235,7 @@ def _create_pure_base(
         __primary_key__: str | None = None  # None 表示无主键，使用隐式 rowid
         __relationships__: dict[str, Relationship] = {}
 
-        def __init_subclass__(cls, **kwargs: Any):
+        def __init_subclass__(cls, **kwargs: Any) -> None:
             """子类初始化时自动收集字段并创建表"""
             super().__init_subclass__(**kwargs)
 
@@ -1312,7 +1312,7 @@ def _create_pure_base(
                 # 注册模型类到 Storage（用于 Relationship 按表名解析）
                 storage._register_model(table_name, cls)
 
-        def __init__(self, **kwargs: Any):
+        def __init__(self, **kwargs: Any) -> None:
             """初始化模型实例"""
             super().__init__(**kwargs)
             for col_name, column in self.__columns__.items():
@@ -1350,7 +1350,7 @@ def _create_crud_base(
         __primary_key__: str | None = None  # None 表示无主键，使用隐式 rowid
         __relationships__: dict[str, Relationship] = {}
 
-        def __init_subclass__(cls, **kwargs: Any):
+        def __init_subclass__(cls, **kwargs: Any) -> None:
             """子类初始化时自动收集字段并创建表"""
             super().__init_subclass__(**kwargs)
 
@@ -1427,7 +1427,7 @@ def _create_crud_base(
                 # 注册模型类到 Storage（用于 Relationship 按表名解析）
                 storage._register_model(table_name, cls)
 
-        def __init__(self, **kwargs: Any):
+        def __init__(self, **kwargs: Any) -> None:
             """初始化模型实例"""
             # CRUD 基类特有：跟踪是否从数据库加载
             super().__init__(**kwargs)

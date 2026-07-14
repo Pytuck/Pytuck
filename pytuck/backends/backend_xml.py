@@ -29,7 +29,7 @@ class XMLBackend(StorageBackend):
     REQUIRED_DEPENDENCIES = ['lxml']
     FORMAT_VERSION = get_format_version('xml')
 
-    def __init__(self, file_path: str | Path, options: XmlBackendOptions):
+    def __init__(self, file_path: str | Path, options: XmlBackendOptions) -> None:
         """
         初始化 XML 后端
 

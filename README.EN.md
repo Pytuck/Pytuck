@@ -160,7 +160,7 @@ db.close()
 
 ## Storage Engines at a Glance
 
-- **Pytuck**: Default single-file engine, zero dependencies, a good fit for embedded and restricted environments, with current new writes supporting `None` / `low` / `medium` / `high`
+- **Pytuck**: Default single-file engine, zero dependencies, a good fit for embedded and restricted environments, with current new writes supporting `None` / `low` / `medium` / `high`; encrypted files include HMAC-SHA256 integrity authentication while legacy encrypted PTK7 files remain readable
 
 > **Pytuck note**: The default single-file path currently prioritizes long-term format stability, true single-file persistence, and the open / reopen / primary-key lookup experience. It is not meant to be the universally fastest engine across every benchmark dimension. If you care more about native SQL, very large datasets, or specific peak benchmark numbers, prefer SQLite / DuckDB.
 - **JSON**: Best when readability and debugging matter most
