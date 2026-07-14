@@ -44,7 +44,7 @@ class SQLiteBackend(StorageBackend):
             file_path: SQLite 数据库文件路径
             options: SQLite 后端配置选项
         """
-        assert isinstance(options, SqliteBackendOptions), "options must be an instance of SqliteBackendOptions"
+        self._require_options_type(options, SqliteBackendOptions)
         super().__init__(file_path, options)
         # 类型安全：将 options 转为具体的 SqliteBackendOptions 类型
         self.options: SqliteBackendOptions = options

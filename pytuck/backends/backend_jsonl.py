@@ -38,7 +38,7 @@ class JSONLBackend(StorageBackend):
             file_path: JSONL ZIP 文件路径
             options: JSONL 后端配置选项
         """
-        assert isinstance(options, JsonlBackendOptions), 'options must be an instance of JsonlBackendOptions'
+        self._require_options_type(options, JsonlBackendOptions)
         super().__init__(file_path, options)
         self.options: JsonlBackendOptions = options
         self._setup_json_impl()

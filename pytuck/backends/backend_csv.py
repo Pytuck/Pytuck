@@ -43,7 +43,7 @@ class CSVBackend(StorageBackend):
             file_path: CSV ZIP 文件路径
             options: CSV 后端配置选项
         """
-        assert isinstance(options, CsvBackendOptions), "options must be an instance of CsvBackendOptions"
+        self._require_options_type(options, CsvBackendOptions)
         super().__init__(file_path, options)
         # 类型安全：将 options 转为具体的 CsvBackendOptions 类型
         self.options: CsvBackendOptions = options

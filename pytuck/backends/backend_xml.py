@@ -37,7 +37,7 @@ class XMLBackend(StorageBackend):
             file_path: XML 文件路径
             options: XML 后端配置选项
         """
-        assert isinstance(options, XmlBackendOptions), "options must be an instance of XmlBackendOptions"
+        self._require_options_type(options, XmlBackendOptions)
         super().__init__(file_path, options)
         # 类型安全：将 options 转为具体的 XmlBackendOptions 类型
         self.options: XmlBackendOptions = options

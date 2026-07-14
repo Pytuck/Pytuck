@@ -4,7 +4,6 @@ Pytuck 存储引擎
 提供数据存储和查询功能
 """
 
-import copy
 import json
 import threading
 from datetime import datetime, date, timedelta
@@ -17,6 +16,7 @@ from ..common.typing import ColumnTypes
 from .orm import Column, PSEUDO_PK_NAME
 from .index import BaseIndex, HashIndex, SortedIndex
 from .event import event
+from .transaction import TransactionSnapshot
 from ..query import Condition, CompositeCondition, ConditionType
 from ..common.exceptions import (
     TableNotFoundError,
@@ -31,79 +31,6 @@ from ..common.exceptions import (
 if TYPE_CHECKING:
     from ..backends.base import StorageBackend
     from ..backends.backend_pytuck import PytuckBackend
-
-class TransactionSnapshot:
-    """
-    事务快照类
-
-    用于存储事务开始时的数据状态，支持回滚操作。
-    采用深拷贝策略确保数据隔离。
-    """
-
-    def __init__(self, tables: dict[str, 'Table']) -> None:
-        """
-        创建快照
-
-        Args:
-            tables: 当前所有表的字典 {table_name: Table}
-        """
-        self.table_snapshots: dict[str, dict[str, Any]] = {}
-        # 保存事务开始时的表对象与名称映射。回滚时先恢复映射，
-        # 因而能够移除事务中新建的表，并恢复被删除或重命名的表。
-        self.table_refs = dict(tables)
-
-        # 深拷贝所有表的关键状态
-        for table_name, table in tables.items():
-            # 额外保存 lazy 相关运行时元数据，避免回滚后丢失按需加载能力
-            pk_offsets = copy.deepcopy(table._pk_offsets)
-            data_file = copy.deepcopy(table._data_file)
-            backend_ref = table._backend
-            lazy_loaded = table._lazy_loaded
-
-            self.table_snapshots[table_name] = {
-                'name': table.name,
-                'columns': copy.deepcopy(table.columns),
-                'primary_key': table.primary_key,
-                'comment': table.comment,
-                'data': copy.deepcopy(table.data),
-                'indexes': copy.deepcopy(table.indexes),
-                'next_id': table.next_id,
-                'pk_offsets': pk_offsets,
-                '_lazy_loaded': lazy_loaded,
-                '_data_file': data_file,
-                '_backend': backend_ref,
-                '_data_dirty': table._data_dirty,
-                '_schema_dirty': table._schema_dirty
-            }
-
-    def restore(self, tables: dict[str, 'Table']) -> None:
-        """
-        恢复快照到表对象
-
-        Args:
-            tables: 要恢复的表字典
-        """
-        tables.clear()
-        tables.update(self.table_refs)
-
-        for table_name, snapshot in self.table_snapshots.items():
-            table = self.table_refs[table_name]
-            table.name = snapshot['name']
-            table.columns = snapshot['columns']
-            table.primary_key = snapshot['primary_key']
-            table.comment = snapshot['comment']
-            # 直接替换引用（快照已经是深拷贝）
-            table.data = snapshot['data']
-            table.indexes = snapshot['indexes']
-            table.next_id = snapshot['next_id']
-
-            # 恢复 lazy 相关运行时元数据，确保回滚后仍可按需加载
-            table._pk_offsets = copy.deepcopy(snapshot.get('pk_offsets'))
-            table._lazy_loaded = bool(snapshot.get('_lazy_loaded', False))
-            table._data_file = copy.deepcopy(snapshot.get('_data_file'))
-            table._backend = snapshot.get('_backend')
-            table._data_dirty = bool(snapshot.get('_data_dirty', False))
-            table._schema_dirty = bool(snapshot.get('_schema_dirty', False))
 
 class Table:
     """表管理"""
@@ -2657,10 +2584,15 @@ class Storage:
                     if table.is_dirty
                 }
 
-                # 当前 pytuck 单文件后端会在 flush 时写出完整表数据，
-                # 因此 flush 前必须把所有 lazy 表 materialize，避免未改动表被写成空表。
-                for table in self.tables.values():
-                    if table._lazy_loaded:
+                preserve_unchanged_lazy = (
+                    self.backend.preserves_unchanged_lazy_tables_on_save()
+                )
+                for name, table in self.tables.items():
+                    if table._lazy_loaded and (
+                        not preserve_unchanged_lazy
+                        or name in changed_tables
+                        or table.is_dirty
+                    ):
                         table._ensure_all_loaded()
 
                 self.backend.save(self.tables, changed_tables=changed_tables)

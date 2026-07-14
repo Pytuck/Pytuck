@@ -40,8 +40,6 @@ class StorageBackend(ABC):
             raise ConfigurationError('ENGINE_NAME must be set')
 
         from .registry import BackendRegistry
-        if cls.ENGINE_NAME in BackendRegistry.list_engines():
-            raise ConfigurationError(f'The engine name is already registered: "{cls.ENGINE_NAME}"')
         BackendRegistry.register(cls)
 
     def __init__(self, file_path: str | Path, options: BackendOptions) -> None:
@@ -61,6 +59,14 @@ class StorageBackend(ABC):
         # 输入兼容性处理：统一转为 Path 对象
         self.file_path: Path = Path(file_path).expanduser()
         self.options = options
+
+    @staticmethod
+    def _require_options_type(options: BackendOptions, expected_type: type[Any]) -> None:
+        """显式校验后端选项类型，避免校验在 ``python -O`` 下被移除。"""
+        if not isinstance(options, expected_type):
+            raise ConfigurationError(
+                f"{expected_type.__name__} is required, got {type(options).__name__}"
+            )
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(file_path='{self.file_path}')"
@@ -203,6 +209,10 @@ class StorageBackend(ABC):
             - SQLiteBackend (use_native_sql=True): 通过 SQL 查询获取全部数据
             - 其他数据库后端: 根据具体实现决定
         """
+        return False
+
+    def preserves_unchanged_lazy_tables_on_save(self) -> bool:
+        """保存时是否能直接复用未修改的延迟加载表。"""
         return False
 
     def populate_tables_with_data(self, tables: dict[str, 'Table']) -> None:

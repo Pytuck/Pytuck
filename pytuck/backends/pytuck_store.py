@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import struct
 import tempfile
-from typing import Any
+from typing import Any, Literal, cast
 
 from ..common.crypto import CryptoProvider, ENCRYPTION_LEVELS, CipherType, get_cipher
 from ..common.exceptions import (
@@ -156,6 +156,7 @@ class TableState:
     table: Table
     pk_index: dict[Any, tuple[int, int]] = field(default_factory=dict)
     overlay: TableOverlay = field(default_factory=TableOverlay)
+    source_ref: TableBlockRef | None = None
 
 class StorePTK7:
     def __init__(
@@ -208,10 +209,19 @@ class StorePTK7:
         return self._tables[table_name]
 
     def replace_tables(self, tables: dict[str, Table]) -> None:
-        self._tables = {
-            table_name: TableState(table=table)
-            for table_name, table in tables.items()
+        existing_by_identity = {
+            id(state.table): state
+            for state in self._tables.values()
         }
+        replaced: dict[str, TableState] = {}
+        for table_name, table in tables.items():
+            state = existing_by_identity.get(id(table))
+            if state is None:
+                state = TableState(table=table)
+            else:
+                state.table = table
+            replaced[table_name] = state
+        self._tables = replaced
 
     def load_tables(self) -> dict[str, Table]:
         if not self._tables and self.exists():
@@ -223,6 +233,7 @@ class StorePTK7:
 
     def open(self) -> None:
         header = self._read_header()
+        header.validate_layout(self.file_path.stat().st_size)
         self._cipher = None
         self._payload_offset = 0
 
@@ -235,6 +246,10 @@ class StorePTK7:
             encryption_level = header.get_encryption_level()
             if not encryption_level:
                 raise EncryptionError("无法识别加密等级")
+            self.options.encryption = cast(
+                Literal['low', 'medium', 'high'],
+                encryption_level,
+            )
 
             metadata_blob = self._read_region(HEADER_STRUCT.size, CRYPTO_META_STRUCT.size)
             metadata = CryptoMetadataV7.unpack(metadata_blob)
@@ -254,6 +269,7 @@ class StorePTK7:
         schema_doc = _decode_schema_document(schema_blob)
         ref_blob = self._read_region(header.table_ref_offset, header.table_ref_size)
         table_refs = _decode_table_refs(ref_blob)
+        self._validate_table_refs(header, schema_doc, table_refs)
 
         tables: dict[str, TableState] = {}
         for table_doc in schema_doc["tables"]:
@@ -301,7 +317,11 @@ class StorePTK7:
                         lazy = _LazyHashIndex(col, blob, column, table)
                     table.indexes[col] = lazy
 
-            tables[table_name] = TableState(table=table, pk_index=pk_index)
+            tables[table_name] = TableState(
+                table=table,
+                pk_index=pk_index,
+                source_ref=ref,
+            )
 
         self._tables = tables
 
@@ -320,6 +340,7 @@ class StorePTK7:
             raise RecordNotFoundError(table_name, normalized_pk)
 
         offset, length = state.pk_index[normalized_pk]
+        self._validate_record_location(state, offset, length)
         record = self._read_row_at(state, offset, length, normalized_pk)
         state.overlay.row_cache[normalized_pk] = record
         return record.copy()
@@ -332,10 +353,29 @@ class StorePTK7:
         pk: Any = None,
     ) -> dict[str, Any]:
         del file_path
+        state = next(
+            (
+                candidate
+                for candidate in self._tables.values()
+                if candidate.table.columns is columns
+            ),
+            None,
+        )
+        ref = state.source_ref if state is not None else None
+        if ref is not None and not (
+            ref.data_offset <= offset < ref.data_offset + ref.data_size
+        ):
+            raise SerializationError("PTK7 record offset is outside table data")
+
         length_data = self._read_payload_region(offset, RECORD_LENGTH_STRUCT.size)
         if len(length_data) < RECORD_LENGTH_STRUCT.size:
             raise SerializationError("PTK7 record length prefix is incomplete")
         payload_length = RECORD_LENGTH_STRUCT.unpack(length_data)[0]
+        if ref is not None and (
+            offset + RECORD_LENGTH_STRUCT.size + payload_length
+            > ref.data_offset + ref.data_size
+        ):
+            raise SerializationError("PTK7 record payload is outside table data")
         payload = self._read_payload_region(offset + RECORD_LENGTH_STRUCT.size, payload_length)
         if len(payload) < payload_length:
             raise SerializationError("PTK7 record payload is incomplete")
@@ -347,9 +387,110 @@ class StorePTK7:
             record[pk_name] = pk
         return record
 
-    def flush(self, *, changed_tables: set[str] | None = None) -> None:
-        del changed_tables
+    def _can_reuse_persisted_table(
+        self,
+        table_name: str,
+        state: TableState,
+        changed_tables: set[str] | None,
+    ) -> bool:
+        """判断未修改的延迟加载表能否直接复用原 PTK7 数据块。"""
+        return bool(
+            changed_tables is not None
+            and table_name not in changed_tables
+            and not state.table.is_dirty
+            and state.table._lazy_loaded
+            and state.source_ref is not None
+        )
 
+    def _reuse_table_layout(
+        self,
+        state: TableState,
+    ) -> tuple['_TableLayout', bytes, bytes]:
+        """读取未修改表的编码块，不解码记录或索引。"""
+        ref = state.source_ref
+        if ref is None:
+            raise SerializationError("PTK7 source table reference is missing")
+        data_bytes = self._read_payload_region(ref.data_offset, ref.data_size)
+        records: list[_RecordLayout] = []
+        # pk_index 保留磁盘目录顺序；复用 data_bytes 时同时验证记录连续性，
+        # 避免重新排序和逐记录函数调用给受限环境增加额外开销。
+        cursor = ref.data_offset
+        for pk, (offset, length) in state.pk_index.items():
+            if offset != cursor or length < RECORD_LENGTH_STRUCT.size:
+                raise SerializationError(
+                    f"PTK7 primary-key directory is not contiguous for {ref.name!r}"
+                )
+            records.append(_RecordLayout(pk=pk, length=length))
+            cursor += length
+        if cursor != ref.data_offset + ref.data_size:
+            raise SerializationError(
+                f"PTK7 primary-key directory does not cover table {ref.name!r}"
+            )
+        layout = _TableLayout(
+            table_name=state.table.name,
+            next_id=state.table.next_id,
+            records=records,
+            data_bytes=data_bytes,
+            ref_size=_table_ref_size(state.table.name),
+        )
+        index_meta = self._read_payload_region(
+            ref.index_meta_offset,
+            ref.index_meta_size,
+        )
+        index_data = self._read_payload_region(
+            ref.index_data_offset,
+            ref.index_data_size,
+        )
+        return layout, index_meta, index_data
+
+    @staticmethod
+    def _encode_table_indexes(state: TableState) -> tuple[bytes, bytes]:
+        """编码已修改表的索引元数据和数据。"""
+        table = state.table
+        meta_entries: list[dict[str, Any]] = []
+        data_buf = bytearray()
+        for col_name, index in table.indexes.items():
+            pairs: list[tuple[Any, Any]] = []
+            if isinstance(index, (_LazyHashIndex, _LazySortedIndex)):
+                index._materialize()
+            if isinstance(index, HashIndex):
+                map_obj = getattr(index, "map", {})
+                for value, pk_set in map_obj.items():
+                    for pk in pk_set:
+                        pairs.append((value, pk))
+                index_type = "hash"
+            elif isinstance(index, SortedIndex):
+                for value in getattr(index, "sorted_values", []):
+                    pks = getattr(index, "value_to_pks", {}).get(value, set())
+                    for pk in pks:
+                        pairs.append((value, pk))
+                index_type = "sorted"
+            else:
+                for value, pk_set in getattr(index, "map", {}).items():
+                    for pk in pk_set:
+                        pairs.append((value, pk))
+                index_type = "hash"
+
+            if not pairs:
+                continue
+            column = table.columns.get(col_name)
+            if column is None:
+                continue
+            encoded = encode_sorted_pairs(pairs, column)
+            offset = len(data_buf)
+            data_buf.extend(encoded)
+            meta_entries.append(
+                {
+                    "column": col_name,
+                    "type": index_type,
+                    "offset": offset,
+                    "size": len(encoded),
+                }
+            )
+        meta_bytes = json.dumps(meta_entries, ensure_ascii=False).encode("utf-8")
+        return meta_bytes, bytes(data_buf)
+
+    def flush(self, *, changed_tables: set[str] | None = None) -> None:
         encryption_level = getattr(self.options, 'encryption', None)
         cipher: CipherType | None = None
         master_key: bytes | None = None
@@ -372,62 +513,27 @@ class StorePTK7:
             crypto_metadata = CryptoMetadataV7(salt=salt, key_check=key_check)
             metadata_size = CRYPTO_META_STRUCT.size
 
-        schema_bytes = _encode_schema_document(list(self._tables.values()))
-        table_layouts = [_build_table_layout(state) for state in self._tables.values()]
+        states = list(self._tables.items())
+        schema_bytes = _encode_schema_document([state for _name, state in states])
+        table_layouts: list[_TableLayout] = []
+        index_meta_blobs: list[bytes] = []
+        index_data_blobs: list[bytes] = []
+        for table_name, state in states:
+            if self._can_reuse_persisted_table(table_name, state, changed_tables):
+                layout, meta_bytes, data_bytes = self._reuse_table_layout(state)
+            else:
+                if state.table._lazy_loaded:
+                    state.table._ensure_all_loaded()
+                layout = _build_table_layout(state)
+                meta_bytes, data_bytes = self._encode_table_indexes(state)
+            table_layouts.append(layout)
+            index_meta_blobs.append(meta_bytes)
+            index_data_blobs.append(data_bytes)
 
         table_ref_size = sum(layout.ref_size for layout in table_layouts)
         schema_offset = HEADER_STRUCT.size + metadata_size
         table_ref_offset = schema_offset + len(schema_bytes)
         payload_offset = table_ref_offset + table_ref_size
-
-        index_meta_blobs: list[bytes] = []
-        index_data_blobs: list[bytes] = []
-        for state in self._tables.values():
-            table = state.table
-            meta_entries = []
-            data_buf = bytearray()
-            for col_name, index in table.indexes.items():
-                pairs = []
-                if isinstance(index, (_LazyHashIndex, _LazySortedIndex)):
-                    index._materialize()
-                if isinstance(index, HashIndex):
-                    map_obj = getattr(index, "map", {})
-                    for value, pk_set in map_obj.items():
-                        for pk in pk_set:
-                            pairs.append((value, pk))
-                    index_type = "hash"
-                elif isinstance(index, SortedIndex):
-                    for value in getattr(index, "sorted_values", []):
-                        pks = getattr(index, "value_to_pks", {}).get(value, set())
-                        for pk in pks:
-                            pairs.append((value, pk))
-                    index_type = "sorted"
-                else:
-                    for value, pk_set in getattr(index, "map", {}).items():
-                        for pk in pk_set:
-                            pairs.append((value, pk))
-                    index_type = "hash"
-
-                if not pairs:
-                    continue
-                column = table.columns.get(col_name)
-                if column is None:
-                    continue
-                encoded = encode_sorted_pairs(pairs, column)
-                offset = len(data_buf)
-                data_buf.extend(encoded)
-                size = len(encoded)
-                meta_entries.append(
-                    {
-                        "column": col_name,
-                        "type": index_type,
-                        "offset": offset,
-                        "size": size,
-                    }
-                )
-            meta_bytes = json.dumps(meta_entries, ensure_ascii=False).encode("utf-8")
-            index_meta_blobs.append(meta_bytes)
-            index_data_blobs.append(bytes(data_buf))
 
         payload_buffer = bytearray()
         resolved_refs: list[TableBlockRef] = []
@@ -515,6 +621,26 @@ class StorePTK7:
             temp_path.replace(self.file_path)
             self._cipher = cipher
             self._payload_offset = payload_offset if cipher is not None else 0
+            for (_table_name, state), layout, ref in zip(
+                states,
+                table_layouts,
+                resolved_refs,
+            ):
+                pk_index: dict[Any, tuple[int, int]] = {}
+                cursor = ref.data_offset
+                for record in layout.records:
+                    pk_index[record.pk] = (cursor, record.length)
+                    cursor += record.length
+                state.pk_index = pk_index
+                state.source_ref = ref
+                state.overlay = TableOverlay()
+                state.table._data_file = self.file_path
+                state.table._backend = self
+                if state.table._lazy_loaded:
+                    state.table._pk_offsets = {
+                        pk: offset
+                        for pk, (offset, _length) in pk_index.items()
+                    }
         except Exception:
             try:
                 temp_path.unlink()
@@ -571,6 +697,52 @@ class StorePTK7:
             raise SerializationError("PTK7 encrypted payload offset is invalid")
         return self._cipher.decrypt_at(offset - self._payload_offset, data)
 
+    @staticmethod
+    def _validate_table_refs(
+        header: FileHeaderV7,
+        schema_doc: dict[str, Any],
+        table_refs: dict[str, TableBlockRef],
+    ) -> None:
+        """验证 schema 与表引用数量、名称和各数据区域的文件边界。"""
+        table_documents = schema_doc.get("tables")
+        if not isinstance(table_documents, list):
+            raise SerializationError("PTK7 schema tables must be a list")
+
+        schema_names: list[str] = []
+        for document in table_documents:
+            if not isinstance(document, dict) or not isinstance(document.get("name"), str):
+                raise SerializationError("PTK7 schema contains an invalid table entry")
+            schema_names.append(document["name"])
+
+        if len(schema_names) != len(set(schema_names)):
+            raise SerializationError("PTK7 schema contains duplicate table names")
+        if len(schema_names) != header.table_count:
+            raise SerializationError("PTK7 table count does not match schema")
+        if set(schema_names) != set(table_refs):
+            raise SerializationError("PTK7 schema and table references do not match")
+
+        payload_start = header.table_ref_offset + header.table_ref_size
+        content_end = header.file_size
+        if header.is_authenticated():
+            content_end -= AUTH_TAG_SIZE
+
+        for ref in table_refs.values():
+            if ref.pk_dir_size != ref.record_count * PK_DIR_INT_STRUCT.size:
+                raise SerializationError(
+                    f"PTK7 primary-key directory size is invalid for table {ref.name!r}"
+                )
+            regions = (
+                (ref.data_offset, ref.data_size),
+                (ref.pk_dir_offset, ref.pk_dir_size),
+                (ref.index_meta_offset, ref.index_meta_size),
+                (ref.index_data_offset, ref.index_data_size),
+            )
+            for offset, size in regions:
+                if offset < payload_start or offset + size > content_end:
+                    raise SerializationError(
+                        f"PTK7 table region is outside the file for table {ref.name!r}"
+                    )
+
     def _read_pk_index(self, ref: TableBlockRef) -> dict[Any, tuple[int, int]]:
         if ref.pk_dir_size == 0:
             return {}
@@ -584,7 +756,30 @@ class StorePTK7:
             entry = PkDirEntry.unpack_int(blob[offset: offset + PK_DIR_INT_STRUCT.size])
             pk_index[entry.pk] = (entry.offset, entry.length)
             offset += PK_DIR_INT_STRUCT.size
+        if len(pk_index) != ref.record_count:
+            raise SerializationError(
+                f"PTK7 primary-key count does not match table {ref.name!r}"
+            )
         return pk_index
+
+    @staticmethod
+    def _validate_record_location(
+        state: TableState,
+        offset: int,
+        length: int,
+    ) -> None:
+        """在读取或复用记录时验证它位于所属表数据块内。"""
+        ref = state.source_ref
+        if ref is None:
+            raise SerializationError("PTK7 source table reference is missing")
+        if (
+            length < RECORD_LENGTH_STRUCT.size
+            or offset < ref.data_offset
+            or offset + length > ref.data_offset + ref.data_size
+        ):
+            raise SerializationError(
+                f"PTK7 primary-key entry is outside table data for {ref.name!r}"
+            )
 
     def _read_row_at(self, state: TableState, offset: int, length: int, pk: Any) -> dict[str, Any]:
         payload_length = length - RECORD_LENGTH_STRUCT.size
@@ -609,7 +804,7 @@ class StorePTK7:
 @dataclass
 class _RecordLayout:
     pk: Any
-    entry_bytes: bytes
+    length: int
 
 @dataclass
 class _TableLayout:
@@ -627,24 +822,32 @@ def _build_table_layout(state: TableState) -> _TableLayout:
         payload = encode_row(columns, record, pk_name=state.table.primary_key)
         entry_bytes = RECORD_LENGTH_STRUCT.pack(len(payload)) + payload
         data_bytes.extend(entry_bytes)
-        records.append(_RecordLayout(pk=pk, entry_bytes=entry_bytes))
+        records.append(_RecordLayout(pk=pk, length=len(entry_bytes)))
 
-    ref_size = TABLE_REF_PREFIX_STRUCT.size + len(state.table.name.encode("utf-8")) + TABLE_REF_BODY_STRUCT.size
     return _TableLayout(
         table_name=state.table.name,
         next_id=state.table.next_id,
         records=records,
         data_bytes=bytes(data_bytes),
-        ref_size=ref_size,
+        ref_size=_table_ref_size(state.table.name),
+    )
+
+
+def _table_ref_size(table_name: str) -> int:
+    """返回指定表名对应的 PTK7 表引用字节数。"""
+    return (
+        TABLE_REF_PREFIX_STRUCT.size
+        + len(table_name.encode("utf-8"))
+        + TABLE_REF_BODY_STRUCT.size
     )
 
 def _encode_pk_dir(records: list[_RecordLayout], data_offset: int) -> bytes:
     pk_dir = bytearray()
     cursor = data_offset
     for record in records:
-        entry = PkDirEntry(pk=record.pk, offset=cursor, length=len(record.entry_bytes))
+        entry = PkDirEntry(pk=record.pk, offset=cursor, length=record.length)
         pk_dir.extend(entry.pack_int())
-        cursor += len(record.entry_bytes)
+        cursor += record.length
     return bytes(pk_dir)
 
 def _find_primary_key(columns: list[Column]) -> str | None:
@@ -724,8 +927,9 @@ def probe_ptk7(file_path: str | Path) -> tuple[bool, dict[str, Any] | None]:
 
     try:
         header = FileHeaderV7.unpack(header_data)
+        header.validate_layout(file_stat.st_size)
     except SerializationError:
-        return False, None
+        return False, {"error": "invalid_layout"}
 
     if header.magic != MAGIC_V7:
         return False, None

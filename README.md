@@ -15,7 +15,7 @@
 
 纯 Python 实现的轻量级文档数据库，支持多种存储引擎，无 SQL，通过对象和方法管理数据。
 
-> **设计初衷**：为 Ren'Py 等阉割版 Python 环境提供零依赖的关系型数据库方案，让任何受限环境都能享受 SQLAlchemy 风格的 Pythonic 数据操作体验。
+> **设计初衷**：为 Ren'Py 等受限 Python 环境提供零依赖的关系型数据库方案，让任何受限环境都能享受 SQLAlchemy 风格的 Pythonic 数据操作体验。
 
 > [!IMPORTANT]
 > **适用场景说明**：Pytuck 是纯 Python 实现的嵌入式数据库，专为**中小规模数据**和**受限环境**设计。
@@ -40,6 +40,8 @@
 - **关系与预取**：支持 `Relationship` 和 `prefetch()`，缓解 N+1 问题
 - **类型安全**：内置类型转换、严格模式、自定义 `validator`
 - **可选持久化策略**：支持手动 `flush()` 与 `auto_flush=True`
+
+> **依赖边界**：Pytuck 单文件引擎、模型、Session、查询、索引和事务属于零依赖核心；DuckDB、Excel、XML、orjson 等能力始终通过可选 extras 提供，未安装时不得影响核心使用。
 
 ## 近期重点更新
 
@@ -220,10 +222,11 @@ migrate_engine(
 
 查看 `examples/` 目录获取更多示例：
 
-- `sqlalchemy20_api_demo.py` - SQLAlchemy 2.0 风格 API 完整示例（推荐）
+- `session_api_demo.py` - SQLAlchemy 风格 Session + Statement API 完整示例（推荐）
 - `active_record_demo.py` - Active Record 模式示例
-- `new_api_demo.py` - 纯模型模式示例
+- `data_model_demo.py` - 纯模型的数据容器特性示例
 - `migration_tools_demo.py` - 数据迁移工具演示
+- `renpy_smoke.py` / `renpy_demo.rpy` - Ren'Py 受限环境最小集成与持久化 smoke
 
 ## 贡献
 

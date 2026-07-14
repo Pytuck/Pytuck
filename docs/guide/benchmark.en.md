@@ -85,6 +85,29 @@ The main comparison table includes:
 - File size changes are small: `JSON + orjson` is slightly smaller than `JSON + json`, while `JSONL` stays nearly identical across implementations
 - `reopen_first_query` remains in the microsecond range for all four combinations, which suggests the main difference is still in serialization/deserialization rather than primary-key lookup itself
 
+## PTK7 multi-table incremental flush benchmark
+
+> Test date: 2026-07-14
+>
+> Environment: macOS 26.5 / Python 3.13.11
+>
+> Dataset: 4 tables with 5,000 rows each; reopen and update one row in the first table; median of 5 runs
+
+| Implementation | Median flush | Median peak memory | Materialized rows in untouched table |
+|----------------|--------------|--------------------|--------------------------------------|
+| Before (`c7c61d8`) | 1.280s | 20.24MB | 5000 |
+| Current | 0.474s | 11.87MB | 0 |
+
+- Reusing encoded PTK7 blocks for untouched lazy tables makes flush about `2.70x` faster
+- Peak memory is reduced by about `41%`
+- File size, PTK7 format, and atomic replacement behavior remain unchanged
+
+Reproduce with:
+
+```bash
+uv run python tests/benchmark/benchmark_incremental_flush.py -n 5000 -t 4 -r 5
+```
+
 ## Notes
 
 ### Pytuck

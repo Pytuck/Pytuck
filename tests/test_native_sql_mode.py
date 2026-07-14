@@ -586,3 +586,28 @@ class TestNativeSqlMultiColumnOrderBy:
 
         session.close()
         db.close()
+
+    def test_offset_without_limit_is_valid_sqlite_sql(self, tmp_path: Path) -> None:
+        """只有 OFFSET 时也应生成 SQLite 可执行的 SQL。"""
+        db_file = tmp_path / 'offset_without_limit.sqlite'
+        db = Storage(file_path=db_file, engine='sqlite')
+        Base: Type[PureBaseModel] = declarative_base(db)
+
+        class OffsetModel(Base):
+            __tablename__ = 'offset_items'
+
+            id = Column(int, primary_key=True)
+            name = Column(str)
+
+        session = Session(db)
+        for index in range(5):
+            session.execute(insert(OffsetModel).values(name=f'item-{index}'))
+        session.commit()
+
+        results = session.execute(
+            select(OffsetModel).order_by('id').offset(2)
+        ).all()
+
+        assert [row.name for row in results] == ['item-2', 'item-3', 'item-4']
+        session.close()
+        db.close()

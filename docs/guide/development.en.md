@@ -49,7 +49,7 @@ uv sync --extra dev
 
 # Run tests or examples
 uv run pytest tests/ -v
-uv run python examples/sqlalchemy20_api_demo.py
+uv run python examples/session_api_demo.py
 ```
 
 ## Build and Publish

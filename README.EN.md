@@ -41,6 +41,8 @@ A lightweight, pure Python document database with multi-engine support. No SQL r
 - **Type safety**: Built-in conversion, strict mode, and custom `validator`
 - **Flexible persistence**: Manual `flush()` or `auto_flush=True`
 
+> **Dependency boundary**: The Pytuck single-file engine, models, Session, queries, indexes, and transactions form the zero-dependency core. DuckDB, Excel, XML, orjson, and similar capabilities remain optional extras and must never affect core usage when absent.
+
 ## Recent Highlights
 
 Compared with the previous public release, these are the three updates worth noticing first:
@@ -160,7 +162,7 @@ db.close()
 
 ## Storage Engines at a Glance
 
-- **Pytuck**: Default single-file engine, zero dependencies, a good fit for embedded and restricted environments, with current new writes supporting `None` / `low` / `medium` / `high`; encrypted files include HMAC-SHA256 integrity authentication while legacy encrypted PTK7 files remain readable
+- **Pytuck**: Default single-file engine, zero dependencies, a good fit for embedded and restricted environments, with current new writes supporting unencrypted / `low` / `medium` / `high`; encrypted files include HMAC-SHA256 integrity authentication while legacy encrypted PTK7 files remain readable
 
 > **Pytuck note**: The default single-file path currently prioritizes long-term format stability, true single-file persistence, and the open / reopen / primary-key lookup experience. It is not meant to be the universally fastest engine across every benchmark dimension. If you care more about native SQL, very large datasets, or specific peak benchmark numbers, prefer SQLite / DuckDB.
 - **JSON**: Best when readability and debugging matter most
@@ -220,10 +222,11 @@ For more migration and import details, see [docs/api/tools.md](./docs/api/tools.
 
 See the `examples/` directory for more examples:
 
-- `sqlalchemy20_api_demo.py` - Complete SQLAlchemy 2.0 style API example (recommended)
+- `session_api_demo.py` - Complete SQLAlchemy-style Session + Statement API example (recommended)
 - `active_record_demo.py` - Active Record example
-- `new_api_demo.py` - Pure model example
+- `data_model_demo.py` - Pure-model data-container behavior example
 - `migration_tools_demo.py` - Data migration demo
+- `renpy_smoke.py` / `renpy_demo.rpy` - Minimal Ren'Py integration and persistence smoke for restricted environments
 
 ## Contributing
 

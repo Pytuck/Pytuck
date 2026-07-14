@@ -101,6 +101,38 @@ class FileHeaderV7:
         """标记文件使用带独立子密钥的认证加密布局。"""
         return replace(self, flags=self.flags | self.FLAG_AUTHENTICATED)
 
+    def validate_layout(self, actual_size: int) -> None:
+        """验证文件头声明的 PTK7 区域都位于实际文件范围内。"""
+        if self.is_authenticated() and not self.is_encrypted():
+            raise SerializationError(
+                "PTK7 authenticated flag requires encryption"
+            )
+
+        minimum_schema_offset = HEADER_STRUCT.size
+        if self.is_encrypted():
+            minimum_schema_offset += CRYPTO_META_STRUCT.size
+
+        content_end = actual_size
+        if self.is_authenticated():
+            if actual_size < HEADER_STRUCT.size + AUTH_TAG_SIZE:
+                raise SerializationError("PTK7 authenticated file is too small")
+            content_end -= AUTH_TAG_SIZE
+
+        schema_end = self.schema_offset + self.schema_size
+        table_ref_end = self.table_ref_offset + self.table_ref_size
+        if self.file_size != actual_size:
+            raise SerializationError(
+                f"PTK7 file size mismatch: header={self.file_size}, actual={actual_size}"
+            )
+        if self.schema_offset < minimum_schema_offset:
+            raise SerializationError("PTK7 schema overlaps header metadata")
+        if self.schema_size == 0 or schema_end > content_end:
+            raise SerializationError("PTK7 schema region is outside the file")
+        if self.table_ref_offset < schema_end or table_ref_end > content_end:
+            raise SerializationError("PTK7 table reference region is outside the file")
+        if self.table_count > 0 and self.table_ref_size == 0:
+            raise SerializationError("PTK7 table reference region is missing")
+
     @classmethod
     def unpack(cls, data: bytes) -> "FileHeaderV7":
         if len(data) < HEADER_STRUCT.size:

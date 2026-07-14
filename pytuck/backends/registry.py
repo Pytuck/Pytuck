@@ -4,11 +4,30 @@ Pytuck 后端注册器和工厂
 提供引擎注册、发现和实例化功能
 """
 
+import importlib
+from importlib.util import resolve_name
 from typing import Any
 from pathlib import Path
 from .base import StorageBackend
 from ..common.options import BackendOptions
 from ..common.exceptions import ConfigurationError
+
+
+_LAZY_BACKEND_MODULES = {
+    'duckdb': '.backend_duckdb',
+    'excel': '.backend_excel',
+    'xml': '.backend_xml',
+}
+_BUILTIN_ENGINE_ORDER = (
+    'pytuck',
+    'json',
+    'jsonl',
+    'csv',
+    'sqlite',
+    'duckdb',
+    'excel',
+    'xml',
+)
 
 class BackendRegistry:
     """
@@ -18,6 +37,11 @@ class BackendRegistry:
     """
 
     _backends: dict[str, type[StorageBackend]] = {}
+
+    @classmethod
+    def is_registered(cls, engine_name: str) -> bool:
+        """判断后端是否已经完成类注册，不触发扩展模块导入。"""
+        return engine_name in cls._backends
 
     @classmethod
     def register(cls, backend_class: type[StorageBackend]) -> None:
@@ -36,6 +60,19 @@ class BackendRegistry:
         if backend_class.ENGINE_NAME is None:
             raise ConfigurationError(f"{backend_class} must define ENGINE_NAME")
 
+        lazy_module = _LAZY_BACKEND_MODULES.get(backend_class.ENGINE_NAME)
+        if lazy_module is not None:
+            expected_module = resolve_name(lazy_module, __package__)
+            if backend_class.__module__ != expected_module:
+                raise ConfigurationError(
+                    f'The engine name is reserved: "{backend_class.ENGINE_NAME}"'
+                )
+
+        if cls.is_registered(backend_class.ENGINE_NAME):
+            raise ConfigurationError(
+                f'The engine name is already registered: "{backend_class.ENGINE_NAME}"'
+            )
+
         cls._backends[backend_class.ENGINE_NAME] = backend_class
 
     @classmethod
@@ -49,7 +86,12 @@ class BackendRegistry:
         Returns:
             后端类，如果不存在则返回 None
         """
-        return cls._backends.get(engine_name)
+        backend = cls._backends.get(engine_name)
+        module_name = _LAZY_BACKEND_MODULES.get(engine_name)
+        if backend is None and module_name is not None:
+            importlib.import_module(module_name, package=__package__)
+            backend = cls._backends.get(engine_name)
+        return backend
 
     @classmethod
     def available_engines(cls) -> dict[str, bool]:
@@ -69,10 +111,11 @@ class BackendRegistry:
                 'xml': False,    # 未安装 lxml
             }
         """
-        return {
-            name: backend.is_available()
-            for name, backend in cls._backends.items()
-        }
+        result: dict[str, bool] = {}
+        for name in cls.list_engines():
+            backend = cls.get(name)
+            result[name] = bool(backend is not None and backend.is_available())
+        return result
 
     @classmethod
     def list_engines(cls) -> list[str]:
@@ -82,7 +125,13 @@ class BackendRegistry:
         Returns:
             引擎名称列表
         """
-        return list(cls._backends.keys())
+        names = [
+            name
+            for name in _BUILTIN_ENGINE_ORDER
+            if name in cls._backends or name in _LAZY_BACKEND_MODULES
+        ]
+        names.extend(name for name in cls._backends if name not in names)
+        return names
 
 def get_backend(engine: str, file_path: str | Path, options: BackendOptions) -> StorageBackend:
     """

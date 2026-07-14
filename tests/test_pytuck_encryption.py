@@ -23,7 +23,7 @@ from pytuck.backends.pytuck_format import (
     HEADER_STRUCT,
 )
 from pytuck.common.crypto import CryptoProvider, get_cipher
-from pytuck.common.exceptions import EncryptionError
+from pytuck.common.exceptions import EncryptionError, SerializationError
 from pytuck.common.options import PytuckBackendOptions
 
 
@@ -225,3 +225,131 @@ def test_pytuck_reads_legacy_unauthenticated_ptk7(tmp_path: Path) -> None:
     reopened = Storage(file_path=db_path, engine='pytuck', backend_options=options)
     assert reopened.select('users', 1)['name'] == _SECRET_NAME
     reopened.close()
+
+
+def _write_authenticated_fixture(path: Path) -> tuple[bytes, PytuckBackendOptions]:
+    """写入一个用于损坏输入测试的认证 PTK7 文件。"""
+    options = PytuckBackendOptions(encryption='high', password='secret123')
+    db = Storage(file_path=path, engine='pytuck', backend_options=options)
+    db.create_table(
+        'users',
+        [
+            Column(int, name='id', primary_key=True),
+            Column(str, name='name'),
+        ],
+    )
+    db.insert('users', {'name': _SECRET_NAME})
+    db.flush()
+    db.close()
+    return path.read_bytes(), options
+
+
+@pytest.mark.parametrize(
+    'cut_kind',
+    [
+        'empty',
+        'partial_header',
+        'header_only',
+        'partial_crypto_metadata',
+        'partial_payload',
+        'partial_auth_tag',
+    ],
+)
+def test_pytuck_authenticated_file_rejects_truncation(
+    tmp_path: Path,
+    cut_kind: str,
+) -> None:
+    """认证 PTK7 在各结构边界被截断时都必须稳定拒绝。"""
+    source_path = tmp_path / 'authenticated-source.pytuck'
+    raw, options = _write_authenticated_fixture(source_path)
+    cuts = {
+        'empty': 0,
+        'partial_header': HEADER_STRUCT.size - 1,
+        'header_only': HEADER_STRUCT.size,
+        'partial_crypto_metadata': HEADER_STRUCT.size + CRYPTO_META_STRUCT.size - 1,
+        'partial_payload': len(raw) - AUTH_TAG_SIZE - 1,
+        'partial_auth_tag': len(raw) - 1,
+    }
+    damaged_path = tmp_path / f'truncated-{cut_kind}.pytuck'
+    damaged_path.write_bytes(raw[:cuts[cut_kind]])
+
+    with pytest.raises((EncryptionError, SerializationError)):
+        Storage(file_path=damaged_path, engine='pytuck', backend_options=options)
+
+
+def test_pytuck_authenticated_file_rejects_structural_bit_flips(tmp_path: Path) -> None:
+    """文件头、schema、目录、payload 和认证标签被修改后都必须拒绝。"""
+    source_path = tmp_path / 'bit-flip-source.pytuck'
+    raw, options = _write_authenticated_fixture(source_path)
+    header = FileHeaderV7.unpack(raw[:HEADER_STRUCT.size])
+    payload_offset = header.table_ref_offset + header.table_ref_size
+    offsets = {
+        'flags': 6,
+        'schema': header.schema_offset,
+        'table_ref': header.table_ref_offset,
+        'payload': payload_offset,
+        'auth_tag': len(raw) - 1,
+    }
+
+    for area, offset in offsets.items():
+        damaged = bytearray(raw)
+        damaged[offset] ^= 0x01
+        damaged_path = tmp_path / f'bit-flip-{area}.pytuck'
+        damaged_path.write_bytes(damaged)
+
+        with pytest.raises((EncryptionError, SerializationError)):
+            Storage(file_path=damaged_path, engine='pytuck', backend_options=options)
+
+
+@pytest.mark.parametrize('length', [0, HEADER_STRUCT.size - 1, HEADER_STRUCT.size])
+def test_pytuck_probe_handles_truncated_files(tmp_path: Path, length: int) -> None:
+    """格式探测面对截断输入时不得把解析异常泄漏给调用者。"""
+    source_path = tmp_path / 'probe-source.pytuck'
+    raw, _ = _write_authenticated_fixture(source_path)
+    damaged_path = tmp_path / f'probe-truncated-{length}.pytuck'
+    damaged_path.write_bytes(raw[:length])
+
+    matched, info = PytuckBackend.probe(damaged_path)
+
+    assert matched is False
+    assert info is not None
+
+
+def test_reopened_encrypted_file_stays_encrypted_after_update(tmp_path: Path) -> None:
+    """只提供密码重开并保存时，必须继承文件原有加密等级。"""
+    db_path = tmp_path / 'encrypted-update.pytuck'
+    write_options = PytuckBackendOptions(encryption='high', password='secret123')
+    db = Storage(file_path=db_path, engine='pytuck', backend_options=write_options)
+    db.create_table(
+        'users',
+        [
+            Column(int, name='id', primary_key=True),
+            Column(str, name='name'),
+        ],
+    )
+    db.insert('users', {'name': _SECRET_NAME})
+    db.flush()
+    db.close()
+
+    reopened = Storage(
+        file_path=db_path,
+        engine='pytuck',
+        backend_options=PytuckBackendOptions(password='secret123'),
+    )
+    reopened.update('users', 1, {'name': f'{_SECRET_NAME}-updated'})
+    reopened.flush()
+    reopened.close()
+
+    raw = db_path.read_bytes()
+    header = FileHeaderV7.unpack(raw[:HEADER_STRUCT.size])
+    assert header.is_encrypted() is True
+    assert header.is_authenticated() is True
+    assert _SECRET_NAME.encode('utf-8') not in raw
+
+    verified = Storage(
+        file_path=db_path,
+        engine='pytuck',
+        backend_options=PytuckBackendOptions(password='secret123'),
+    )
+    assert verified.select('users', 1)['name'] == f'{_SECRET_NAME}-updated'
+    verified.close()

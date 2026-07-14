@@ -16,6 +16,8 @@
 | `backend_options_demo.py` | 后端配置选项 | 展示各引擎的强类型 dataclass 选项（JSON/CSV/SQLite/Excel/XML/Pytuck） |
 | `json_impl_demo.py` | JSON 实现选择 | 展示标准库 JSON、orjson、自定义实现切换与性能对比 |
 | `migration_tools_demo.py` | 数据迁移工具 | 展示 `migrate_engine()` 跨引擎迁移和 `import_from_database()` 外部导入 |
+| `renpy_smoke.py` | Ren'Py 核心 smoke | 只使用零依赖核心完成建库、写入、关闭和重开验证 |
+| `renpy_demo.rpy` | Ren'Py 集成入口 | 展示在 Ren'Py label 中调用 smoke 的最小方式 |
 | `_common.py` | 内部工具 | 提供临时目录等示例共用的辅助函数（不直接运行） |
 
 ## 运行方式
@@ -50,6 +52,8 @@ uv run python examples/active_record_demo.py
 ### 补充示例
 
 - `backend_options_demo.py`：展示各引擎配置选项；默认自动化只 smoke test `demo_pytuck_default()` 这条不依赖可选依赖的最小路径。
+
+- `renpy_smoke.py`：可先在 CPython 中直接运行，也可连同 `pytuck/` 包复制到 Ren'Py 工程中；`renpy_demo.rpy` 展示调用入口。它只验证零依赖核心，不代表未经实测的 Ren'Py 版本均已兼容。
 
   注意：`demo_pytuck_default()` 仅作为自动化 smoke test 的最小函数路径，用于验证在不安装可选依赖时的基本行为；它不属于上方“发布前建议验证的示例”中列出的人工必跑命令列表。
 - 其余示例用于专题说明，不纳入默认发布前必跑列表

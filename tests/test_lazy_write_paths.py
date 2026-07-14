@@ -164,6 +164,79 @@ class TestLazyWritePaths:
 
         db.close()
 
+    def test_flush_keeps_untouched_lazy_table_unmaterialized(self, temp_dir: Path) -> None:
+        """只修改一张表时，其他 PTK7 表不应被完整加载进内存。"""
+        db_path = temp_dir / 'incremental_lazy_save.pytuck'
+        db = Storage(file_path=db_path, engine='pytuck')
+        db.create_table(
+            'users',
+            [Column(int, name='id', primary_key=True), Column(str, name='name')],
+        )
+        db.create_table(
+            'logs',
+            [Column(int, name='id', primary_key=True), Column(str, name='message')],
+        )
+        for index in range(120):
+            db.insert('users', {'id': index + 1, 'name': f'user-{index}'})
+            db.insert('logs', {'id': index + 1, 'message': f'log-{index}'})
+        db.flush()
+        db.close()
+
+        reopened = Storage(file_path=db_path, engine='pytuck')
+        assert reopened.tables['users'].data == {}
+        assert reopened.tables['logs'].data == {}
+
+        reopened.update('users', 1, {'name': 'updated-user'})
+        reopened.flush()
+
+        assert reopened.tables['logs'].data == {}
+        assert reopened.tables['logs']._lazy_loaded is True
+        assert reopened.select('logs', 120)['message'] == 'log-119'
+        reopened.close()
+
+        verified = Storage(file_path=db_path, engine='pytuck')
+        assert verified.select('users', 1)['name'] == 'updated-user'
+        assert verified.select('logs', 120)['message'] == 'log-119'
+        verified.close()
+
+    def test_flush_preserves_untouched_table_record_order(self, temp_dir: Path) -> None:
+        """复用乱序主键表的数据块时，主键目录必须保持原记录顺序。"""
+        db_path = temp_dir / 'incremental_out_of_order.pytuck'
+        db = Storage(file_path=db_path, engine='pytuck')
+        db.create_table(
+            'settings',
+            [Column(int, name='id', primary_key=True), Column(str, name='value')],
+        )
+        db.create_table(
+            'archive',
+            [Column(int, name='id', primary_key=True), Column(str, name='message')],
+        )
+        db.insert('settings', {'id': 1, 'value': 'before'})
+        expected = {
+            30: 'thirty-with-a-long-payload',
+            1: 'one',
+            20: 'twenty-medium',
+            2: 'two-with-another-length',
+        }
+        for primary_key, message in expected.items():
+            db.insert('archive', {'id': primary_key, 'message': message})
+        db.flush()
+        db.close()
+
+        reopened = Storage(file_path=db_path, engine='pytuck')
+        reopened.update('settings', 1, {'value': 'after'})
+        reopened.flush()
+        assert reopened.tables['archive'].data == {}
+        reopened.close()
+
+        verified = Storage(file_path=db_path, engine='pytuck')
+        actual = {
+            primary_key: verified.select('archive', primary_key)['message']
+            for primary_key in expected
+        }
+        assert actual == expected
+        verified.close()
+
     def test_ensure_all_loaded_materializes_disk_records_in_lazy_mode(self, temp_dir: Path) -> None:
         """_ensure_all_loaded 应将 lazy 表的磁盘记录全部加载到内存"""
         db_path = self._create_users_db(temp_dir)

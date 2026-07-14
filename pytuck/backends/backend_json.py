@@ -36,7 +36,7 @@ class JSONBackend(StorageBackend):
             file_path: JSON 文件路径
             options: JSON 后端配置选项
         """
-        assert isinstance(options, JsonBackendOptions), "options must be an instance of JsonBackendOptions"
+        self._require_options_type(options, JsonBackendOptions)
         super().__init__(file_path, options)
         # 类型安全：将 options 转为具体的 JsonBackendOptions 类型
         self.options: JsonBackendOptions = options

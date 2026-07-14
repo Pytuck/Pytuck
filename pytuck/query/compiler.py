@@ -10,9 +10,9 @@ from typing import Any, NamedTuple, TYPE_CHECKING
 
 from ..common.exceptions import QueryError
 from ..core.types import TypeRegistry
+from .statements import Delete, Insert, Select, Statement, Update
 
 if TYPE_CHECKING:
-    from .statements import Statement, Select, Insert, Update, Delete
     from .builder import BinaryExpression, LogicalExpression
 
 class CompiledQuery(NamedTuple):
@@ -112,21 +112,19 @@ class QueryCompiler:
         Raises:
             QueryError: 如果语句类型未知
         """
-        stmt_type = type(statement).__name__.lower()
-
-        if stmt_type == 'select':
-            return self._compile_select(statement)  # type: ignore
-        elif stmt_type == 'insert':
-            return self._compile_insert(statement)  # type: ignore
-        elif stmt_type == 'update':
-            return self._compile_update(statement)  # type: ignore
-        elif stmt_type == 'delete':
-            return self._compile_delete(statement)  # type: ignore
-        else:
-            raise QueryError(
-                message=f"Unknown statement type: {stmt_type}",
-                details={"statement_type": stmt_type}
-            )
+        if isinstance(statement, Select):
+            return self._compile_select(statement)
+        if isinstance(statement, Insert):
+            return self._compile_insert(statement)
+        if isinstance(statement, Update):
+            return self._compile_update(statement)
+        if isinstance(statement, Delete):
+            return self._compile_delete(statement)
+        statement_type = type(statement).__name__
+        raise QueryError(
+            message=f"Unknown statement type: {statement_type}",
+            details={"statement_type": statement_type},
+        )
 
     def _compile_select(self, stmt: 'Select') -> CompiledQuery:
         """编译 SELECT 语句"""
@@ -156,6 +154,10 @@ class QueryCompiler:
         # LIMIT / OFFSET
         if stmt._limit_value is not None:
             sql += f' LIMIT {stmt._limit_value}'
+        elif stmt._offset_value > 0:
+            # SQLite 不接受裸 OFFSET；有符号 64 位上限在 SQLite 与 DuckDB
+            # 中都等价于“不限制实际结果数量”。
+            sql += ' LIMIT 9223372036854775807'
         if stmt._offset_value > 0:
             sql += f' OFFSET {stmt._offset_value}'
 

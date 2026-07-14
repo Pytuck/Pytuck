@@ -3,7 +3,7 @@ from typing import Any, TYPE_CHECKING
 
 from ..common.crypto import ENCRYPTION_LEVELS
 from ..common.exceptions import ConfigurationError
-from ..common.options import BackendOptions, PytuckBackendOptions
+from ..common.options import PytuckBackendOptions
 from .base import StorageBackend
 from .pytuck_store import PytuckStore, probe_pytuck
 
@@ -14,9 +14,9 @@ class PytuckBackend(StorageBackend):
     ENGINE_NAME = 'pytuck'
     FORMAT_VERSION = 7
 
-    def __init__(self, file_path: str | Path, options: BackendOptions) -> None:
+    def __init__(self, file_path: str | Path, options: PytuckBackendOptions) -> None:
+        self._require_options_type(options, PytuckBackendOptions)
         super().__init__(file_path, options)
-        assert isinstance(options, PytuckBackendOptions), 'options must be an instance of PytuckBackendOptions'
         self.options = options
         encryption = self.options.encryption
         if encryption is not None and encryption not in ENCRYPTION_LEVELS:
@@ -32,6 +32,10 @@ class PytuckBackend(StorageBackend):
 
     def supports_lazy_loading(self) -> bool:
         """Pytuck 重新打开文件时默认按需 materialize 数据。"""
+        return True
+
+    def preserves_unchanged_lazy_tables_on_save(self) -> bool:
+        """PTK7 可复制未修改表的数据块，无需先解码全部记录。"""
         return True
 
     def supports_server_side_pagination(self) -> bool:

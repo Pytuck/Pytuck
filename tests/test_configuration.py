@@ -13,6 +13,7 @@
 """
 
 import pytest
+from pathlib import Path
 from typing import Type
 
 from pytuck import (
@@ -103,6 +104,17 @@ class TestStorageConfiguration:
         db = Storage(file_path=str(db_path), auto_flush=False)
         assert db.auto_flush is False
         db.close()
+
+    def test_backend_option_type_validation_survives_optimized_python(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """后端选项类型错误必须使用显式异常，而不是可被移除的 assert。"""
+        from pytuck.backends.backend_pytuck import PytuckBackend
+        from pytuck.common.options import JsonBackendOptions
+
+        with pytest.raises(ConfigurationError, match="PytuckBackendOptions is required"):
+            PytuckBackend(tmp_path / "wrong-options.pytuck", JsonBackendOptions())  # type: ignore[arg-type]
 
 
 class TestSessionConfiguration:

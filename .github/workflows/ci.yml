@@ -7,6 +7,31 @@ on:
     branches: [main, master, develop]
 
 jobs:
+  zero-dependency:
+    name: Zero-dependency wheel smoke
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up uv and Python 3.10
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.10"
+          enable-cache: true
+          cache-suffix: ubuntu-latest-3.10-zero-dependency
+
+      - name: Build wheel
+        run: uv build
+
+      - name: Install wheel without dependencies
+        run: |
+          uv venv --python 3.10 .zero-venv
+          uv pip install --python .zero-venv/bin/python --no-deps dist/*.whl
+
+      - name: Run zero-dependency smoke
+        run: .zero-venv/bin/python tests/zero_dependency_smoke.py
+
   test:
     name: Test (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}

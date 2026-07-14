@@ -6,15 +6,12 @@ Pytuck 后端模块
 
 from .base import StorageBackend
 
-# Simplify backend imports: only import current backends to avoid legacy shims
+# 零依赖内置后端随包注册；有第三方依赖的扩展后端由 registry 按需加载。
 from . import backend_pytuck   # noqa: F401
 from . import backend_json     # noqa: F401
 from . import backend_jsonl    # noqa: F401
 from . import backend_csv      # noqa: F401
 from . import backend_sqlite   # noqa: F401
-from . import backend_duckdb   # noqa: F401
-from . import backend_excel    # noqa: F401
-from . import backend_xml      # noqa: F401
 
 # Re-export registry helpers
 from .registry import (

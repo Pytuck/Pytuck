@@ -48,3 +48,25 @@ def test_pytuck_default_demo_runs(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert "Pytuck 引擎演示（默认选项）" in output
     assert "配置选项: 无（使用默认设置）" in output
+
+
+def test_renpy_smoke_roundtrip(tmp_path: Path) -> None:
+    """Ren'Py 最小示例应仅依赖核心并完成持久化重开。"""
+    from examples.renpy_smoke import run_smoke
+
+    database_path = tmp_path / "renpy-smoke.pytuck"
+    first = run_smoke(database_path)
+    second = run_smoke(database_path)
+
+    assert first["launch_count"] == 1
+    assert second["launch_count"] == 2
+
+
+def test_renpy_rpy_entrypoint_documents_savedir() -> None:
+    """Ren'Py 入口应把数据库放入游戏存档目录。"""
+    content = Path("examples/renpy_demo.rpy").read_text(encoding="utf-8")
+
+    assert "Path(config.savedir)" in content
+    assert "run_smoke" in content
+    assert 'pytuck_smoke_result["launch_count"]' in content
+    assert "[pytuck_launch_count]" in content

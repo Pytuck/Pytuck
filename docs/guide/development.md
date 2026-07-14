@@ -49,7 +49,7 @@ uv sync --extra dev
 
 # 运行测试或示例
 uv run pytest tests/ -v
-uv run python examples/sqlalchemy20_api_demo.py
+uv run python examples/session_api_demo.py
 ```
 
 ## 打包与发布

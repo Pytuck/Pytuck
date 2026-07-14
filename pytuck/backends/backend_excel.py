@@ -51,7 +51,7 @@ class ExcelBackend(StorageBackend):
             file_path: Excel 文件路径
             options: Excel 后端配置选项
         """
-        assert isinstance(options, ExcelBackendOptions), "options must be an instance of ExcelBackendOptions"
+        self._require_options_type(options, ExcelBackendOptions)
         super().__init__(file_path, options)
         # 类型安全：将 options 转为具体的 ExcelBackendOptions 类型
         self.options: ExcelBackendOptions = options

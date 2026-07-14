@@ -41,9 +41,7 @@ class DuckDBBackend(StorageBackend):
             file_path: DuckDB 数据库文件路径
             options: DuckDB 后端配置选项
         """
-        assert isinstance(options, DuckdbBackendOptions), (
-            'options must be an instance of DuckdbBackendOptions'
-        )
+        self._require_options_type(options, DuckdbBackendOptions)
         super().__init__(file_path, options)
         self.options: DuckdbBackendOptions = options
         self._use_native_sql: bool = options.use_native_sql
